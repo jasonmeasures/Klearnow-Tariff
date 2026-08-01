@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img">
+  <rect width="512" height="512" rx="96" fill="#013A56"/>
+  <rect x="56" y="56" width="400" height="400" rx="72" fill="#003F5B"/>
+  <circle cx="360" cy="160" r="72" fill="#F69000"/>
+  <text x="96" y="310" font-family="Arial Black, Arial, sans-serif" font-size="140" font-weight="800" fill="#FFFFFF">KN</text>
+  <text x="96" y="380" font-family="Arial, sans-serif" font-size="42" font-weight="600" fill="#B0C3CC" letter-spacing="6">TARIFF</text>
+</svg>

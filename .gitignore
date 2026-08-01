@@ -1,0 +1,27 @@
+# Dependencies & builds
+node_modules/
+dist/
+.venv/
+*.db
+
+# Secrets & local env
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local source workbooks (import into tariff-rules/data instead)
+*.xlsx
+*.xls
+!**/fixtures/**/*.xlsx
+
+# Uploads / runtime
+uploads/
+*.log
+.cache/

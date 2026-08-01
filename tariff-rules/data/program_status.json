@@ -1,0 +1,64 @@
+{
+  "version": "1.0.0",
+  "as_of": "2026-07-31",
+  "programs": [
+    {
+      "id": "IEEPA",
+      "ch99_family": "9903.01.xx",
+      "status": "STRUCK_DOWN",
+      "detail": "Supreme Court held 2026-02-20 that IEEPA does not authorize tariffs. Entire 9903.01.xx layer eliminated prospectively, including the 9903.01.33 auto-parts carve-out. Ruling did not touch Section 232 or Section 301.",
+      "compute": false
+    },
+    {
+      "id": "SEC_122",
+      "ch99_family": "9903.03.01 (as 122 surcharge)",
+      "status": "SUNSET",
+      "detail": "10% global surcharge expired by operation of law 12:01 a.m. 2026-07-24 (150 days after effect). No extension legislation. 301-FL turned on the same instant — 301-FL is the functional replacement, not an addition.",
+      "compute": false
+    },
+    {
+      "id": "SEC_301_FL",
+      "ch99_family": "9903.05.xx",
+      "status": "ACTIVE",
+      "detail": "Section 301 Forced Labor, CSMS #69326983, effective 2026-07-24. No sunset. Mutually exclusive with Section 232 autos/parts — 232 wins via 9903.05.90 suppression.",
+      "compute": true
+    },
+    {
+      "id": "SEC_232_AUTOS",
+      "ch99_family": "9903.94.xx (per 2026-07-27 framing) / 9903.74.xx exclusions",
+      "status": "ACTIVE",
+      "detail": "Proclamation 10908. Unaffected by IEEPA ruling. Japan: col-1 under 15% topped up to 15% (9903.94.43), 15% on Ch.99 line, zero on Ch.1-97 line. Annex is 10-digit specific — chapter-level triage is NOT a determination. 232 auto-part status is the master switch for the whole stack.",
+      "compute": true
+    },
+    {
+      "id": "SEC_232_METALS",
+      "ch99_family": "9903.03.xx / 9903.85.xx",
+      "status": "ACTIVE",
+      "detail": "Steel/aluminum. Reported on separate entry line against metal-content value; excluded from parts TOTAL. Precedence vs 232 autos on Ch.73 derivatives: CONFLICTING GUIDANCE — open with Marek/Vantage Point.",
+      "compute": true,
+      "compute_caveat": "Do not fold into parts TOTAL"
+    },
+    {
+      "id": "SEC_301_CHINA_LEGACY",
+      "ch99_family": "9903.88.xx",
+      "status": "ACTIVE",
+      "detail": "Legacy China 301 lists. NOT suppressed by 232 — both report, 301 first.",
+      "compute": true
+    },
+    {
+      "id": "SEC_301_BRAZIL",
+      "ch99_family": "TBC",
+      "status": "ACTIVE_HEADING_TBC",
+      "detail": "Additional 25% effective 2026-07-22 following Section 301 investigation. Ch.99 heading and product scope not confirmed.",
+      "compute": false
+    },
+    {
+      "id": "TRADE_DEALS",
+      "ch99_family": "9903.94.43/.45/.55/.63 (+ unassigned .33/.53/.65/.67/.69)",
+      "status": "ACTIVE_MECHANIC_TBC",
+      "detail": "JP/EU/KR 15% headings confirmed at rate level. MFN cap mechanic (zeroed vs conditional) unresolved. KR/TW heading assignment unresolved.",
+      "compute": false,
+      "compute_caveat": "Rate known; do not compute total duty until MFN_CAP_RULE resolved"
+    }
+  ]
+}

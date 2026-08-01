@@ -1,0 +1,1729 @@
+"use strict";
+/* ==========================================================================
+   Tariff Rules Engine — browser app
+   No build step, no framework, no browser storage. State lives in memory for
+   the session. Every number on screen comes from the engine; this file holds
+   no rule logic of its own, by design.
+   ========================================================================== */
+
+const KEY = new URLSearchParams(location.search).get("key") || "dev-internal";
+
+const S = {
+  me: null, pack: null, flags: [], programs: [], snapshots: [],
+  lines: [], seq: 0, last: null, rules: [], selectedRule: null,
+  parsed: null, parsedKind: null,
+  engines: { auto: "Auto-parts stacking + 301-FL by COO", ch99: "Ch99 reciprocal / IEEPA pack" },
+  engine: "auto",
+  scenarios: { A: null, B: null },
+};
+
+const ENGINE_TITLE = {
+  auto: "Auto stack",
+  ch99: "Ch99 reciprocal",
+};
+
+const PROGRAM_COLOR = {
+  s301: "var(--color-blue-500)", s301fl: "var(--color-indigo-500)",
+  s232: "var(--color-teal-500)", s122: "var(--color-purple-500)",
+  ieepa: "var(--color-cyan-500)", s201: "var(--color-pink-500)",
+  ch99: "var(--color-blue-sapphire-500)", base: "var(--color-blue-gray-400)",
+};
+const PROGRAM_NAME = {
+  s301: "Section 301", s301fl: "Section 301 forced labor", s232: "Section 232",
+  s122: "Section 122", ieepa: "IEEPA", s201: "Section 201",
+  ch99: "Ch99 reciprocal", base: "Column 1",
+};
+
+/* ---------------------------------------------------------------- helpers */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = v => {
+  const n = Number(v);
+  return Number.isFinite(n)
+    ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
+};
+const pct = v => Number.isFinite(Number(v))
+  ? String(Number(v).toFixed(4)).replace(/0+$/, "").replace(/\.$/, "") : "—";
+const dshort = v => v ? String(v).slice(0, 10) : "—";
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { "Content-Type": "application/json", "X-API-Key": KEY, ...(opts.headers || {}) },
+  });
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
+  if (!res.ok) {
+    let d = data && (data.detail ?? data.error ?? data.message);
+    if (Array.isArray(d)) d = d.map(x => `${(x.loc || []).join(".")}: ${x.msg}`).join("; ");
+    else if (d && typeof d === "object") d = JSON.stringify(d);
+    throw new Error(d || `${res.status} ${res.statusText}`);
+  }
+  return data;
+}
+
+function banner(target, kind, title, msg) {
+  $(target).innerHTML = kind
+    ? `<div class="banner ${kind}"><b>${esc(title)}</b>${esc(msg || "")}</div>` : "";
+}
+
+/* ---------------------------------------------------------------- routing */
+function show(view) {
+  $$(".view").forEach(v => v.classList.toggle("hide", v.id !== "view-" + view));
+  $$("nav.side button").forEach(b =>
+    b.dataset.view === view ? b.setAttribute("aria-current", "page")
+                            : b.removeAttribute("aria-current"));
+  if (view === "rules") loadRules();
+  if (view === "insights") loadInsights();
+  if (view === "history") loadSnapshots();
+  if (view === "reference") loadReference();
+  if (view === "upload") renderUploadHelp();
+  if (view === "lookup") initLookup();
+}
+$$("nav.side button").forEach(b => b.onclick = () => show(b.dataset.view));
+$("#gotoaudit").onclick = () => show("calc");
+
+/* ================================================================ BOOT */
+async function boot() {
+  try {
+    const h = await api("/v1/health");
+    S.pack = h.rulepack;
+    if (h.engines && typeof h.engines === "object") S.engines = h.engines;
+    $("#packtext").innerHTML =
+      `pack ${esc(h.rulepack.version)} &middot; ${h.rulepack.rules} rules ` +
+      `<code>${esc((h.rulepack.hash || "").slice(0, 19))}…</code>`;
+    $("#nav-rules").textContent = h.rulepack.rules;
+  } catch (e) {
+    $("#packdot").classList.add("bad");
+    $("#packtext").textContent = "engine unreachable";
+    banner("#calcbanner", "err", "Cannot reach the engine",
+      e.message + " — start it with: cd backend && npm run dev");
+  }
+  renderEnginePicker();
+  renderScenarioSlots();
+  try {
+    S.me = await api("/v1/me");
+    $("#whochip").hidden = false;
+    const roles = [S.me.can.write_rules && "author", S.me.can.read_rules && "read rules",
+                   S.me.can.calculate && "calculate"].filter(Boolean).join(" · ");
+    $("#whochip").innerHTML = `${esc(S.me.tenant_id)} <span class="cap"
+      style="color:var(--color-primary-100)">${esc(roles || "no access")}</span>`;
+    applyScopes();
+  } catch { /* auth disabled or anonymous */ }
+  try { S.flags = (await api("/v1/reference/claim-flags")).flags || []; } catch { S.flags = []; }
+  try {
+    const p = await api("/v1/programs");
+    S.programs = p.evaluation_order.map(id => ({ id, ...(p.programs[id] || {}) }));
+    if (p.engines && typeof p.engines === "object") {
+      S.engines = p.engines;
+      renderEnginePicker();
+    }
+    $("#f-program").innerHTML = '<option value="">All</option>' +
+      S.programs.map(p => `<option value="${esc(p.id)}">${esc(p.id)} — ${esc(p.label || "")}</option>`).join("");
+  } catch { /* no scope */ }
+  if (!S.lines.length) addLine();
+  initQuickCheck();
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+}
+
+function renderEnginePicker() {
+  const grid = $("#enginegrid");
+  if (!grid) return;
+  const order = ["auto", "ch99"].filter(id => S.engines[id] != null);
+  const ids = order.length ? order : Object.keys(S.engines);
+  grid.innerHTML = ids.map(id => {
+    const checked = S.engine === id ? "checked" : "";
+    const title = ENGINE_TITLE[id] || id;
+    return `<label class="engine-opt">
+      <input type="radio" name="engine" value="${esc(id)}" ${checked} />
+      <span class="eng-title">${esc(title)}</span>
+      <p class="eng-desc">${esc(S.engines[id] || "")}</p>
+    </label>`;
+  }).join("");
+  grid.querySelectorAll('input[name="engine"]').forEach(inp => {
+    inp.onchange = () => {
+      S.engine = inp.value;
+      syncEngineChrome();
+    };
+  });
+  syncEngineChrome();
+}
+
+function syncEngineChrome() {
+  const title = ENGINE_TITLE[S.engine] || S.engine;
+  $("#enginehint").textContent = title;
+  const audit = $("#auditbtn");
+  if (audit) {
+    const ch99 = S.engine === "ch99";
+    audit.disabled = ch99 || !S.lines.some(l => (l.filed_ch99 || "").trim());
+    audit.title = ch99
+      ? "Audit as filed is available on the Auto stack engine"
+      : "";
+  }
+  const note = $("#enginenote");
+  if (note && S.engine === "ch99") {
+    note.innerHTML = `<b>Ch99</b> applies the reciprocal / IEEPA country pack. Filed-code audit
+      stays on the <b>Auto</b> engine — switch back to audit Chapter&nbsp;99 filings against the
+      auto-parts stack.`;
+  } else if (note) {
+    note.innerHTML = `<b>Auto</b> stacks 301 / 301-FL / 232 for auto-parts style entries.
+      <b>Ch99</b> runs the reciprocal / IEEPA country pack. They answer different questions —
+      use scenario compare when you need both.`;
+  }
+}
+
+function applyScopes() {
+  const can = S.me.can;
+  if (!can.read_rules) {
+    ["rules", "upload", "history", "insights"].forEach(v => {
+      const b = document.querySelector(`nav.side button[data-view="${v}"]`);
+      if (b) b.classList.add("hide");
+    });
+    const g = $$("nav.side .navgroup")[1];
+    if (g) g.classList.add("hide");
+  }
+  // v1 pack is file-authored — publish/upload are disabled even for author keys
+  $("#publishcard").hidden = true;
+  if (can.read_rules) {
+    banner("#rulesbanner", "info", "Live pack + MCP",
+      "Browse the seeded pack. Hot-update 301-FL via PUT /v1/admin/s301fl/countries/{iso2} or the MCP server (mcp/) — no rebuild. Full file edits still live in tariff-rules/data/.");
+    banner("#uploadbanner", "info", "Upload disabled in v1",
+      "Baseline HTS: re-import with npm run import:hts, or GET /v1/hts/{code}. Bulk upload UI lands later.");
+    banner("#historybanner", "info", "Single seeded snapshot",
+      "The active snapshot is the pack on disk (hash refreshes on admin reload). Activate/publish UI disabled in v1.");
+  }
+  ["uploadcommit", "uploadpreview", "filepick", "uploadbox", "dopublish", "runvalidate"].forEach(id => {
+    const el = $("#" + id);
+    if (!el) return;
+    if (id === "runvalidate") return; // validate still useful
+    el.disabled = true;
+  });
+  if (!can.write_rules) {
+    const el = $("#runvalidate"); if (el) el.disabled = true;
+  }
+}
+
+/* ================================================================ QUICK CHECK */
+function initQuickCheck() {
+  const d = $("#qc-date");
+  if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+  const hts = $("#qc-hts");
+  if (hts) {
+    let t = null;
+    hts.addEventListener("input", () => {
+      clearTimeout(t);
+      t = setTimeout(previewHtsMeta, 350);
+    });
+  }
+}
+
+async function previewHtsMeta() {
+  const el = $("#qc-htsmeta");
+  const hts = ($("#qc-hts")?.value || "").trim();
+  if (!el) return;
+  if (!hts || hts.replace(/\D/g, "").length < 6) { el.textContent = ""; return; }
+  const asOf = $("#qc-date")?.value || new Date().toISOString().slice(0, 10);
+  try {
+    const r = await api(`/v1/hts/${encodeURIComponent(hts)}?as_of=${encodeURIComponent(asOf)}`);
+    const pct = Number(r.col1_pct);
+    const shown = pct > 0 && pct < 1 ? pct * 100 : pct;
+    el.innerHTML = `Column 1 <b class="mono">${esc(String(shown))}%</b>` +
+      (r.desc ? ` — ${esc(r.desc)}` : "") +
+      ` <span class="cap">(${esc(r.start)} → ${esc(r.end)})</span>`;
+  } catch {
+    el.textContent = "No Column-1 row for this HTS in the baseline table.";
+  }
+}
+
+function applyQuickToLines() {
+  const hts = ($("#qc-hts").value || "").trim();
+  const coo = ($("#qc-coo").value || "").trim().toUpperCase();
+  const value = ($("#qc-value").value || "").trim();
+  const date = $("#qc-date").value || new Date().toISOString().slice(0, 10);
+  const flags = {};
+  if ($("#qc-list3")?.checked) flags.s301_list_3 = true;
+  if ($("#qc-232")?.checked) flags.s232_auto_part = true;
+  S.engine = "auto";
+  const radio = document.querySelector('input[name="engine"][value="auto"]');
+  if (radio) radio.checked = true;
+  syncEngineChrome();
+  S.lines = [blankLine({
+    hts, coo, entered_value: value, entry_date: date, release_date: date, flags,
+  })];
+  renderLines();
+}
+
+async function runQuickCheck() {
+  applyQuickToLines();
+  const bad = [];
+  if (!($("#qc-hts").value || "").trim()) bad.push("HTS");
+  if (!($("#qc-coo").value || "").trim()) bad.push("origin");
+  if (!($("#qc-value").value || "").trim()) bad.push("entered value");
+  if (bad.length) {
+    banner("#calcbanner", "err", "Need a few fields", bad.join(", ") + " required for a quick check.");
+    return;
+  }
+  await run("assess");
+  previewHtsMeta();
+}
+
+const qcRun = $("#qc-run");
+if (qcRun) qcRun.onclick = () => runQuickCheck();
+const qcEx = $("#qc-example");
+if (qcEx) qcEx.onclick = () => {
+  $("#qc-hts").value = "6203.42.4010";
+  $("#qc-coo").value = "VN";
+  $("#qc-value").value = "25000";
+  $("#qc-date").value = "2026-07-25";
+  $("#qc-list3").checked = false;
+  $("#qc-232").checked = false;
+  previewHtsMeta();
+  runQuickCheck();
+};
+const qcCn = $("#qc-example-cn");
+if (qcCn) qcCn.onclick = () => {
+  $("#qc-hts").value = "8708.10.3050";
+  $("#qc-coo").value = "CN";
+  $("#qc-value").value = "10000";
+  $("#qc-date").value = "2026-07-25";
+  $("#qc-list3").checked = true;
+  $("#qc-232").checked = true;
+  previewHtsMeta();
+  runQuickCheck();
+};
+
+/* ================================================================ CALCULATOR */
+function blankLine(over = {}) {
+  const today = new Date().toISOString().slice(0, 10);
+  return Object.assign({
+    _id: ++S.seq, _open: false, line_id: "", hts: "", coo: "", entered_value: "",
+    col1_rate_pct: "", entry_date: today, release_date: today, it_date: "", loaded_date: "",
+    warehouse_withdrawal_date: "", entry_type: "CONSUMPTION", metal_content_value: "",
+    country_of_melt_pour: "", ch98_provision: "", ch98_us_content_value: "",
+    quantity: "", quantity_uom: "", net_weight_kg: "", filed_ch99: "",
+    filed_duty_total: "", flags: {},
+  }, over);
+}
+const addLine = (over = {}) => { S.lines.push(blankLine(over)); renderLines(); };
+
+function renderLines() {
+  const tb = $("#linebody");
+  tb.innerHTML = "";
+  S.lines.forEach((L, i) => {
+    const n = Object.values(L.flags).filter(Boolean).length;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><button class="disclose" data-act="toggle" data-i="${i}"
+            aria-expanded="${L._open}" title="More fields">${L._open ? "&minus;" : "+"}</button></td>
+      <td><input type="text" class="mono" data-f="hts" data-i="${i}" value="${esc(L.hts)}"
+            placeholder="6203.42.4010" spellcheck="false" /></td>
+      <td><input type="text" class="mono" data-f="coo" data-i="${i}" value="${esc(L.coo)}"
+            placeholder="CN" maxlength="2" style="text-transform:uppercase" spellcheck="false" /></td>
+      <td><input type="text" class="num" data-f="entered_value" data-i="${i}"
+            value="${esc(L.entered_value)}" placeholder="10000" inputmode="decimal" /></td>
+      <td><input type="text" class="num" data-f="col1_rate_pct" data-i="${i}"
+            value="${esc(L.col1_rate_pct)}" placeholder="2.5" inputmode="decimal" /></td>
+      <td><input type="date" data-f="entry_date" data-i="${i}" value="${esc(L.entry_date)}" /></td>
+      <td><span class="claimcount ${n ? "" : "none"}">${n ? n + " set" : "none"}</span></td>
+      <td><button class="btn-danger" data-act="del" data-i="${i}"
+            aria-label="Remove line ${i + 1}">&times;</button></td>`;
+    tb.appendChild(tr);
+    if (L._open) tb.appendChild(lineDetail(L, i));
+  });
+  $("#linecount").textContent = S.lines.length === 1 ? "1 line" : S.lines.length + " lines";
+  $("#assess").disabled = !S.lines.length;
+  const runBoth = $("#runboth");
+  if (runBoth) runBoth.disabled = !S.lines.length;
+  syncEngineChrome();
+}
+
+function lineDetail(L, i) {
+  const tr = document.createElement("tr");
+  tr.className = "detail";
+  const td = document.createElement("td");
+  td.colSpan = 8;
+  const groups = {
+    annex_membership: "Annex membership — set from the USTR or 232 annex",
+    fta: "Trade-agreement qualification",
+    exclusion: "Granted exclusions",
+    claim: "Importer claims",
+  };
+  let claims = "";
+  for (const [kind, title] of Object.entries(groups)) {
+    const items = S.flags.filter(f => f.kind === kind);
+    if (!items.length) continue;
+    claims += `<fieldset class="claims"><legend>${esc(title)}</legend><div class="claimgrid">` +
+      items.map(f => `<label class="check" title="${esc((f.headings || []).join(", "))}">
+        <input type="checkbox" data-flag="${esc(f.flag)}" data-i="${i}"
+          ${L.flags[f.flag] ? "checked" : ""} />
+        <span>${esc(f.label)}<br><span class="flagname">${esc(f.flag)}</span></span></label>`).join("") +
+      `</div></fieldset>`;
+  }
+  const fld = (lab, f, extra = "", cls = "") =>
+    `<div class="field"><label class="label">${lab}</label>
+      <input type="${extra.includes("date") ? "date" : "text"}" class="${cls}"
+        data-f="${f}" data-i="${i}" value="${esc(L[f])}" ${extra.replace("date", "")} /></div>`;
+  td.innerHTML = `
+    <div class="grid4">
+      ${fld("Line reference", "line_id", 'placeholder="auto"')}
+      <div class="field"><label class="label">Entry type</label>
+        <select data-f="entry_type" data-i="${i}">${
+          ["CONSUMPTION", "IT", "WAREHOUSE", "OVERCARRIED", "FTZ"].map(v =>
+            `<option value="${v}" ${L.entry_type === v ? "selected" : ""}>${v}</option>`).join("")
+        }</select></div>
+      ${fld("Release date", "release_date", "date")}
+      ${fld("IT date", "it_date", "date")}
+      ${fld("Warehouse withdrawal", "warehouse_withdrawal_date", "date")}
+      ${fld("Loaded on final mode", "loaded_date", "date")}
+      ${fld("Metal content value", "metal_content_value", 'inputmode="decimal"', "num")}
+      ${fld("Country of melt &amp; pour", "country_of_melt_pour", 'maxlength="2" style="text-transform:uppercase"', "mono")}
+      ${fld("Chapter 98 provision", "ch98_provision", 'placeholder="9802.00.80"', "mono")}
+      ${fld("US content value", "ch98_us_content_value", 'inputmode="decimal"', "num")}
+      ${fld("Net weight (kg)", "net_weight_kg", 'inputmode="decimal"', "num")}
+      ${fld("Quantity", "quantity", 'inputmode="decimal"', "num")}
+    </div>
+    <div class="grid2">
+      <div class="field"><label class="label">Chapter 99 codes as filed</label>
+        <input type="text" class="mono" data-f="filed_ch99" data-i="${i}"
+          value="${esc(L.filed_ch99)}" placeholder="9903.88.03 9903.94.05" />
+        <span class="cap">Space or comma separated. Enables <b>Audit as filed</b>.</span></div>
+      ${fld("Duty as filed", "filed_duty_total", 'inputmode="decimal"', "num")}
+    </div>
+    ${claims || '<p class="cap">No claim flags in the current rule pack.</p>'}`;
+  tr.appendChild(td);
+  return tr;
+}
+
+$("#linebody").addEventListener("input", e => {
+  const t = e.target, i = t.dataset.i;
+  if (i === undefined) return;
+  if (t.dataset.f) {
+    let v = t.value;
+    if (["coo", "country_of_melt_pour"].includes(t.dataset.f)) v = v.toUpperCase();
+    S.lines[i][t.dataset.f] = v;
+    if (v !== t.value) t.value = v;
+  } else if (t.dataset.flag) {
+    S.lines[i].flags[t.dataset.flag] = t.checked;
+    const n = Object.values(S.lines[i].flags).filter(Boolean).length;
+    const cell = $(`.disclose[data-i="${i}"]`)?.closest("tr")?.querySelector(".claimcount");
+    if (cell) { cell.textContent = n ? n + " set" : "none"; cell.classList.toggle("none", !n); }
+  }
+});
+$("#linebody").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const i = Number(b.dataset.i);
+  if (b.dataset.act === "toggle") { S.lines[i]._open = !S.lines[i]._open; renderLines(); }
+  if (b.dataset.act === "del") { S.lines.splice(i, 1); renderLines(); }
+});
+
+$("#addline").onclick = () => addLine();
+$("#clearall").onclick = () => {
+  S.lines = []; addLine();
+  $("#results").innerHTML = '<div class="empty"><h4>Cleared</h4></div>';
+  $("#exportcsv").hidden = $("#copyall").hidden = true;
+  banner("#calcbanner", null);
+};
+$("#togglepaste").onclick = () => {
+  const w = $("#pastewrap"); w.hidden = !w.hidden;
+  if (!w.hidden) $("#pastebox").focus();
+};
+$("#loadsample").onclick = () => {
+  S.lines = [];
+  [
+    { line_id: "1", hts: "8708.29.5160", coo: "CN", entered_value: "10000", col1_rate_pct: "2.5",
+      entry_date: "2026-07-25", release_date: "2026-07-25",
+      flags: { s301_list_3: true, s232_auto_part: true },
+      filed_ch99: "9903.88.03 9903.94.05 9903.05.90" },
+    { line_id: "2", hts: "8708.29.5160", coo: "JP", entered_value: "10000", col1_rate_pct: "2.5",
+      entry_date: "2026-07-25", release_date: "2026-07-25",
+      flags: { s232_auto_part: true },
+      filed_ch99: "9903.94.43 9903.05.90" },
+    { line_id: "3", hts: "8708.29.5160", coo: "JP", entered_value: "10000", col1_rate_pct: "2.5",
+      entry_date: "2026-07-25", release_date: "2026-07-25",
+      flags: {},
+      filed_ch99: "9903.05.49" },
+    { line_id: "4", hts: "7326.90.8688", coo: "DE", entered_value: "10000", col1_rate_pct: "2.9",
+      entry_date: "2026-07-25", release_date: "2026-07-25", metal_content_value: "4000",
+      country_of_melt_pour: "DE" },
+  ].forEach(o => S.lines.push(blankLine(o)));
+  $("#mode").value = "OCEAN";
+  renderLines();
+};
+
+const LINE_COLS = ["line_id", "hts", "coo", "entered_value", "col1_rate_pct", "entry_date",
+  "release_date", "it_date", "loaded_date", "warehouse_withdrawal_date", "metal_content_value",
+  "country_of_melt_pour", "ch98_provision", "ch98_us_content_value", "net_weight_kg",
+  "quantity", "filed_ch99", "filed_duty_total", "flags"];
+
+$("#doparse").onclick = () => {
+  const raw = $("#pastebox").value.trim();
+  if (!raw) return;
+  const rows = raw.split(/\r?\n/).filter(r => r.trim());
+  const split = r => r.includes("\t") ? r.split("\t") : r.split(",");
+  let header = null;
+  const first = split(rows[0]).map(c => c.trim().toLowerCase());
+  if (first.some(c => LINE_COLS.includes(c))) { header = first; rows.shift(); }
+  let added = 0, skipped = 0;
+  rows.forEach(r => {
+    const cells = split(r).map(c => c.trim());
+    const o = {};
+    if (header) header.forEach((h, i) => { if (LINE_COLS.includes(h)) o[h] = cells[i] ?? ""; });
+    else ["hts", "coo", "entered_value", "col1_rate_pct", "entry_date", "flags"]
+      .forEach((h, i) => o[h] = cells[i] ?? "");
+    if (!o.hts || !o.coo) { skipped++; return; }
+    const fl = o.flags || ""; delete o.flags; o.flags = {};
+    fl.split(/[;\s,]+/).filter(Boolean).forEach(f => o.flags[f] = true);
+    o.coo = o.coo.toUpperCase();
+    if (!o.entry_date) o.entry_date = new Date().toISOString().slice(0, 10);
+    if (!o.release_date) o.release_date = o.entry_date;
+    S.lines.push(blankLine(o)); added++;
+  });
+  renderLines();
+  $("#pastebox").value = ""; $("#pastewrap").hidden = true;
+  banner("#calcbanner", skipped ? "warn" : "ok",
+    `${added} row${added === 1 ? "" : "s"} added`,
+    skipped ? `${skipped} skipped for missing an HTS or origin.` : "");
+};
+
+function payload() {
+  const num = v => (v === "" || v == null) ? null : String(v).replace(/[$,\s]/g, "");
+  const lines = S.lines.map((L, i) => {
+    const o = {
+      line_id: L.line_id || String(i + 1), hts: L.hts.trim(),
+      coo: L.coo.trim().toUpperCase(), entered_value: num(L.entered_value) ?? "0",
+      entry_type: L.entry_type || "CONSUMPTION",
+      flags: Object.fromEntries(Object.entries(L.flags).filter(([, v]) => v)),
+    };
+    ["col1_rate_pct", "metal_content_value", "ch98_us_content_value", "net_weight_kg",
+     "quantity", "filed_duty_total"].forEach(k => {
+      const v = num(L[k]); if (v) o[k] = v;
+    });
+    ["entry_date", "release_date", "it_date", "loaded_date", "warehouse_withdrawal_date"]
+      .forEach(k => { if (L[k]) o[k] = L[k]; });
+    ["country_of_melt_pour", "ch98_provision"].forEach(k => {
+      if ((L[k] || "").trim()) o[k] = L[k].trim();
+    });
+    const filed = (L.filed_ch99 || "").split(/[;\s,]+/).filter(Boolean);
+    if (filed.length) o.filed_ch99 = filed;
+    return o;
+  });
+  const body = { lines, formal_entry: $("#formal").value === "1",
+                 mode_of_transport: $("#mode").value || null,
+                 engine: S.engine };
+  if ($("#entryno").value.trim()) body.entry_number = $("#entryno").value.trim();
+  if ($("#knowledge").value) body.knowledge_date = $("#knowledge").value + "T00:00:00Z";
+  return body;
+}
+
+function validateLines() {
+  const bad = [];
+  S.lines.forEach((L, i) => {
+    const n = L.line_id || (i + 1);
+    if (!L.hts.trim()) bad.push(`Line ${n}: no HTS`);
+    if (!L.coo.trim()) bad.push(`Line ${n}: no origin`);
+    if (!String(L.entered_value).trim()) bad.push(`Line ${n}: no entered value`);
+    if (!L.entry_date && !L.release_date && !L.it_date && !L.warehouse_withdrawal_date)
+      bad.push(`Line ${n}: needs a date — the rate-determination date selects the rules`);
+  });
+  return bad;
+}
+
+async function run(mode) {
+  const bad = validateLines();
+  if (bad.length) { banner("#calcbanner", "err", "Fix these first", bad.join(" · ")); return; }
+  if (mode === "audit" && S.engine === "ch99") {
+    banner("#calcbanner", "err", "Switch rule set",
+      "Audit as filed uses the Auto stack. Select Auto, then try again.");
+    return;
+  }
+  banner("#calcbanner", null);
+  const btn = mode === "audit" ? $("#auditbtn") : $("#assess");
+  const was = btn.textContent;
+  btn.disabled = true; btn.innerHTML = '<span class="busy"></span>';
+  try {
+    const path = mode === "audit" ? "/v1/entries:audit" : "/v1/entries:assess";
+    S.last = await api(path, { method: "POST", body: JSON.stringify(payload()) });
+    S.last._mode = mode;
+    S.last._engine = mode === "audit" ? "auto" : S.engine;
+    renderResults(S.last);
+    updateScenarioActions();
+  } catch (e) {
+    banner("#calcbanner", "err", mode === "audit" ? "Audit failed" : "Assessment failed", e.message);
+  } finally { btn.disabled = false; btn.textContent = was; renderLines(); syncEngineChrome(); }
+}
+$("#assess").onclick = () => run("assess");
+$("#auditbtn").onclick = () => run("audit");
+
+function engineLabel(id) {
+  return ENGINE_TITLE[id] || id || "—";
+}
+
+function scenarioStamp(R) {
+  const duty = money(R.totals?.duty);
+  const n = (R.lines || []).length;
+  const eng = engineLabel(R._engine);
+  const mode = R._mode === "audit" ? "audit" : "assess";
+  return `${eng} · ${mode} · ${n} line${n === 1 ? "" : "s"} · $${duty}`;
+}
+
+function saveScenario(slot) {
+  if (!S.last) return;
+  S.scenarios[slot] = {
+    at: new Date().toISOString(),
+    engine: S.last._engine || S.engine,
+    mode: S.last._mode || "assess",
+    result: structuredClone(S.last),
+  };
+  renderScenarioSlots();
+  banner("#calcbanner", "ok", `Pinned to ${slot}`, scenarioStamp(S.last));
+}
+
+function showScenario(slot) {
+  const sc = S.scenarios[slot];
+  if (!sc) return;
+  S.last = structuredClone(sc.result);
+  S.last._engine = sc.engine;
+  S.last._mode = sc.mode;
+  renderResults(S.last);
+  updateScenarioActions();
+  banner("#calcbanner", null);
+}
+
+function renderScenarioSlots() {
+  ["A", "B"].forEach(slot => {
+    const sc = S.scenarios[slot];
+    const el = document.querySelector(`.scenario-slot[data-slot="${slot}"]`);
+    const label = $(`#slot${slot}-label`);
+    const meta = $(`#slot${slot}-meta`);
+    const showBtn = $(`#show${slot}`);
+    if (!label) return;
+    if (!sc) {
+      label.textContent = "Empty";
+      meta.textContent = slot === "A"
+        ? "Save an assessment to pin it here."
+        : "Save another run (or a second engine) here.";
+      el?.classList.remove("filled");
+      if (showBtn) showBtn.disabled = true;
+    } else {
+      label.textContent = engineLabel(sc.engine);
+      const when = sc.at ? new Date(sc.at).toLocaleString() : "";
+      meta.textContent = `${scenarioStamp(sc.result)}${when ? " · " + when : ""}`;
+      el?.classList.add("filled");
+      if (showBtn) showBtn.disabled = false;
+    }
+  });
+  const both = S.scenarios.A && S.scenarios.B;
+  $("#compareAB").disabled = !both;
+  updateScenarioActions();
+}
+
+function updateScenarioActions() {
+  const has = !!S.last;
+  $("#saveA").disabled = !has;
+  $("#saveB").disabled = !has;
+}
+
+function deltaClass(n) {
+  if (!Number.isFinite(n) || Math.abs(n) < 0.005) return "flat";
+  return n > 0 ? "up" : "down";
+}
+
+function deltaFmt(n) {
+  if (!Number.isFinite(n)) return "—";
+  if (Math.abs(n) < 0.005) return "$0.00";
+  const sign = n > 0 ? "+" : "−";
+  return `${sign}$${money(Math.abs(n))}`;
+}
+
+function renderCompare() {
+  const A = S.scenarios.A?.result;
+  const B = S.scenarios.B?.result;
+  if (!A || !B) return;
+  $("#resulttitle").textContent = "Scenario compare";
+  $("#exportcsv").hidden = $("#copyall").hidden = true;
+  const engChip = $("#resultengine");
+  engChip.hidden = false;
+  engChip.textContent = `${engineLabel(S.scenarios.A.engine)} ↔ ${engineLabel(S.scenarios.B.engine)}`;
+
+  const dutyA = Number(A.totals?.duty) || 0;
+  const dutyB = Number(B.totals?.duty) || 0;
+  const dDuty = dutyB - dutyA;
+  const mapA = Object.fromEntries((A.lines || []).map(L => [String(L.line_id), L]));
+  const mapB = Object.fromEntries((B.lines || []).map(L => [String(L.line_id), L]));
+  const ids = [...new Set([...Object.keys(mapA), ...Object.keys(mapB)])];
+
+  let rows = ids.map(id => {
+    const La = mapA[id], Lb = mapB[id];
+    const da = Number(La?.totals?.duty) || 0;
+    const db = Number(Lb?.totals?.duty) || 0;
+    const dd = db - da;
+    const seqA = (La?.ch99_sequence || []).join(" → ") || "—";
+    const seqB = (Lb?.ch99_sequence || []).join(" → ") || "—";
+    const changed = Math.abs(dd) >= 0.005 || seqA !== seqB;
+    return `<tr class="${changed ? "diff" : ""}">
+      <td class="mono">${esc(id)}</td>
+      <td><span class="hts">${esc(La?.hts || Lb?.hts || "")}</span>
+        <span class="coo">${esc(La?.coo || Lb?.coo || "")}</span></td>
+      <td class="r mono">$${money(da)}</td>
+      <td class="r mono">$${money(db)}</td>
+      <td class="r"><span class="compare-delta ${deltaClass(dd)}">${deltaFmt(dd)}</span></td>
+      <td><div class="seq">A: ${esc(seqA)}</div>
+        <div class="seq">B: ${esc(seqB)}</div></td>
+    </tr>`;
+  }).join("");
+
+  $("#results").innerHTML = `<div class="compare-wrap">
+    <div class="summary">
+      <div class="stat"><div class="k">Duty A</div><div class="v">$${money(dutyA)}</div>
+        <div class="cap">${esc(engineLabel(S.scenarios.A.engine))}</div></div>
+      <div class="stat"><div class="k">Duty B</div><div class="v">$${money(dutyB)}</div>
+        <div class="cap">${esc(engineLabel(S.scenarios.B.engine))}</div></div>
+      <div class="stat"><div class="k">Δ (B − A)</div>
+        <div class="v compare-delta ${deltaClass(dDuty)}">${deltaFmt(dDuty)}</div></div>
+      <div class="stat"><div class="k">Lines</div><div class="v">${ids.length}</div></div>
+    </div>
+    <p class="cap" style="margin:var(--sp-3) 0 0">Yellow rows differ in duty or Chapter&nbsp;99
+      sequence. Use <b>Show</b> on a slot to open its full ledger.</p>
+    <table class="compare"><thead><tr>
+      <th>Line</th><th>HTS / COO</th><th class="r">Duty A</th><th class="r">Duty B</th>
+      <th class="r">Δ</th><th>Ch99 sequence</th>
+    </tr></thead><tbody>${rows || `<tr><td colspan="6" class="cap">No lines.</td></tr>`}</tbody></table>
+  </div>`;
+}
+
+async function runBothEngines() {
+  const bad = validateLines();
+  if (bad.length) { banner("#calcbanner", "err", "Fix these first", bad.join(" · ")); return; }
+  banner("#calcbanner", null);
+  const btn = $("#runboth");
+  const was = btn.textContent;
+  btn.disabled = true; btn.innerHTML = '<span class="busy"></span> both engines';
+  try {
+    const base = payload();
+    const [autoR, ch99R] = await Promise.all([
+      api("/v1/entries:assess", { method: "POST", body: JSON.stringify({ ...base, engine: "auto" }) }),
+      api("/v1/entries:assess", { method: "POST", body: JSON.stringify({ ...base, engine: "ch99" }) }),
+    ]);
+    autoR._mode = "assess"; autoR._engine = "auto";
+    ch99R._mode = "assess"; ch99R._engine = "ch99";
+    S.scenarios.A = { at: new Date().toISOString(), engine: "auto", mode: "assess", result: autoR };
+    S.scenarios.B = { at: new Date().toISOString(), engine: "ch99", mode: "assess", result: ch99R };
+    S.last = structuredClone(ch99R);
+    renderScenarioSlots();
+    renderCompare();
+    banner("#calcbanner", "ok", "Both engines assessed",
+      `Auto $${money(autoR.totals?.duty)} · Ch99 $${money(ch99R.totals?.duty)} · Δ ${deltaFmt((Number(ch99R.totals?.duty) || 0) - (Number(autoR.totals?.duty) || 0))}`);
+  } catch (e) {
+    banner("#calcbanner", "err", "Dual assess failed", e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = was;
+  }
+}
+
+$("#saveA").onclick = () => saveScenario("A");
+$("#saveB").onclick = () => saveScenario("B");
+$("#showA").onclick = () => showScenario("A");
+$("#showB").onclick = () => showScenario("B");
+$("#compareAB").onclick = () => {
+  if (!S.scenarios.A || !S.scenarios.B) return;
+  renderCompare();
+};
+$("#clearscenarios").onclick = () => {
+  S.scenarios = { A: null, B: null };
+  renderScenarioSlots();
+  banner("#calcbanner", null);
+};
+$("#runboth").onclick = () => runBothEngines();
+
+function renderResults(R) {
+  const audit = R._mode === "audit";
+  $("#resulttitle").textContent = audit ? "Audit against filed" : "Allocation";
+  $("#exportcsv").hidden = $("#copyall").hidden = false;
+  const engChip = $("#resultengine");
+  if (engChip) {
+    engChip.hidden = false;
+    engChip.textContent = engineLabel(R._engine || S.engine);
+  }
+  const lines = R.lines || [];
+  const count = sev => lines.reduce((a, l) =>
+    a + (l.diagnostics || []).filter(d => d.severity === sev).length, 0);
+  const nErr = count("ERROR"), nWarn = count("WARNING"), nInfo = count("INFO");
+
+  let html = `<div class="body" style="padding:var(--sp-4) var(--sp-4) 0">
+    <div class="summary">
+      <div class="stat"><div class="k">Duty</div><div class="v">$${money(R.totals?.duty)}</div></div>
+      <div class="stat"><div class="k">Fees</div><div class="v">$${money(R.totals?.fees ?? 0)}</div></div>
+      <div class="stat"><div class="k">Lines</div><div class="v">${lines.length}</div></div>
+      <div class="stat ${nErr ? "bad" : "good"}"><div class="k">Blocking</div>
+        <div class="v">${nErr}</div></div>
+    </div>
+    <p class="cap" style="margin:var(--sp-2) 0 0">${
+      nErr ? `<b style="color:var(--color-red-700)">${nErr} error${nErr > 1 ? "s" : ""}</b> — the duty is wrong or indeterminate until resolved. `
+           : `<b style="color:var(--color-green-700)">No errors.</b> `}${
+      nWarn ? `${nWarn} warning${nWarn > 1 ? "s" : ""} worth a look` : "No warnings"}${
+      nInfo ? `, ${nInfo} note${nInfo > 1 ? "s" : ""}` : ""}.</p>`;
+
+  if (R.entry_fees?.length) {
+    html += `<p class="cap" style="margin:var(--sp-2) 0 0">Entry-level fees, computed once then
+      pro-rated to lines: ` + R.entry_fees.map(f =>
+      `<b>${esc(f.label)}</b> $${money(f.amount)}` +
+      (f.capped ? " (at ceiling)" : f.floored ? " (at floor)" : "")).join(" &middot; ") + `</p>`;
+  }
+  html += `</div>`;
+
+  if (audit) {
+    const F = R.findings || [];
+    html += `<div style="margin-top:var(--sp-4);border-top:1px solid var(--color-blue-gray-200)">
+      <div style="padding:var(--sp-3) var(--sp-4) var(--sp-2)"><span class="eyebrow">Findings</span>
+      <span class="cap"> — net duty impact $${money(R.summary?.net_duty_impact ?? 0)}</span></div>`;
+    html += F.length ? F.map(f => `<div class="finding ${esc(f.severity)}">
+        <div class="hd"><span class="cat">${esc(f.category)}</span>
+        <span class="cap">line ${esc(f.line_id)}</span>
+        ${Number(f.duty_impact) ? `<span class="impact">$${money(f.duty_impact)}</span>` : ""}</div>
+        <div>${esc(f.message)}</div>
+        ${f.remediation ? `<div class="why"><b>Do this:</b> ${esc(f.remediation)}</div>` : ""}
+      </div>`).join("")
+      : `<div class="empty" style="padding:var(--sp-4)">
+          <b style="color:var(--color-green-700)">No findings.</b>
+          <p class="cap" style="margin:var(--sp-1) 0 0">Every required Chapter 99 code was filed and
+          none was over-applied.</p></div>`;
+    html += `</div>`;
+  }
+
+  html += lines.map(renderLedger).join("");
+  const v = R.rulepack?.rulepack_version || R.rulepack?.version || "?";
+  const h = R.rulepack?.rulepack_hash || R.rulepack?.hash || "";
+  html += `<div class="body" style="border-top:1px solid var(--color-blue-gray-200)">
+    <p class="cap" style="margin:0">Engine <b>${esc(engineLabel(R._engine || S.engine))}</b>
+    · Snapshot <b class="mono">${esc(v)}</b>
+    <span class="mono">${esc(h)}</span>. Pin this hash to reproduce the assessment exactly.</p></div>`;
+  $("#results").innerHTML = html;
+}
+
+function renderLedger(L) {
+  const layers = L.layers || [], supp = L.suppressed || [];
+  const paying = layers.filter(x => Number(x.duty_amount) > 0);
+  const total = Number(L.totals?.duty) || 0;
+  const bar = paying.length
+    ? `<div class="compbar">` + paying.map(x =>
+        `<span style="width:${(Number(x.duty_amount) / total * 100).toFixed(2)}%;background:${
+          PROGRAM_COLOR[x.program] || "var(--color-blue-gray-400)"}"
+          title="${esc(PROGRAM_NAME[x.program] || x.program)} $${money(x.duty_amount)}"></span>`
+      ).join("") + `</div><div class="complegend">` + paying.map(x =>
+        `<span><i style="background:${PROGRAM_COLOR[x.program] || "var(--color-blue-gray-400)"}"></i>${
+          esc(PROGRAM_NAME[x.program] || x.program)} $${money(x.duty_amount)}</span>`).join("") +
+      `</div>` : "";
+
+  const rows = layers.map(x => {
+    const exempt = Number(x.duty_amount) === 0 && x.ch99;
+    return `<tr class="${x.program === "base" ? "commodity" : ""}">
+      <td><span class="slot p-${esc(x.program)}">${esc(x.stack_slot)}</span></td>
+      <td>${x.ch99 ? `<span class="ch99 ${exempt ? "exempt" : ""}">${esc(x.ch99)}</span>`
+                   : `<span class="cap">commodity line</span>`}
+        <div class="why">${esc(x.label || "")}</div>
+        ${x.reason ? `<div class="why">${esc(x.reason)}</div>` : ""}
+        ${x.source_ref ? `<div class="src">${esc(x.source_ref)}</div>` : ""}</td>
+      <td class="r"><div>$${money(x.basis_amount)}</div>
+        <div class="basis">${esc(String(x.basis || "").toLowerCase().replace(/_/g, " "))}</div></td>
+      <td class="r">${esc(x.rate || "")}</td>
+      <td class="r"><b>$${money(x.duty_amount)}</b></td></tr>`;
+  }).join("");
+
+  const sup = supp.map(x => `<tr class="suppressed">
+      <td><span class="slot">${esc(x.stack_slot)}</span></td>
+      <td><span class="ch99">${esc(x.ch99 || x.rule_id)}</span><span class="tag">suppressed</span>
+        <div class="why">${esc(x.reason || "")}</div></td>
+      <td class="r">$${money(x.basis_amount)}</td><td class="r">${esc(x.rate || "")}</td>
+      <td class="r">$0.00</td></tr>`).join("");
+
+  const diags = (L.diagnostics || []).map(d => `<div class="diag ${esc(d.severity)}">
+      <span class="sev">${esc(d.severity)}</span>
+      <div><div>${esc(d.message)} <code>${esc(d.code)}</code></div>
+      ${d.remediation ? `<div class="fix"><b>Do this:</b> ${esc(d.remediation)}</div>` : ""}</div>
+    </div>`).join("");
+
+  return `<div class="lineresult">
+    <div class="head"><span class="cap">line ${esc(L.line_id)}</span>
+      <span class="hts">${esc(L.hts)}</span><span class="coo">${esc(L.coo)}</span>
+      <span class="mono cap">$${money(L.entered_value)} entered</span>
+      <span class="spacer"></span>
+      <span class="cap mono">${(L.ch99_sequence || []).join(" → ") || "no Chapter 99"}</span></div>
+    <div class="ratedate"><span>Rate-determination date</span>
+      <b>${esc(L.rate_determination_date)}</b>
+      <span class="cap">${esc(L.rate_date_basis || "")}</span></div>
+    <table class="ledger"><thead><tr><th style="width:52px">Slot</th>
+      <th>Chapter 99 / provision</th><th class="r" style="width:126px">Basis</th>
+      <th class="r" style="width:148px">Rate</th><th class="r" style="width:108px">Duty</th>
+    </tr></thead><tbody>${rows}${sup}</tbody></table>
+    ${bar}
+    <div class="totalrow">
+      <div><span class="t">Total duty</span><br><span class="amt">$${money(L.totals?.duty)}</span></div>
+      <div style="text-align:right"><span class="t">Effective rate</span><br>
+        <span class="eff">${pct(L.totals?.effective_duty_rate_pct)}%</span></div></div>
+    ${diags}</div>`;
+}
+
+$("#exportcsv").onclick = () => {
+  if (!S.last) return;
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = [["line_id", "hts", "coo", "entered_value", "rate_determination_date",
+    "ch99_sequence", "total_duty", "effective_rate_pct", "layers", "diagnostics",
+    "snapshot_version", "snapshot_hash"].join(",")];
+  (S.last.lines || []).forEach(L => rows.push([
+    L.line_id, L.hts, L.coo, L.entered_value, L.rate_determination_date,
+    (L.ch99_sequence || []).join(" "), L.totals?.duty, L.totals?.effective_duty_rate_pct,
+    (L.layers || []).map(x => `${x.ch99 || "base"}@${x.rate}=$${x.duty_amount}`).join(" | "),
+    (L.diagnostics || []).map(d => `${d.severity}:${d.code}`).join(" "),
+    S.last.rulepack?.rulepack_version || "", S.last.rulepack?.rulepack_hash || "",
+  ].map(q).join(",")));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
+  a.download = `duty-allocation-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+};
+
+$("#copyall").onclick = async () => {
+  if (!S.last) return;
+  const txt = (S.last.lines || []).map(L => [
+    `${L.hts}  ${L.coo}  $${money(L.entered_value)}  rate date ${L.rate_determination_date} (${L.rate_date_basis})`,
+    ...(L.layers || []).map(x =>
+      `  ${x.stack_slot}  ${(x.ch99 || "commodity").padEnd(12)} ${String(x.rate || "").padEnd(26)} $${money(x.duty_amount)}`),
+    ...(L.suppressed || []).map(x => `  --  ${x.ch99 || x.rule_id} SUPPRESSED — ${x.reason}`),
+    `  TOTAL $${money(L.totals?.duty)}  effective ${pct(L.totals?.effective_duty_rate_pct)}%`,
+  ].join("\n")).join("\n\n");
+  try {
+    await navigator.clipboard.writeText(txt +
+      `\nSnapshot ${S.last.rulepack?.rulepack_version} ${S.last.rulepack?.rulepack_hash}`);
+    const b = $("#copyall"); b.textContent = "Copied";
+    setTimeout(() => b.textContent = "Copy", 1400);
+  } catch { banner("#calcbanner", "err", "Could not copy", "The browser refused clipboard access."); }
+};
+
+/* ================================================================ RULES */
+async function loadRules() {
+  const p = new URLSearchParams();
+  const g = id => $(id).value.trim();
+  if (g("#f-program")) p.set("program", g("#f-program"));
+  if (g("#f-action")) p.set("action", g("#f-action"));
+  if (g("#f-status")) p.set("status", g("#f-status"));
+  if (g("#f-coo")) p.set("coo", g("#f-coo").toUpperCase());
+  if (g("#f-ch99")) p.set("ch99", g("#f-ch99"));
+  if (g("#f-q")) p.set("q", g("#f-q"));
+  p.set("limit", "400");
+  $("#rulesbody").innerHTML = `<tr><td colspan="4"><span class="busy"></span></td></tr>`;
+  try {
+    const r = await api("/v1/rules?" + p.toString());
+    S.rules = r.rules || [];
+    $("#rulesfound").textContent = `${r.count ?? S.rules.length} matching`;
+    $("#rulesbody").innerHTML = S.rules.length ? S.rules.map((x, i) => {
+      const expired = x.effective_end && new Date(x.effective_end) < new Date();
+      return `<tr class="clickable" data-i="${i}">
+        <td><b class="mono" style="font-size:.857rem">${esc(x.id)}</b>
+          <div class="cap">${esc(x.label || "")}</div>
+          <div>${x.status ? `<span class="pill ${esc(x.status)}">${esc(x.status)}</span> ` : ""}
+            ${x.confidence && x.confidence !== "VERIFIED"
+              ? `<span class="pill ${esc(x.confidence)}">${esc(x.confidence)}</span>` : ""}</div></td>
+        <td><span class="pill ${esc(x.action)}">${esc(x.action)}</span>
+          <div class="cap mono">${esc(x.program)}</div></td>
+        <td><span class="ch99">${esc(x.ch99 || "—")}</span>
+          <div class="cap"><span class="slot p-${esc(x.program)}">${esc(x.stack_slot)}</span></div></td>
+        <td class="cap mono">${dshort(x.effective_start)}<br>${
+          x.effective_end ? `${dshort(x.effective_end)} ${expired
+            ? '<span class="pill expired">ended</span>' : ""}` : "open"}</td></tr>`;
+    }).join("") : `<tr><td colspan="4" class="cap" style="padding:var(--sp-4)">
+        No rules match those filters.</td></tr>`;
+  } catch (e) {
+    $("#rulesbody").innerHTML = `<tr><td colspan="4">
+      <div class="banner err"><b>Could not load rules</b>${esc(e.message)}</div></td></tr>`;
+  }
+}
+$("#f-apply").onclick = loadRules;
+$("#f-reset").onclick = () => {
+  ["#f-program", "#f-action", "#f-status", "#f-coo", "#f-ch99", "#f-q"]
+    .forEach(id => $(id).value = "");
+  loadRules();
+};
+$("#f-q").addEventListener("keydown", e => { if (e.key === "Enter") loadRules(); });
+
+$("#rulesbody").addEventListener("click", e => {
+  const tr = e.target.closest("tr[data-i]"); if (!tr) return;
+  $$("#rulesbody tr").forEach(r => r.classList.remove("sel"));
+  tr.classList.add("sel");
+  showRule(S.rules[Number(tr.dataset.i)]);
+});
+
+function showRule(r) {
+  S.selectedRule = r;
+  $("#ruleraw").hidden = false;
+  const w = r.when || {};
+  const preds = Object.entries(w).filter(([, v]) =>
+    Array.isArray(v) ? v.length : (v !== null && v !== undefined && v !== ""));
+  const rate = r.rate || {};
+  const rateBits = Object.entries(rate).filter(([, v]) => v !== null && v !== "NONE" && v !== undefined);
+  $("#ruledetail").innerHTML = `<div class="body">
+    <div style="margin-bottom:var(--sp-3)">
+      <span class="pill ${esc(r.action)}">${esc(r.action)}</span>
+      ${r.status ? `<span class="pill ${esc(r.status)}">${esc(r.status)}</span>` : ""}
+      ${r.confidence ? `<span class="pill ${esc(r.confidence)}">${esc(r.confidence)}</span>` : ""}
+    </div>
+    <h5 class="mono" style="margin-bottom:var(--sp-1)">${esc(r.id)}</h5>
+    <p style="margin:0 0 var(--sp-3)">${esc(r.label || "")}</p>
+    <dl class="kv">
+      <dt>Program</dt><dd class="mono">${esc(r.program)}${r.layer && r.layer !== "default"
+        ? ` &middot; layer ${esc(r.layer)}` : ""}</dd>
+      <dt>Chapter 99</dt><dd class="mono">${esc(r.ch99 || "—")}</dd>
+      <dt>Reporting slot</dt><dd class="mono">${esc(r.stack_slot)}</dd>
+      <dt>Value basis</dt><dd class="mono">${esc(r.basis)}</dd>
+      ${rateBits.length ? `<dt>Rate</dt><dd class="mono">${
+        rateBits.map(([k, v]) => `${esc(k)}=${esc(v)}`).join(", ")}</dd>` : ""}
+      ${r.threshold_pair_ge ? `<dt>If col-1 ≥ threshold</dt>
+        <dd class="mono">${esc(r.threshold_pair_ge)}</dd>` : ""}
+      ${r.threshold_pair_lt ? `<dt>If col-1 &lt; threshold</dt>
+        <dd class="mono">${esc(r.threshold_pair_lt)}</dd>` : ""}
+      <dt>Effective</dt><dd class="mono">${dshort(r.effective_start)} → ${
+        r.effective_end ? dshort(r.effective_end) : "open"}</dd>
+      ${r.recorded_start ? `<dt>Recorded from</dt>
+        <dd class="mono">${dshort(r.recorded_start)}</dd>` : ""}
+      <dt>Authority</dt><dd>${esc(r.authority || "—")}</dd>
+      <dt>Citation</dt><dd class="mono">${esc(r.source_ref || "—")}</dd>
+      ${r.note52_subdivision ? `<dt>Note 52</dt><dd class="mono">${esc(r.note52_subdivision)}</dd>` : ""}
+      ${r.fta_preservation ? `<dt>FTA preserved</dt><dd>${esc(r.fta_preservation)}</dd>` : ""}
+      ${r.reviewed_by ? `<dt>Reviewed by</dt><dd>${esc(r.reviewed_by)}</dd>` : ""}
+    </dl>
+    <div style="margin-top:var(--sp-4)"><span class="eyebrow">Matches when</span>
+      ${preds.length ? `<dl class="kv" style="margin-top:var(--sp-2)">${preds.map(([k, v]) =>
+        `<dt class="mono">${esc(k)}</dt><dd class="mono">${esc(
+          Array.isArray(v) ? v.map(x => typeof x === "object" ? JSON.stringify(x) : x).join(", ")
+                           : String(v))}</dd>`).join("")}</dl>`
+        : `<p class="cap" style="margin:var(--sp-2) 0 0">No conditions — applies to every line the
+           program sees.</p>`}</div>
+    ${r.notes ? `<div style="margin-top:var(--sp-4)"><span class="eyebrow">Notes</span>
+      <p style="margin:var(--sp-2) 0 0">${esc(r.notes)}</p></div>` : ""}
+  </div>`;
+}
+
+$("#ruleraw").onclick = () => {
+  if (!S.selectedRule) return;
+  $("#ruledetail").innerHTML = `<div class="body"><pre class="json">${
+    esc(JSON.stringify(S.selectedRule, null, 2))}</pre></div>`;
+};
+
+$("#runvalidate").onclick = async () => {
+  const out = $("#validateout");
+  out.innerHTML = '<span class="busy"></span>';
+  try {
+    const v = await api("/v1/rules:validate", { method: "POST" });
+    const ok = v.result === "PASS";
+    out.innerHTML = `<div class="banner ${ok ? "ok" : "err"}">
+      <b>${esc(v.result)} — ${v.failures.length} failure(s), ${v.warnings.length} warning(s)</b>
+      ${v.rule_count} rules would freeze as <span class="mono">${esc(v.would_hash || "")}</span>
+      </div>` + (v.failures.length ? `<div class="banner err"><b>Must fix</b>${
+        v.failures.map(f => `${esc(f.check)}${f.rule_id ? ` [${esc(f.rule_id)}]` : ""}: ${esc(f.message)}`).join("<br>")
+      }</div>` : "") + (v.warnings.length ? `<div class="banner warn"><b>Warnings</b>${
+        v.warnings.map(f => `${esc(f.check)}${f.rule_id ? ` [${esc(f.rule_id)}]` : ""}: ${esc(f.message)}`).join("<br>")
+      }</div>` : "");
+    $("#dopublish").disabled = !ok;
+  } catch (e) {
+    out.innerHTML = `<div class="banner err"><b>Validation failed to run</b>${esc(e.message)}</div>`;
+  }
+};
+
+$("#dopublish").onclick = async () => {
+  const version = $("#snapversion").value.trim();
+  const by = $("#snapby").value.trim();
+  if (!version || !by) {
+    banner("#rulesbanner", "err", "Version and your name are both required",
+      "A snapshot records who published it."); return;
+  }
+  const b = $("#dopublish"); b.disabled = true; b.innerHTML = '<span class="busy"></span>';
+  try {
+    const r = await api("/v1/snapshots", { method: "POST", body: JSON.stringify({
+      version, created_by: by, notes: $("#snapnote").value.trim(), activate: true }) });
+    banner("#rulesbanner", "ok", `Published ${esc(version)}`,
+      `${r.rule_count ?? ""} rules frozen as ${r.hash || ""}. Reload to assess against it.`);
+    await boot(); loadRules();
+  } catch (e) {
+    banner("#rulesbanner", "err", "Publish refused", e.message);
+  } finally { b.disabled = false; b.textContent = "Publish & activate"; }
+};
+
+/* ================================================================ UPLOAD */
+const TEMPLATES = {
+  hts: `hts,effective_start,col1_rate_pct,description
+6203.42.4010,2026-01-01,16.6,"Men's cotton trousers"
+8708.29.5160,2026-01-01,2.5,"Motor vehicle body parts"
+3303.00.3000,2026-01-01,0,"Perfumes and toilet waters"`,
+  rules: JSON.stringify({
+    actor: "your.name", status: "DRAFT",
+    source_ref: "CSMS #XXXXXXXX",
+    rules: [{
+      id: "s232.example.new", program: "s232", action: "DUTY", ch99: "9903.99.99",
+      label: "Example — replace with the real provision",
+      when: { hts_prefix_any: ["7208"], coo_in: ["CN"] },
+      rate: { kind: "AD_VALOREM", pct: 25 }, basis: "ENTERED_VALUE", stack_slot: "3.3",
+      effective_start: "2026-08-01T00:01:00-04:00",
+      authority: "Section 232, Trade Expansion Act of 1962",
+      source_ref: "CSMS #XXXXXXXX — 9903.99.99",
+      confidence: "AI_EXTRACTED",
+    }],
+  }, null, 2),
+};
+
+function renderUploadHelp() {
+  const kind = $("#uploadkind").value;
+  $("#uploadhelp").innerHTML = kind === "hts"
+    ? `<div class="banner info"><b>HTSUS column-1 rates</b>
+        CSV with <span class="mono">hts, effective_start</span> required, plus any of
+        <span class="mono">col1_rate_pct, col1_specific_amount, col1_specific_uom,
+        unit_of_quantity, description, effective_end, source_ref</span>.
+        These feed the threshold-economy branch, so loading the real table is what stops
+        <span class="mono">MISSING_COL1_FOR_THRESHOLD</span> errors.</div>`
+    : `<div class="banner info"><b>Tariff rules</b>
+        JSON with a <span class="mono">rules</span> array, matching the schema shown in the
+        template. Everything loads as <b>DRAFT</b> — invisible to the engine until you validate
+        and publish a snapshot. Mark anything AI-drafted
+        <span class="mono">confidence: AI_EXTRACTED</span> and leave
+        <span class="mono">reviewed_by</span> unset so the validator forces a human sign-off.</div>`;
+  $("#previewcard").hidden = true;
+  $("#uploadcommit").disabled = true;
+  S.parsed = null;
+}
+$("#uploadkind").onchange = renderUploadHelp;
+$("#uploadtemplate").onclick = () => {
+  $("#uploadbox").value = TEMPLATES[$("#uploadkind").value];
+  $("#uploadbox").focus();
+};
+
+const dz = $("#dropzone");
+["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, e => {
+  e.preventDefault(); dz.classList.add("over");
+}));
+["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, e => {
+  e.preventDefault(); dz.classList.remove("over");
+}));
+dz.addEventListener("drop", e => {
+  const f = e.dataTransfer.files?.[0]; if (f) readFile(f);
+});
+$("#filepick").onchange = e => { const f = e.target.files?.[0]; if (f) readFile(f); };
+function readFile(f) {
+  const r = new FileReader();
+  r.onload = () => {
+    $("#uploadbox").value = r.result;
+    if (f.name.endsWith(".json")) $("#uploadkind").value = "rules";
+    else if (/\.(csv|tsv|txt)$/.test(f.name)) $("#uploadkind").value = "hts";
+    renderUploadHelp();
+    banner("#uploadbanner", "ok", `Loaded ${esc(f.name)}`,
+      `${(f.size / 1024).toFixed(1)} KB read. Preview it before committing.`);
+  };
+  r.onerror = () => banner("#uploadbanner", "err", "Could not read the file", "");
+  r.readAsText(f);
+}
+
+$("#uploadpreview").onclick = () => {
+  const raw = $("#uploadbox").value.trim();
+  const kind = $("#uploadkind").value;
+  if (!raw) { banner("#uploadbanner", "err", "Nothing to preview", "Paste or drop content first."); return; }
+  banner("#uploadbanner", null);
+  try {
+    if (kind === "rules") previewRules(raw); else previewHts(raw);
+  } catch (e) {
+    banner("#uploadbanner", "err", "Could not parse that", e.message);
+    $("#previewcard").hidden = true; $("#uploadcommit").disabled = true;
+  }
+};
+
+function previewRules(raw) {
+  const doc = JSON.parse(raw);
+  const rules = Array.isArray(doc) ? doc : doc.rules;
+  if (!Array.isArray(rules)) throw new Error("expected a 'rules' array");
+  const problems = [];
+  rules.forEach((r, i) => {
+    const where = r.id || `rule ${i + 1}`;
+    if (!r.id) problems.push(`${where}: no id`);
+    if (!r.program) problems.push(`${where}: no program`);
+    if (!r.action) problems.push(`${where}: no action`);
+    if (!r.source_ref && !doc.source_ref) problems.push(`${where}: no source_ref — required to publish`);
+    if (r.action === "THRESHOLD" && (r.rate || {}).kind !== "COMBINED_TO_CAP")
+      problems.push(`${where}: THRESHOLD must use rate.kind COMBINED_TO_CAP, never a flat add-on`);
+    if (["EXEMPTION", "INTRANSIT", "SUPPRESSION"].includes(r.action)
+        && (r.rate || {}).kind && r.rate.kind !== "NONE")
+      problems.push(`${where}: a suppression must not carry a rate`);
+  });
+  S.parsed = { ...doc, rules }; S.parsedKind = "rules";
+  $("#previewcount").textContent = `${rules.length} rule(s)`;
+  $("#previewout").innerHTML =
+    (problems.length ? `<div class="body"><div class="banner err">
+      <b>${problems.length} problem(s) — fix before loading</b>${problems.map(esc).join("<br>")}</div></div>` : "") +
+    `<table class="data"><thead><tr><th>Rule</th><th>Action</th><th>Ch.99</th><th>Rate</th>
+      <th>Effective</th></tr></thead><tbody>` + rules.map(r => `<tr>
+        <td><b class="mono" style="font-size:.857rem">${esc(r.id || "—")}</b>
+          <div class="cap">${esc(r.label || "")}</div></td>
+        <td><span class="pill ${esc(r.action || "")}">${esc(r.action || "?")}</span>
+          <div class="cap mono">${esc(r.program || "?")}</div></td>
+        <td class="mono">${esc(r.ch99 || "—")}</td>
+        <td class="mono">${esc(Object.entries(r.rate || {})
+          .filter(([, v]) => v != null).map(([k, v]) => `${k}=${v}`).join(" ") || "—")}</td>
+        <td class="cap mono">${dshort(r.effective_start)}</td></tr>`).join("") + `</tbody></table>`;
+  $("#previewcard").hidden = false;
+  $("#uploadcommit").disabled = problems.length > 0 || !S.me?.can?.write_rules;
+  $("#uploadcommit").textContent = `Load ${rules.length} rule(s) as draft`;
+}
+
+function previewHts(raw) {
+  const lines = raw.split(/\r?\n/).filter(r => r.trim());
+  const split = r => r.includes("\t") ? r.split("\t") : splitCsv(r);
+  const header = split(lines[0]).map(c => c.trim().toLowerCase());
+  if (!header.includes("hts")) throw new Error("first row must be a header containing 'hts'");
+  const rows = [], problems = [];
+  lines.slice(1).forEach((l, i) => {
+    const cells = split(l);
+    const o = {};
+    header.forEach((h, j) => { if (cells[j] !== undefined) o[h] = String(cells[j]).trim(); });
+    if (!o.hts) { problems.push(`row ${i + 2}: no hts`); return; }
+    if (!o.effective_start) o.effective_start = "2026-01-01";
+    ["col1_rate_pct", "col1_specific_amount"].forEach(k => {
+      if (o[k] === "") delete o[k];
+      else if (o[k] != null && isNaN(Number(o[k]))) problems.push(`row ${i + 2}: ${k} is not a number`);
+    });
+    rows.push(o);
+  });
+  S.parsed = rows; S.parsedKind = "hts";
+  $("#previewcount").textContent = `${rows.length} rate row(s)`;
+  $("#previewout").innerHTML =
+    (problems.length ? `<div class="body"><div class="banner err">
+      <b>${problems.length} problem(s)</b>${problems.slice(0, 20).map(esc).join("<br>")}</div></div>` : "") +
+    `<table class="data"><thead><tr><th>HTS</th><th class="r">Col-1 %</th><th class="r">Specific</th>
+      <th>Effective</th><th>Description</th></tr></thead><tbody>` +
+    rows.slice(0, 300).map(r => `<tr><td class="mono">${esc(r.hts)}</td>
+      <td class="r">${esc(r.col1_rate_pct ?? "—")}</td>
+      <td class="r">${esc(r.col1_specific_amount ?? "—")}</td>
+      <td class="cap mono">${esc(r.effective_start)}</td>
+      <td class="cap">${esc(r.description || "")}</td></tr>`).join("") +
+    `</tbody></table>` + (rows.length > 300
+      ? `<div class="body cap">Showing the first 300 of ${rows.length}.</div>` : "");
+  $("#previewcard").hidden = false;
+  $("#uploadcommit").disabled = problems.length > 0 || !S.me?.can?.write_rules;
+  $("#uploadcommit").textContent = `Load ${rows.length} rate row(s)`;
+}
+
+function splitCsv(line) {
+  const out = []; let cur = "", q = false;
+  for (const ch of line) {
+    if (ch === '"') q = !q;
+    else if (ch === "," && !q) { out.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+$("#uploadcommit").onclick = async () => {
+  if (!S.parsed) return;
+  const b = $("#uploadcommit"); const was = b.textContent;
+  b.disabled = true; b.innerHTML = '<span class="busy"></span>';
+  try {
+    if (S.parsedKind === "rules") {
+      const r = await api("/v1/rules:bulk", { method: "POST", body: JSON.stringify({
+        actor: S.parsed.actor || "upload", status: S.parsed.status || "DRAFT",
+        source_ref: S.parsed.source_ref || "", rules: S.parsed.rules }) });
+      banner("#uploadbanner", "ok", `${r.upserted} rule(s) loaded as draft`,
+        (r.blocked_pending_review?.length
+          ? `${r.blocked_pending_review.length} need a named reviewer before they can publish. `
+          : "") + "Go to Rules to validate and publish a snapshot.");
+    } else {
+      const rows = S.parsed.map(o => ({
+        hts: o.hts, effective_start: o.effective_start,
+        col1_rate_pct: o.col1_rate_pct ?? null,
+        col1_specific_amount: o.col1_specific_amount ?? null,
+        col1_specific_uom: o.col1_specific_uom ?? null,
+        unit_of_quantity: o.unit_of_quantity ?? null,
+        description: o.description ?? "", effective_end: o.effective_end ?? null,
+        source_ref: o.source_ref ?? "HTSUS upload",
+      }));
+      const r = await api("/v1/reference/hts", { method: "POST", body: JSON.stringify(rows) });
+      banner("#uploadbanner", "ok", `${r.loaded} rate row(s) loaded`,
+        `Reference epoch is now ${r.reference_epoch}. Column-1 rates resolve automatically on the
+         next assessment.`);
+    }
+    $("#previewcard").hidden = true; $("#uploadbox").value = ""; S.parsed = null;
+    await boot();
+  } catch (e) {
+    banner("#uploadbanner", "err", "Load failed", e.message);
+  } finally { b.disabled = false; b.textContent = was; }
+};
+
+/* ================================================================ SNAPSHOTS */
+async function loadSnapshots() {
+  try {
+    const r = await api("/v1/snapshots");
+    S.snapshots = r.snapshots || [];
+    $("#nav-snaps").textContent = S.snapshots.length;
+    $("#snapsout").innerHTML = `<table class="data"><thead><tr>
+      <th>Version</th><th>Hash</th><th class="r">Rules</th><th>Created</th><th>By</th>
+      <th>Notes</th><th></th></tr></thead><tbody>` + S.snapshots.map(s => `<tr>
+        <td><b class="mono">${esc(s.version)}</b>${s.active
+          ? ' <span class="pill PUBLISHED">active</span>' : ""}</td>
+        <td class="mono cap">${esc((s.hash || "").replace("sha256:", "").slice(0, 16))}…</td>
+        <td class="r">${s.rule_count}</td>
+        <td class="cap mono">${dshort(s.created_at)}</td>
+        <td class="cap">${esc(s.created_by || "—")}</td>
+        <td class="cap">${esc(s.notes || "")}</td>
+        <td>${!s.active && S.me?.can?.write_rules
+          ? `<button class="btn-secondary btn-sm" data-activate="${esc(s.version)}">Activate</button>`
+          : ""}</td></tr>`).join("") + `</tbody></table>`;
+    const opts = S.snapshots.map(s =>
+      `<option value="${esc(s.version)}">${esc(s.version)}</option>`).join("");
+    $("#diff-from").innerHTML = opts;
+    $("#diff-to").innerHTML = opts;
+    if (S.snapshots.length > 1) $("#diff-to").selectedIndex = 1;
+  } catch (e) {
+    $("#snapsout").innerHTML = `<div class="body">
+      <div class="banner err"><b>Could not load snapshots</b>${esc(e.message)}</div></div>`;
+  }
+}
+$("#snapsout").addEventListener("click", async e => {
+  const v = e.target.dataset?.activate; if (!v) return;
+  e.target.disabled = true;
+  try {
+    await api(`/v1/snapshots/${encodeURIComponent(v)}:activate`, { method: "POST" });
+    banner("#historybanner", "ok", `Activated ${esc(v)}`,
+      "Assessments now evaluate against this snapshot.");
+    await boot(); loadSnapshots();
+  } catch (err) {
+    banner("#historybanner", "err", "Could not activate", err.message);
+    e.target.disabled = false;
+  }
+});
+$("#dodiff").onclick = async () => {
+  const from = $("#diff-from").value, to = $("#diff-to").value;
+  if (!from || !to) return;
+  $("#diffout").innerHTML = '<span class="busy"></span>';
+  try {
+    const d = await api(`/v1/snapshots:diff?from_version=${encodeURIComponent(from)}` +
+      `&to_version=${encodeURIComponent(to)}`);
+    const list = (label, arr) => arr?.length
+      ? `<div style="margin-top:var(--sp-3)"><span class="eyebrow">${label} (${arr.length})</span>
+         <div class="mono cap" style="margin-top:var(--sp-1)">${
+           arr.map(x => esc(typeof x === "string" ? x : x.id || JSON.stringify(x))).join("<br>")
+         }</div></div>` : "";
+    $("#diffout").innerHTML = `<div class="banner info"><b>${esc(from)} → ${esc(to)}</b>
+      ${esc(d.summary || "")}</div>` + list("Added", d.added) + list("Removed", d.removed) +
+      list("Changed", d.changed);
+  } catch (e) {
+    $("#diffout").innerHTML = `<div class="banner err"><b>Could not diff</b>${esc(e.message)}</div>`;
+  }
+};
+
+/* ================================================================ INSIGHTS */
+function barChart(rows, opts = {}) {
+  if (!rows.length) return `<p class="cap">Nothing to show.</p>`;
+  const max = Math.max(...rows.map(r => r.value)) || 1;
+  const rowH = 24, padL = opts.padL ?? 118, w = 460;
+  const h = rows.length * rowH + 8;
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img"
+    aria-label="${esc(opts.title || "bar chart")}">` + rows.map((r, i) => {
+      const y = i * rowH + 4;
+      const bw = Math.max(2, (r.value / max) * (w - padL - 46));
+      return `<text class="glabel" x="${padL - 8}" y="${y + 13}" text-anchor="end">${
+          esc(r.label)}</text>
+        <rect x="${padL}" y="${y + 3}" width="${bw}" height="14" rx="2"
+          fill="${r.color || "var(--color-primary-500)"}"><title>${esc(r.label)}: ${r.value}</title></rect>
+        <text class="gval" x="${padL + bw + 6}" y="${y + 14}">${esc(r.display ?? r.value)}</text>`;
+    }).join("") + `</svg>`;
+}
+
+async function loadInsights() {
+  const out = $("#insightsout");
+  try {
+    const d = await api("/v1/insights");
+    const att = d.attention;
+    const totalRules = d.rulepack.rule_count;
+
+    const progRows = d.programs.map(p => ({
+      label: p.program, value: p.rule_count, display: p.rule_count,
+      color: PROGRAM_COLOR[p.program] || "var(--color-primary-500)",
+    }));
+    const cooRows = d.countries.top.map(c => ({
+      label: c.coo, value: c.rules, display: c.rules, color: "var(--color-blue-sapphire-500)",
+    }));
+    const ACTION_COLOR = { DUTY: "var(--color-blue-500)", THRESHOLD: "var(--color-yellow-500)",
+      EXEMPTION: "var(--color-green-500)", INTRANSIT: "var(--color-cyan-500)",
+      SUPPRESSION: "var(--color-orange-500)" };
+    const actionRows = Object.entries(d.action_mix).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({
+      label: k, value: v, display: v, color: ACTION_COLOR[k] || "var(--color-blue-gray-400)" }));
+    const slotRows = Object.entries(d.slot_mix).map(([k, v]) => ({
+      label: "slot " + k, value: v, display: v, color: "var(--color-primary-400)" }));
+
+    const conf = d.confidence_mix;
+    const confTotal = Object.values(conf).reduce((a, b) => a + b, 0) || 1;
+    const CONF_COLOR = { VERIFIED: "var(--color-green-500)", DRAFT: "var(--color-orange-500)",
+      AI_EXTRACTED: "var(--color-purple-500)" };
+    const confBar = `<div class="stackbar">` + Object.entries(conf).map(([k, v]) =>
+      `<span style="width:${(v / confTotal * 100).toFixed(1)}%;background:${
+        CONF_COLOR[k] || "var(--color-blue-gray-400)"}" title="${esc(k)}: ${v}">${
+        v / confTotal > .12 ? v : ""}</span>`).join("") + `</div><div class="legend">` +
+      Object.entries(conf).map(([k, v]) =>
+        `<span><i style="background:${CONF_COLOR[k] || "var(--color-blue-gray-400)"}"></i>${
+          esc(k.replace("_", " ").toLowerCase())} ${v}</span>`).join("") + `</div>`;
+
+    const expired = d.expiring.expired, soon = d.expiring.soon;
+    const expRow = e => `<tr><td><b class="mono" style="font-size:.857rem">${esc(e.rule_id)}</b>
+        <div class="cap">${esc(e.label || "")}</div></td>
+      <td class="mono">${esc(e.ch99 || "—")}</td>
+      <td class="cap mono">${dshort(e.effective_end)}</td>
+      <td class="r">${e.expired ? `<span class="pill expired">${Math.abs(e.days_remaining)}d ago</span>`
+        : `<span class="pill DRAFT">in ${e.days_remaining}d</span>`}</td></tr>`;
+
+    out.innerHTML = `
+      <div class="card"><div class="body">
+        <div class="summary">
+          <div class="stat"><div class="k">Live rules</div><div class="v">${totalRules}</div>
+            <div class="foot">snapshot ${esc(d.rulepack.version)}</div></div>
+          <div class="stat"><div class="k">Programs</div><div class="v">${d.programs.length}</div>
+            <div class="foot">${d.programs.filter(p => p.rule_count).length} with rules</div></div>
+          <div class="stat"><div class="k">Origins covered</div>
+            <div class="v">${d.countries.distinct}</div>
+            <div class="foot">named in a rule predicate</div></div>
+          <div class="stat ${att.expired_still_present ? "flagged" : "good"}">
+            <div class="k">Lapsed rules</div><div class="v">${att.expired_still_present}</div>
+            <div class="foot">window already closed</div></div>
+        </div>
+      </div></div>
+
+      ${(att.draft_rules || att.ai_unreviewed || att.no_effective_start || expired.length)
+        ? `<div class="card"><header><h5>Needs attention</h5></header><div class="body">
+          <div class="grid4">
+            <div class="stat ${att.draft_rules ? "flagged" : ""}"><div class="k">Draft</div>
+              <div class="v">${att.draft_rules}</div>
+              <div class="foot">awaiting a published scope</div></div>
+            <div class="stat ${att.ai_unreviewed ? "bad" : ""}"><div class="k">AI unreviewed</div>
+              <div class="v">${att.ai_unreviewed}</div>
+              <div class="foot">cannot publish without a reviewer</div></div>
+            <div class="stat ${att.no_effective_start ? "flagged" : ""}">
+              <div class="k">No start date</div><div class="v">${att.no_effective_start}</div>
+              <div class="foot">treated as always in effect</div></div>
+            <div class="stat ${expired.length ? "flagged" : "good"}"><div class="k">Expired</div>
+              <div class="v">${expired.length}</div>
+              <div class="foot">kept for audit and refunds</div></div>
+          </div>
+          ${(expired.length || soon.length) ? `<div style="margin-top:var(--sp-4)">
+            <span class="eyebrow">Effective windows closing or closed</span>
+            <table class="data" style="margin-top:var(--sp-2)"><thead><tr>
+              <th>Rule</th><th>Ch.99</th><th>Ends</th><th class="r">When</th>
+            </tr></thead><tbody>${soon.map(expRow).join("")}${expired.map(expRow).join("")}
+            </tbody></table>
+            <p class="cap" style="margin-top:var(--sp-2)">A lapsed rule is not automatically a
+              problem — historical rules stay in the pack so a post-entry audit can reproduce what
+              was correct at filing. It is a problem when a successor program should have started
+              and did not.</p></div>` : ""}
+        </div></div>` : ""}
+
+      <div class="chartgrid">
+        <div class="card"><header><h5>Rules by program</h5></header>
+          <div class="body">${barChart(progRows, { title: "Rules by program" })}
+          <p class="cap" style="margin-top:var(--sp-2)">Programs are listed in evaluation order —
+            which is dependency order, not reporting order. Section 232 runs first because both
+            Section 122 and Section 301 forced labor carve it out.</p></div></div>
+        <div class="card"><header><h5>Rules by action</h5></header>
+          <div class="body">${barChart(actionRows, { padL: 96, title: "Rules by action" })}
+          <p class="cap" style="margin-top:var(--sp-2)">Exemptions and suppressions outnumbering
+            duties is normal and healthy — carve-outs are where the detail lives.</p></div></div>
+        <div class="card"><header><h5>Top origins by rule count</h5></header>
+          <div class="body">${barChart(cooRows, { padL: 52, title: "Rules by origin" })}</div></div>
+        <div class="card"><header><h5>Reporting slot distribution</h5></header>
+          <div class="body">${barChart(slotRows, { padL: 74, title: "Rules by reporting slot" })}
+          <p class="cap" style="margin-top:var(--sp-2)">3.1 is Section 301, 3.2 Section 122,
+            3.3 Section 232, 3.4 Section 201.</p></div></div>
+        <div class="card"><header><h5>Confidence</h5></header>
+          <div class="body">${confBar}
+          <p class="cap" style="margin-top:var(--sp-3)">Draft rules are claim-gated: they fire only
+            on an explicit importer claim, so the risk direction is overpayment rather than
+            under-collection. They convert to verified when the annex scope is published.</p></div></div>
+        <div class="card"><header><h5>Reference tables</h5></header>
+          <div class="body"><dl class="kv">${Object.entries(d.table_counts).map(([k, v]) =>
+            `<dt class="mono">${esc(k)}</dt><dd class="mono">${v}</dd>`).join("")}</dl>
+          <p class="cap" style="margin-top:var(--sp-3)">Reference epoch ${d.reference_epoch}.
+            ${d.table_counts.hts_rate < 500
+              ? `<b>Only ${d.table_counts.hts_rate} HTSUS rate rows are loaded</b> — threshold
+                 economies will report MISSING_COL1_FOR_THRESHOLD until the real table is uploaded.`
+              : ""}</p></div></div>
+      </div>
+
+      <div class="card"><header><h5>Program detail</h5></header>
+        <div class="body flush"><table class="data"><thead><tr>
+          <th>Program</th><th>Authority</th><th class="r">Rules</th><th class="r">Ch.99</th>
+          <th class="r">Origins</th><th>Slot</th></tr></thead><tbody>` +
+        d.programs.map(p => `<tr><td><b class="mono">${esc(p.program)}</b>
+            <div class="cap">${esc(p.label || "")}</div></td>
+          <td class="cap">${esc(p.authority || "—")}</td>
+          <td class="r">${p.rule_count}</td><td class="r">${p.headings}</td>
+          <td class="r">${p.country_count}</td>
+          <td><span class="slot p-${esc(p.program)}">${esc(p.stack_slot || "—")}</span></td>
+        </tr>`).join("") + `</tbody></table></div></div>`;
+  } catch (e) {
+    out.innerHTML = `<div class="card"><div class="body">
+      <div class="banner err"><b>Could not load insights</b>${esc(e.message)}</div></div></div>`;
+  }
+}
+
+/* ================================================================ REFERENCE */
+let refLoaded = false;
+async function loadReference() {
+  if (refLoaded) return;
+  refLoaded = true;
+  try {
+    const r = await api("/v1/reference/rate-date-hierarchy");
+    $("#ref-ratedate").innerHTML = `<p style="margin:0 0 var(--sp-2)">Resolved under
+      ${esc(r.authority)} — never the entry date as a proxy. The branch used is shown on every
+      result.</p><table>` + r.hierarchy.map(h =>
+      `<tr><td class="mono">${esc(h.cite)}</td><td><b>${esc(h.branch)}</b><br>
+        <span class="cap">${esc(h.explanation)}</span></td></tr>`).join("") + `</table>`;
+  } catch (e) { $("#ref-ratedate").innerHTML = `<p class="cap">${esc(e.message)}</p>`; }
+  try {
+    const s = await api("/v1/reference/stacking-order");
+    $("#ref-stacking").innerHTML = `<p class="cap" style="margin:0 0 var(--sp-2)">
+      ${esc(s.authority)}</p><table>` + s.sequence.map(x =>
+      `<tr><td class="mono">${esc(x.slot)}</td><td>${esc(x.line)}</td></tr>`).join("") +
+      `</table><p class="cap" style="margin-top:var(--sp-2)">${esc(s.note || "")}</p>`;
+  } catch (e) { $("#ref-stacking").innerHTML = `<p class="cap">${esc(e.message)}</p>`; }
+  if (S.flags.length) {
+    $("#ref-flags").innerHTML = `<table class="data"><thead><tr>
+      <th>Flag</th><th>Kind</th><th>Programs</th><th>Headings it unlocks</th><th class="r">Rules</th>
+      </tr></thead><tbody>` + S.flags.map(f => `<tr>
+        <td><b class="mono" style="font-size:.857rem">${esc(f.flag)}</b>
+          <div class="cap">${esc(f.label)}</div></td>
+        <td class="cap">${esc(String(f.kind).replace(/_/g, " "))}</td>
+        <td class="cap mono">${esc((f.programs || []).join(" "))}</td>
+        <td class="cap mono">${esc((f.headings || []).slice(0, 6).join(" "))}${
+          (f.headings || []).length > 6 ? " …" : ""}</td>
+        <td class="r">${f.rule_count}</td></tr>`).join("") + `</tbody></table>`;
+  } else {
+    $("#ref-flags").innerHTML = `<div class="empty cap">No claim flags available.</div>`;
+  }
+}
+
+/* ================================================================ HTS LIST / COVERAGE */
+const Lookup = { fileB64: null, fileName: null, last: null, open: new Set(), inited: false };
+
+function initLookup() {
+  const d = $("#lookup-date");
+  if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+  if (Lookup.inited) return;
+  Lookup.inited = true;
+
+  const drop = $("#lookup-drop");
+  const file = $("#lookup-file");
+  $("#lookup-browse").onclick = (e) => { e.stopPropagation(); file.click(); };
+  drop.onclick = () => file.click();
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("drag"); };
+  drop.ondragleave = () => drop.classList.remove("drag");
+  drop.ondrop = (e) => {
+    e.preventDefault(); drop.classList.remove("drag");
+    const f = e.dataTransfer?.files?.[0];
+    if (f) ingestLookupFile(f);
+  };
+  file.onchange = () => { const f = file.files?.[0]; if (f) ingestLookupFile(f); };
+
+  $("#lookup-paste").oninput = () => updateLookupCount();
+  $("#lookup-run").onclick = () => runLookup();
+  $("#lookup-clear").onclick = () => {
+    Lookup.fileB64 = Lookup.fileName = Lookup.last = null;
+    Lookup.open = new Set();
+    $("#lookup-paste").value = "";
+    $("#lookup-file").value = "";
+    drop.querySelector(".drop-title").textContent = "Drop Excel, CSV, or JSON";
+    updateLookupCount();
+    $("#lookup-export").hidden = true;
+    $("#lookup-out").innerHTML = `<div class="empty"><h4>No list yet</h4>
+      <p class="cap" style="max-width:36ch;margin:0 auto">Add HTS codes on the left.</p></div>`;
+    banner("#lookupbanner", null);
+  };
+  $("#lookup-sample").onclick = () => {
+    $("#lookup-paste").value = `hts,coo
+6203.42.4010,VN
+8708.10.3050,CN
+8517.12.0050,DE
+9403.60.8081,BR
+6109.10.0012,BD`;
+    $("#lookup-coo").value = "";
+    updateLookupCount();
+    runLookup();
+  };
+  $("#lookup-export").onclick = () => exportLookupCsv();
+  updateLookupCount();
+}
+
+function updateLookupCount() {
+  const text = ($("#lookup-paste").value || "").trim();
+  const nText = text ? text.split(/\r?\n/).filter(l => l.trim() && !/^hts\b/i.test(l.trim())).length : 0;
+  const n = Lookup.fileName ? "file" : nText;
+  $("#lookup-count").textContent = Lookup.fileName
+    ? Lookup.fileName
+    : (nText === 1 ? "1 code" : `${nText} codes`);
+  void n;
+}
+
+async function ingestLookupFile(f) {
+  const name = f.name || "upload";
+  const lower = name.toLowerCase();
+  Lookup.fileName = name;
+  if (/\.(xlsx|xls)$/.test(lower)) {
+    const buf = await f.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    Lookup.fileB64 = btoa(bin);
+    $("#lookup-paste").value = "";
+  } else {
+    Lookup.fileB64 = null;
+    $("#lookup-paste").value = await f.text();
+  }
+  $("#lookup-drop").querySelector(".drop-title").textContent = `Ready: ${name}`;
+  updateLookupCount();
+  banner("#lookupbanner", "ok", "File loaded", `${name} — click Find applicable rules.`);
+}
+
+async function runLookup() {
+  banner("#lookupbanner", null);
+  const btn = $("#lookup-run");
+  const was = btn.textContent;
+  btn.disabled = true; btn.innerHTML = '<span class="busy"></span>';
+  try {
+    const body = {
+      as_of: $("#lookup-date").value || undefined,
+      default_coo: ($("#lookup-coo").value || "").trim().toUpperCase() || undefined,
+      assume_cn_list3: $("#lookup-cnlist3").checked,
+    };
+    if (Lookup.fileB64) {
+      body.xlsx_base64 = Lookup.fileB64;
+      body.filename = Lookup.fileName;
+    } else {
+      body.text = ($("#lookup-paste").value || "").trim();
+      if (!body.text) throw new Error("Paste HTS codes or drop a file first.");
+    }
+    Lookup.last = await api("/v1/hts:coverage", { method: "POST", body: JSON.stringify(body) });
+    Lookup.open = new Set();
+    renderLookup(Lookup.last);
+    $("#lookup-export").hidden = false;
+    const s = Lookup.last.summary || {};
+    if (s.rows && s.missing_hts === s.rows) {
+      banner("#lookupbanner", "err", "No HTS column found",
+        "Every row came through blank. Use a sheet with a Primary HTS / HTS header " +
+        "(title rows above the header are fine), or paste hts,coo CSV.");
+    } else if (s.rows && s.in_table === 0) {
+      banner("#lookupbanner", "warn", "None in baseline table",
+        "HTS codes were read, but none match tariff-rules/data/hts_rates.json. " +
+        "Re-import the classification workbook: cd backend && npm run import:hts");
+    } else if (s.missing_coo) {
+      banner("#lookupbanner", "ok", "Coverage ready",
+        `${s.in_table}/${s.rows} in HTS table · ${s.missing_coo} missing origin — set Default origin or a COO column.`);
+    } else {
+      banner("#lookupbanner", "ok", "Coverage ready",
+        `${s.in_table}/${s.rows} in HTS table · ${s.with_ch99} with Chapter 99.`);
+    }
+  } catch (e) {
+    banner("#lookupbanner", "err", "Lookup failed", e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = was;
+  }
+}
+
+function renderLookup(R) {
+  const rows = R.rows || [];
+  const s = R.summary || {};
+  if (!rows.length) {
+    $("#lookup-out").innerHTML = `<div class="empty"><h4>No rows parsed</h4>
+      <p class="cap">Check that the file has an <b>hts</b> column (or one code per line).</p></div>`;
+    return;
+  }
+  let html = `<div class="lookup-summary">
+    <span class="pill">${s.rows ?? rows.length} codes</span>
+    <span class="pill ok">${s.in_table ?? 0} in HTS table</span>
+    <span class="pill">${s.with_ch99 ?? 0} with Ch.99</span>
+    ${s.missing_coo ? `<span class="pill warn">${s.missing_coo} missing origin</span>` : ""}
+    <span class="cap">as of ${esc(R.as_of)}</span>
+  </div>`;
+  html += `<table class="cov"><thead><tr>
+    <th>HTS</th><th>Origin</th><th class="r">Col-1</th><th>Rules that apply</th><th>Ch.99</th>
+  </tr></thead><tbody>`;
+  rows.forEach((row, i) => {
+    const chips = (row.rules || [])
+      .filter(r => r.program !== "base")
+      .map(r => `<span class="rule-chip ${esc(r.program)}">${esc(r.ch99 || r.label)}</span>`)
+      .join("") || `<span class="cap">${row.coo ? "none beyond Col-1" : "add origin"}</span>`;
+    const seq = (row.ch99_sequence || []).join(" · ") || "—";
+    const miss = !row.in_table || row.error;
+    html += `<tr class="${miss ? "miss" : ""} ${Lookup.open.has(i) ? "open" : ""}" data-cov="${i}">
+      <td><b class="mono">${esc(row.hts || "—")}</b>
+        ${row.desc ? `<div class="cap">${esc(row.desc)}</div>` : ""}
+        ${!row.in_table ? `<div class="cap" style="color:var(--color-orange-700)">Not in baseline table</div>` : ""}</td>
+      <td class="mono">${esc(row.coo || "—")}</td>
+      <td class="r mono">${row.col1_pct == null ? "—" : esc(String(row.col1_pct)) + "%"}</td>
+      <td><div class="rule-chips">${chips}</div></td>
+      <td class="mono cap">${esc(seq)}</td>
+    </tr>`;
+    if (Lookup.open.has(i)) {
+      html += `<tr class="open"><td colspan="5"><div class="cov-detail">`;
+      html += (row.rules || []).map(r => `<div class="rule-row">
+        <div><span class="rule-chip ${esc(r.program)}">${esc(r.program)}</span>
+          <b class="mono">${esc(r.ch99 || "commodity")}</b> · ${esc(r.rate)}
+          <span class="cap"> · ${esc(r.status)}</span></div>
+        <div class="why">${esc(r.label)}</div>
+        <div class="why">${esc(r.reason)}</div>
+        ${r.source_ref ? `<div class="src">${esc(r.source_ref)}</div>` : ""}
+      </div>`).join("") || `<p class="cap">No rule rows.</p>`;
+      if (row.notes?.length) {
+        html += `<p class="cap" style="margin:var(--sp-2) 0 0">${row.notes.map(esc).join(" · ")}</p>`;
+      }
+      html += `<div class="actions" style="margin-top:var(--sp-2)">
+        <button type="button" class="btn-secondary btn-sm" data-send-calc="${i}">Check duty for this HTS</button>
+      </div></div></td></tr>`;
+    }
+  });
+  html += `</tbody></table>`;
+  $("#lookup-out").innerHTML = html;
+  $$("#lookup-out tr[data-cov]").forEach(tr => {
+    tr.onclick = () => {
+      const i = Number(tr.dataset.cov);
+      if (Lookup.open.has(i)) Lookup.open.delete(i); else Lookup.open.add(i);
+      renderLookup(Lookup.last);
+    };
+  });
+  $$("#lookup-out [data-send-calc]").forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const row = Lookup.last.rows[Number(btn.dataset.sendCalc)];
+      if (!row) return;
+      $("#qc-hts").value = row.hts || "";
+      $("#qc-coo").value = row.coo || $("#lookup-coo").value || "";
+      $("#qc-value").value = $("#qc-value").value || "10000";
+      $("#qc-date").value = row.as_of || $("#lookup-date").value;
+      show("calc");
+      banner("#calcbanner", "info", "From HTS list",
+        `${row.hts} loaded into Quick check — add value if needed, then Check duty.`);
+    };
+  });
+}
+
+function exportLookupCsv() {
+  if (!Lookup.last) return;
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [["hts", "coo", "as_of", "in_table", "col1_pct", "desc", "ch99_sequence", "rules", "notes"].join(",")];
+  (Lookup.last.rows || []).forEach(r => lines.push([
+    r.hts, r.coo, r.as_of, r.in_table, r.col1_pct, r.desc,
+    (r.ch99_sequence || []).join(" "),
+    (r.rules || []).map(x => `${x.program}:${x.ch99 || "base"}@${x.rate}`).join(" | "),
+    (r.notes || []).join(" · "),
+  ].map(q).join(",")));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+  a.download = `hts-coverage-${Lookup.last.as_of || "export"}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+boot();

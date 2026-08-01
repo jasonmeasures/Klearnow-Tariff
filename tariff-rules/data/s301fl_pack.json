@@ -1,0 +1,745 @@
+{
+  "program": {
+    "id": "s301fl",
+    "name": "Section 301 Forced Labor",
+    "authority": "Section 301, Trade Act of 1974",
+    "source_csms": "69326983",
+    "hsu": "2617",
+    "effective": "2026-07-24T00:01:00-05:00",
+    "hts_block": "9903.05.20-9903.06.21",
+    "trigger": "country_of_origin",
+    "value_basis": "entered_value_ch1_97",
+    "economies": 60,
+    "notes": "Additional 10% or 12.5% ad valorem by country of origin. Suppression is evaluated before rate math."
+  },
+  "rate_logic": {
+    "FLAT": "duty = entered_value * rate_pct / 100 (additive on column-1)",
+    "COMBINED_TO_CAP": "if col1_pct >= cap_pct -> no additional duty (report no_additional_duty_heading); else 301 = entered_value * (cap_pct - col1_pct)/100 (report combined_to_cap_heading). Total line = cap.",
+    "SUPPRESSION": "duty = 0. Report the exemption heading, EXCEPT do not stack a 0% exemption heading on a line already carrying another trade-remedy duty (e.g. a Section 232 duty line) -> ACE F775."
+  },
+  "evaluation_order": [
+    "in_transit_grace",
+    "general_exemption",
+    "economy_specific_exemption",
+    "chapter_98",
+    "threshold",
+    "flat"
+  ],
+  "caps": {
+    "10.0": [
+      "EU",
+      "TW"
+    ],
+    "12.5": [
+      "JP",
+      "KR",
+      "CH"
+    ]
+  },
+  "countries": [
+    {
+      "iso2": "DZ",
+      "name": "Algeria",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.20"
+    },
+    {
+      "iso2": "AO",
+      "name": "Angola",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.21"
+    },
+    {
+      "iso2": "AR",
+      "name": "Argentina",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.22"
+    },
+    {
+      "iso2": "AU",
+      "name": "Australia",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.23"
+    },
+    {
+      "iso2": "BS",
+      "name": "Bahamas",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.24"
+    },
+    {
+      "iso2": "BH",
+      "name": "Bahrain",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.25"
+    },
+    {
+      "iso2": "BD",
+      "name": "Bangladesh",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.26"
+    },
+    {
+      "iso2": "BR",
+      "name": "Brazil",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.27"
+    },
+    {
+      "iso2": "KH",
+      "name": "Cambodia",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.28"
+    },
+    {
+      "iso2": "CA",
+      "name": "Canada",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.29"
+    },
+    {
+      "iso2": "CL",
+      "name": "Chile",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.30"
+    },
+    {
+      "iso2": "CN",
+      "name": "China",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.31"
+    },
+    {
+      "iso2": "CO",
+      "name": "Colombia",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.32"
+    },
+    {
+      "iso2": "CR",
+      "name": "Costa Rica",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.33"
+    },
+    {
+      "iso2": "DO",
+      "name": "Dominican Republic",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.34"
+    },
+    {
+      "iso2": "EC",
+      "name": "Ecuador",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.35"
+    },
+    {
+      "iso2": "EG",
+      "name": "Egypt",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.36"
+    },
+    {
+      "iso2": "SV",
+      "name": "El Salvador",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.37"
+    },
+    {
+      "iso2": "EU",
+      "name": "European Union",
+      "mechanic": "threshold",
+      "cap_pct": 10,
+      "no_additional_duty_heading": "9903.05.38",
+      "combined_to_cap_heading": "9903.05.39"
+    },
+    {
+      "iso2": "GT",
+      "name": "Guatemala",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.40"
+    },
+    {
+      "iso2": "GY",
+      "name": "Guyana",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.41"
+    },
+    {
+      "iso2": "HN",
+      "name": "Honduras",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.42"
+    },
+    {
+      "iso2": "HK",
+      "name": "Hong Kong",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.43"
+    },
+    {
+      "iso2": "IN",
+      "name": "India",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.44"
+    },
+    {
+      "iso2": "ID",
+      "name": "Indonesia",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.45"
+    },
+    {
+      "iso2": "IQ",
+      "name": "Iraq",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.46"
+    },
+    {
+      "iso2": "IL",
+      "name": "Israel",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.47"
+    },
+    {
+      "iso2": "JP",
+      "name": "Japan",
+      "mechanic": "threshold",
+      "cap_pct": 12.5,
+      "no_additional_duty_heading": "9903.05.48",
+      "combined_to_cap_heading": "9903.05.49"
+    },
+    {
+      "iso2": "JO",
+      "name": "Jordan",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.50"
+    },
+    {
+      "iso2": "KZ",
+      "name": "Kazakhstan",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.51"
+    },
+    {
+      "iso2": "KW",
+      "name": "Kuwait",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.52"
+    },
+    {
+      "iso2": "LY",
+      "name": "Libya",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.53"
+    },
+    {
+      "iso2": "MY",
+      "name": "Malaysia",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.54"
+    },
+    {
+      "iso2": "MX",
+      "name": "Mexico",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.55"
+    },
+    {
+      "iso2": "MA",
+      "name": "Morocco",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.56"
+    },
+    {
+      "iso2": "NZ",
+      "name": "New Zealand",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.57"
+    },
+    {
+      "iso2": "NI",
+      "name": "Nicaragua",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.58"
+    },
+    {
+      "iso2": "NG",
+      "name": "Nigeria",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.59"
+    },
+    {
+      "iso2": "NO",
+      "name": "Norway",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.60"
+    },
+    {
+      "iso2": "OM",
+      "name": "Oman",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.61"
+    },
+    {
+      "iso2": "PK",
+      "name": "Pakistan",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.62"
+    },
+    {
+      "iso2": "PE",
+      "name": "Peru",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.63"
+    },
+    {
+      "iso2": "PH",
+      "name": "Philippines",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.64"
+    },
+    {
+      "iso2": "QA",
+      "name": "Qatar",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.65"
+    },
+    {
+      "iso2": "RU",
+      "name": "Russia",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.66"
+    },
+    {
+      "iso2": "SA",
+      "name": "Saudi Arabia",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.67"
+    },
+    {
+      "iso2": "SG",
+      "name": "Singapore",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.68"
+    },
+    {
+      "iso2": "ZA",
+      "name": "South Africa",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.69"
+    },
+    {
+      "iso2": "KR",
+      "name": "South Korea",
+      "mechanic": "threshold",
+      "cap_pct": 12.5,
+      "no_additional_duty_heading": "9903.05.70",
+      "combined_to_cap_heading": "9903.05.71"
+    },
+    {
+      "iso2": "LK",
+      "name": "Sri Lanka",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.72"
+    },
+    {
+      "iso2": "CH",
+      "name": "Switzerland",
+      "mechanic": "threshold",
+      "cap_pct": 12.5,
+      "no_additional_duty_heading": "9903.05.73",
+      "combined_to_cap_heading": "9903.05.74"
+    },
+    {
+      "iso2": "TW",
+      "name": "Taiwan",
+      "mechanic": "threshold",
+      "cap_pct": 10,
+      "no_additional_duty_heading": "9903.05.75",
+      "combined_to_cap_heading": "9903.05.76"
+    },
+    {
+      "iso2": "TH",
+      "name": "Thailand",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.77"
+    },
+    {
+      "iso2": "TT",
+      "name": "Trinidad & Tobago",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.78"
+    },
+    {
+      "iso2": "TR",
+      "name": "Türkiye",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.79"
+    },
+    {
+      "iso2": "AE",
+      "name": "United Arab Emirates",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.80"
+    },
+    {
+      "iso2": "GB",
+      "name": "United Kingdom",
+      "mechanic": "flat",
+      "rate_pct": 10,
+      "heading": "9903.05.81"
+    },
+    {
+      "iso2": "UY",
+      "name": "Uruguay",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.82"
+    },
+    {
+      "iso2": "VE",
+      "name": "Venezuela",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.83"
+    },
+    {
+      "iso2": "VN",
+      "name": "Vietnam",
+      "mechanic": "flat",
+      "rate_pct": 12.5,
+      "heading": "9903.05.84"
+    }
+  ],
+  "general_exemptions": [
+    {
+      "heading": "9903.05.85",
+      "applies_to": "all_origins",
+      "basis": "in_transit_grace",
+      "rule": "loaded/in-transit before 2026-07-24 AND entered before 2026-07-28"
+    },
+    {
+      "heading": "9903.05.86",
+      "applies_to": "all_origins",
+      "basis": "US Note 52(b)",
+      "hts_listed": 863
+    },
+    {
+      "heading": "9903.05.87",
+      "applies_to": "all_origins",
+      "basis": "US Note 52(c)",
+      "hts_listed": 16
+    },
+    {
+      "heading": "9903.05.88",
+      "applies_to": "all_origins",
+      "basis": "civil aircraft — US Note 52(d)",
+      "hts_listed": 541
+    },
+    {
+      "heading": "9903.05.89",
+      "applies_to": "all_origins",
+      "basis": "pharmaceutical applications — US Note 52(e)",
+      "hts_listed": 700
+    },
+    {
+      "heading": "9903.05.90",
+      "applies_to": "all_origins",
+      "basis": "Section 232 universe — US Note 52(f)",
+      "scope": "steel/aluminum/copper+derivatives; autos+parts; MHDV+parts; wood; semiconductors",
+      "warn": "suppress FL; do NOT emit this 0% heading on a dutiable 232 line"
+    },
+    {
+      "heading": "9903.05.91",
+      "applies_to": "all_origins",
+      "basis": "humanitarian donations"
+    },
+    {
+      "heading": "9903.05.92",
+      "applies_to": "all_origins",
+      "basis": "informational materials"
+    }
+  ],
+  "economy_specific_exemptions": [
+    {
+      "heading": "9903.05.93",
+      "origins": [
+        "CA"
+      ],
+      "basis": "USMCA duty-free — Note 52(g)"
+    },
+    {
+      "heading": "9903.05.94",
+      "origins": [
+        "MX"
+      ],
+      "basis": "USMCA duty-free — Note 52(h)"
+    },
+    {
+      "heading": "9903.05.95",
+      "origins": [
+        "CR",
+        "DO",
+        "SV",
+        "GT",
+        "HN",
+        "NI"
+      ],
+      "basis": "CAFTA-DR textiles/apparel duty-free — Note 52(i)"
+    },
+    {
+      "heading": "9903.05.96",
+      "origins": [
+        "GB"
+      ],
+      "basis": "Note 52(j)(1)"
+    },
+    {
+      "heading": "9903.05.97",
+      "origins": [
+        "EU"
+      ],
+      "basis": "Note 52(j)(2)"
+    },
+    {
+      "heading": "9903.05.98",
+      "origins": [
+        "CH"
+      ],
+      "basis": "Note 52(j)(3)"
+    },
+    {
+      "heading": "9903.05.99",
+      "origins": [
+        "MY"
+      ],
+      "basis": "Note 52(j)(4)(i)"
+    },
+    {
+      "heading": "9903.06.01",
+      "origins": [
+        "MY"
+      ],
+      "basis": "Note 52(j)(4)(ii)"
+    },
+    {
+      "heading": "9903.06.02",
+      "origins": [
+        "KH"
+      ],
+      "basis": "Note 52(j)(5)(i)"
+    },
+    {
+      "heading": "9903.06.03",
+      "origins": [
+        "KH"
+      ],
+      "basis": "Note 52(j)(5)(ii)"
+    },
+    {
+      "heading": "9903.06.04",
+      "origins": [
+        "GT"
+      ],
+      "basis": "Note 52(j)(6)(i)"
+    },
+    {
+      "heading": "9903.06.05",
+      "origins": [
+        "GT"
+      ],
+      "basis": "Note 52(j)(6)(ii)"
+    },
+    {
+      "heading": "9903.06.06",
+      "origins": [
+        "GT"
+      ],
+      "basis": "Note 52(j)(6)(iii) — textiles; dual-eligible with 9903.05.95"
+    },
+    {
+      "heading": "9903.06.07",
+      "origins": [
+        "SV"
+      ],
+      "basis": "Note 52(j)(7)(i)"
+    },
+    {
+      "heading": "9903.06.08",
+      "origins": [
+        "SV"
+      ],
+      "basis": "Note 52(j)(7)(ii)"
+    },
+    {
+      "heading": "9903.06.09",
+      "origins": [
+        "SV"
+      ],
+      "basis": "Note 52(j)(7)(iii) — textiles; dual-eligible with 9903.05.95"
+    },
+    {
+      "heading": "9903.06.10",
+      "origins": [
+        "AR"
+      ],
+      "basis": "Note 52(j)(8)(i)"
+    },
+    {
+      "heading": "9903.06.11",
+      "origins": [
+        "AR"
+      ],
+      "basis": "Note 52(j)(8)(ii)"
+    },
+    {
+      "heading": "9903.06.12",
+      "origins": [
+        "BD"
+      ],
+      "basis": "Note 52(j)(9)(i)"
+    },
+    {
+      "heading": "9903.06.13",
+      "origins": [
+        "BD"
+      ],
+      "basis": "Note 52(j)(9)(ii)"
+    },
+    {
+      "heading": "9903.06.14",
+      "origins": [
+        "TW"
+      ],
+      "basis": "Note 52(j)(10)(i)"
+    },
+    {
+      "heading": "9903.06.15",
+      "origins": [
+        "TW"
+      ],
+      "basis": "Note 52(j)(10)(ii)"
+    },
+    {
+      "heading": "9903.06.16",
+      "origins": [
+        "ID"
+      ],
+      "basis": "Note 52(j)(11)(i)"
+    },
+    {
+      "heading": "9903.06.17",
+      "origins": [
+        "ID"
+      ],
+      "basis": "Note 52(j)(11)(ii)"
+    },
+    {
+      "heading": "9903.06.18",
+      "origins": [
+        "EC"
+      ],
+      "basis": "Note 52(j)(12)(i)"
+    },
+    {
+      "heading": "9903.06.19",
+      "origins": [
+        "EC"
+      ],
+      "basis": "Note 52(j)(12)(ii)"
+    },
+    {
+      "heading": "9903.06.20",
+      "origins": [
+        "JO"
+      ],
+      "basis": "Note 52(j)(13)(i)"
+    },
+    {
+      "heading": "9903.06.21",
+      "origins": [
+        "JO"
+      ],
+      "basis": "Note 52(j)(13)(ii)"
+    }
+  ],
+  "chapter_98": {
+    "rule": "Properly claimed Chapter 98 suppresses classic Section 301 (Note 20(f)) AND 301-FL (9903.05.20-.84).",
+    "except": [
+      "9802.00.40",
+      "9802.00.50",
+      "9802.00.60",
+      "9802.00.80"
+    ],
+    "report": "no FL heading"
+  },
+  "in_transit_grace": {
+    "heading": "9903.05.85",
+    "prong_1": "loaded and in transit on final mode before 2026-07-24T00:01:00-05:00",
+    "prong_2": "entered for consumption before 2026-07-28T00:01:00-05:00",
+    "both_required": true,
+    "warn": "not a warehouse-withdrawal provision"
+  },
+  "hts_exception_list": {
+    "ref": "CBP Forced Labor exception HTS list (attachment to CSMS #69326983)",
+    "unique_hts": 4070,
+    "purpose": "line-level exemption resolution for headings .86-.89 and 9903.05.96-9903.06.21"
+  },
+  "sources": [
+    "CBP CSMS #69326983",
+    "HSU 2617",
+    "US Note 52 subchapter III chapter 99"
+  ]
+}

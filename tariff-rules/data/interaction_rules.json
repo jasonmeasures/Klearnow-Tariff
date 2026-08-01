@@ -1,0 +1,57 @@
+{
+  "version": "1.0.0",
+  "as_of": "2026-07-31",
+  "stacking_order_note": "CBP entry-summary reporting sequence: Ch.99 lines report before the Ch.1-97 line. Where legacy China 301 and 232 both apply, 301 reports first.",
+  "rules": [
+    {
+      "id": "R1_232_VS_301FL",
+      "rule": "Section 232 autos/parts and 301-FL are MUTUALLY EXCLUSIVE. 232 wins. When 232 applies, report 9903.05.90 to suppress 301-FL.",
+      "status": "CONFIRMED",
+      "dependency": "Valid 10-digit 232 auto-part determination (Proclamation 10908 annex). Chapter-level match is triage only."
+    },
+    {
+      "id": "R2_CHINA_301_NOT_SUPPRESSED",
+      "rule": "Legacy China 301 (9903.88.xx) is NOT suppressed by 232. Both report; 301 first. Worked example: CN 8708 List 3 at 2.5% col-1 = 25% + 25% + 2.5% = 52.5%.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R3_JP_232_TOPUP",
+      "rule": "Japan 232 auto parts: if col-1 < 15%, 232 duty equals the difference to reach 15% (9903.94.43). 15% reported on Ch.99 line; ZERO on Ch.1-97 line. Validated: JP 2.5% col-1 -> 232 of 12.5% -> total 15.0%. Same part NOT a 232 auto part -> 9903.05.49 +10% -> total 12.5%.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R4_METALS_SEPARATE_LINE",
+      "rule": "232 metals duty reported on a separate entry line against metal-content value. Excluded from the parts TOTAL column.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R5_METALS_VS_AUTOS_PRECEDENCE",
+      "rule": "232 metals vs 232 autos precedence on Ch.73/74 derivatives: CONFLICTING published guidance (one source: auto parts exclude steel/alu 232; another: they stack).",
+      "status": "TBC",
+      "owner": "Marek / Vantage Point"
+    },
+    {
+      "id": "R6_MFN_CAP_RULE",
+      "rule": "Trade-deal codes (9903.94.43/.45/.55/.63): MFN 'capped/removed'. UNRESOLVED between: (A) MFN zeroed entirely — IEEPA/trade-deal rate IS the total; (B) MFN conditionally capped — reduce if above threshold, keep if already 0. Practical impact small on Ch87 (0-2.5% MFN) but material on Ch39 plastics 5.9% / Ch73 bolts 5.8%.",
+      "status": "TBC_BLOCKING",
+      "owner": "Jason",
+      "blocking": "Total-duty computation for all trade-deal lines"
+    },
+    {
+      "id": "R7_9394_PROGRAM_LABEL",
+      "rule": "9903.94.xx family program labeling: 2026-07-27 session = Section 232 autos family; 2026-07-30 corrections = IEEPA/trade-deal. IEEPA was struck down 2026-02-20, so the label carries legal-basis and refund/drawback implications.",
+      "status": "TBC",
+      "owner": "Jason / Marek"
+    },
+    {
+      "id": "R8_HTS_AUTHORITY",
+      "rule": "HTS classification authority: Item Master ONLY for parts (BL10 HTS is inaccurate). HA30 primary_tariff_num valid for vehicles with Item Master fallback.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R9_ADCVD",
+      "rule": "45 lines carry active AD/CVD flags in the ACE table — require producer/exporter-level case coverage verification. AD/CVD is outside the Ch.99 stack computation.",
+      "status": "CONFIRMED_SCOPE"
+    }
+  ]
+}

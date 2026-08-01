@@ -1,0 +1,1033 @@
+{
+  "$schema_note": "Chapter 99 code registry \u2014 KlearNow Tariff stacking. Source: confirmed corrections (session 2026-07-30) + full-stack build (session 2026-07-27). status: CONFIRMED = safe to compute; TBC = do NOT compute, surface for review. 301-FL headings expanded from s301fl_pack.json (CSMS #69326983).",
+  "version": "1.1.0",
+  "as_of": "2026-07-31",
+  "codes": [
+    {
+      "code": "9903.03.06",
+      "program": "SEC_232_METALS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Exclusion \u2014 0%, MFN applies normally."
+    },
+    {
+      "code": "9903.03.03",
+      "program": "SEC_232_METALS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Exclusion \u2014 0%, MFN applies normally."
+    },
+    {
+      "code": "9903.03.01",
+      "program": "SEC_232_METALS",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Steel duty 10%. NOTE: this code number also appeared historically as the Section 122 global surcharge (sunset 2026-07-24). Current confirmed treatment per Jason 2026-07-30: steel duty 10%, MFN normal. Metals duty is reported on a separate entry line against metal-content value and is excluded from parts TOTAL."
+    },
+    {
+      "code": "9903.74.11",
+      "program": "SEC_232_AUTOS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Medium/heavy vehicle parts exclusion \u2014 0%."
+    },
+    {
+      "code": "9903.82.02",
+      "program": "SEC_301",
+      "kind": "DUTY",
+      "rate": 0.5,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 301 \u2014 50%. Stacks on MFN; not suppressed by 232 (301 reports first)."
+    },
+    {
+      "code": "9903.88.01",
+      "program": "SEC_301_CHINA_LEGACY",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Legacy China 301 List 4A \u2014 25%. Stacks with 232 (both report; 301 first)."
+    },
+    {
+      "code": "9903.88.03",
+      "program": "SEC_301_CHINA_LEGACY",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Legacy China 301 List 3 \u2014 25%. Example stack: CN 8708 List 3 = 25% (301) + 25% (232) + 2.5% col-1 = 52.5%."
+    },
+    {
+      "code": "9903.94.05",
+      "program": "TBC_LABELING",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "STACKS",
+      "status": "CONFIRMED_RATE_TBC_PROGRAM",
+      "notes": "25%, MFN stacks \u2014 rate confirmed 2026-07-30. PROGRAM LABEL UNRESOLVED: 2026-07-27 session treated 9903.94.xx as Section 232 autos family; 2026-07-30 corrections labeled it 'IEEPA universal'. IEEPA (9903.01.xx) was struck down by SCOTUS 2026-02-20, so labeling matters for legal basis / drawback / refund exposure. Confirm with Jason/Marek."
+    },
+    {
+      "code": "9903.94.07",
+      "program": "TBC_LABELING",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED_RATE_TBC_PROGRAM",
+      "notes": "25%, MFN capped. Cap mechanic itself is TBC \u2014 see mfn_cap_rule in interaction_rules.json. Same program-label ambiguity as 9903.94.05."
+    },
+    {
+      "code": "9903.94.43",
+      "program": "TRADE_DEAL_JP",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED_RATE_TBC_MECHANIC",
+      "notes": "Japan trade-deal heading, 15%. 2026-07-27 framing: 232 top-up \u2014 col-1 under 15% is brought up to 15%, with 15% reported on the Ch.99 line and ZERO on the Ch.1-97 line. 2026-07-30 framing: MFN 'removed/capped (mostly 0 for auto)'. MFN cap mechanic (zeroed vs conditional cap) is the open blocking question."
+    },
+    {
+      "code": "9903.94.45",
+      "program": "TRADE_DEAL_EU",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED_RATE_TBC_MECHANIC",
+      "notes": "EU trade-deal heading, 15%. Same open MFN cap mechanic."
+    },
+    {
+      "code": "9903.94.55",
+      "program": "TRADE_DEAL_JP",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED_RATE_TBC_MECHANIC",
+      "notes": "Japan trade-deal heading, 15%. Same open MFN cap mechanic."
+    },
+    {
+      "code": "9903.94.63",
+      "program": "TRADE_DEAL_KR",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED_RATE_TBC_MECHANIC",
+      "notes": "Korea trade-deal heading, 15%. Same open MFN cap mechanic. KR/TW bilateral heading assignment among 9903.94.33/.53/.55/.63/.65/.67/.69 not fully confirmed."
+    },
+    {
+      "code": "9903.05.20",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Algeria (DZ) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.21",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Angola (AO) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.22",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Argentina (AR) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.23",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Australia (AU) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.24",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Bahamas (BS) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.25",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Bahrain (BH) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.26",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Bangladesh (BD) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.27",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Brazil (BR) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.28",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Cambodia (KH) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.29",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Canada (CA) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.30",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Chile (CL) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.31",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL China (CN) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.32",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Colombia (CO) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.33",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Costa Rica (CR) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.34",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Dominican Republic (DO) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.35",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Ecuador (EC) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.36",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Egypt (EG) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.37",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL El Salvador (SV) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.38",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL European Union (EU) \u2014 no additional duty when Col-1 \u2265 10.0%. CSMS #69326983."
+    },
+    {
+      "code": "9903.05.39",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "301-FL European Union (EU) \u2014 combined-to-cap 10.0% (rate = cap \u2212 Col-1). CSMS #69326983. Rate is computed, not fixed."
+    },
+    {
+      "code": "9903.05.40",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Guatemala (GT) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.41",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Guyana (GY) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.42",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Honduras (HN) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.43",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Hong Kong (HK) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.44",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL India (IN) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.45",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Indonesia (ID) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.46",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Iraq (IQ) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.47",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Israel (IL) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.48",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Japan (JP) \u2014 no additional duty when Col-1 \u2265 12.5%. CSMS #69326983."
+    },
+    {
+      "code": "9903.05.49",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "301-FL Japan (JP) \u2014 combined-to-cap 12.5% (rate = cap \u2212 Col-1). CSMS #69326983. Rate is computed, not fixed."
+    },
+    {
+      "code": "9903.05.50",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Jordan (JO) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.51",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Kazakhstan (KZ) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.52",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Kuwait (KW) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.53",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Libya (LY) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.54",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Malaysia (MY) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.55",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Mexico (MX) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.56",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Morocco (MA) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.57",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL New Zealand (NZ) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.58",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Nicaragua (NI) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.59",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Nigeria (NG) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.60",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Norway (NO) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.61",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Oman (OM) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.62",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Pakistan (PK) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.63",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Peru (PE) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.64",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Philippines (PH) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.65",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Qatar (QA) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.66",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Russia (RU) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.67",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Saudi Arabia (SA) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.68",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Singapore (SG) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.69",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL South Africa (ZA) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.70",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL South Korea (KR) \u2014 no additional duty when Col-1 \u2265 12.5%. CSMS #69326983."
+    },
+    {
+      "code": "9903.05.71",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "301-FL South Korea (KR) \u2014 combined-to-cap 12.5% (rate = cap \u2212 Col-1). CSMS #69326983. Rate is computed, not fixed."
+    },
+    {
+      "code": "9903.05.72",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Sri Lanka (LK) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.73",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Switzerland (CH) \u2014 no additional duty when Col-1 \u2265 12.5%. CSMS #69326983."
+    },
+    {
+      "code": "9903.05.74",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "301-FL Switzerland (CH) \u2014 combined-to-cap 12.5% (rate = cap \u2212 Col-1). CSMS #69326983. Rate is computed, not fixed."
+    },
+    {
+      "code": "9903.05.75",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Taiwan (TW) \u2014 no additional duty when Col-1 \u2265 10.0%. CSMS #69326983."
+    },
+    {
+      "code": "9903.05.76",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "301-FL Taiwan (TW) \u2014 combined-to-cap 10.0% (rate = cap \u2212 Col-1). CSMS #69326983. Rate is computed, not fixed."
+    },
+    {
+      "code": "9903.05.77",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Thailand (TH) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.78",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Trinidad & Tobago (TT) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.79",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL T\u00fcrkiye (TR) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.80",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL United Arab Emirates (AE) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.81",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL United Kingdom (GB) \u2014 flat 10.0%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.82",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Uruguay (UY) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.83",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Venezuela (VE) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.84",
+      "program": "SEC_301_FL",
+      "kind": "DUTY",
+      "rate": 0.125,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL Vietnam (VN) \u2014 flat 12.5%. CSMS #69326983, eff 2026-07-24."
+    },
+    {
+      "code": "9903.05.85",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL exemption \u2014 in_transit_grace. loaded/in-transit before 2026-07-24 AND entered before 2026-07-28"
+    },
+    {
+      "code": "9903.05.86",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL exemption \u2014 US Note 52(b)."
+    },
+    {
+      "code": "9903.05.87",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL exemption \u2014 US Note 52(c)."
+    },
+    {
+      "code": "9903.05.88",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL exemption \u2014 civil aircraft \u2014 US Note 52(d)."
+    },
+    {
+      "code": "9903.05.89",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL exemption \u2014 pharmaceutical applications \u2014 US Note 52(e)."
+    },
+    {
+      "code": "9903.05.90",
+      "program": "SEC_301_FL",
+      "kind": "SUPPRESSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL exemption \u2014 Section 232 universe \u2014 US Note 52(f). steel/aluminum/copper+derivatives; autos+parts; MHDV+parts; wood; semiconductors"
+    },
+    {
+      "code": "9903.05.91",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL exemption \u2014 humanitarian donations."
+    },
+    {
+      "code": "9903.05.92",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL exemption \u2014 informational materials."
+    },
+    {
+      "code": "9903.05.93",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (CA) \u2014 USMCA duty-free \u2014 Note 52(g)."
+    },
+    {
+      "code": "9903.05.94",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (MX) \u2014 USMCA duty-free \u2014 Note 52(h)."
+    },
+    {
+      "code": "9903.05.95",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (CR,DO,SV,GT,HN,NI) \u2014 CAFTA-DR textiles/apparel duty-free \u2014 Note 52(i)."
+    },
+    {
+      "code": "9903.05.96",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (GB) \u2014 Note 52(j)(1)."
+    },
+    {
+      "code": "9903.05.97",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (EU) \u2014 Note 52(j)(2)."
+    },
+    {
+      "code": "9903.05.98",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (CH) \u2014 Note 52(j)(3)."
+    },
+    {
+      "code": "9903.05.99",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (MY) \u2014 Note 52(j)(4)(i)."
+    },
+    {
+      "code": "9903.06.01",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (MY) \u2014 Note 52(j)(4)(ii)."
+    },
+    {
+      "code": "9903.06.02",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (KH) \u2014 Note 52(j)(5)(i)."
+    },
+    {
+      "code": "9903.06.03",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (KH) \u2014 Note 52(j)(5)(ii)."
+    },
+    {
+      "code": "9903.06.04",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (GT) \u2014 Note 52(j)(6)(i)."
+    },
+    {
+      "code": "9903.06.05",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (GT) \u2014 Note 52(j)(6)(ii)."
+    },
+    {
+      "code": "9903.06.06",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (GT) \u2014 Note 52(j)(6)(iii) \u2014 textiles; dual-eligible with 9903.05.95."
+    },
+    {
+      "code": "9903.06.07",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (SV) \u2014 Note 52(j)(7)(i)."
+    },
+    {
+      "code": "9903.06.08",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (SV) \u2014 Note 52(j)(7)(ii)."
+    },
+    {
+      "code": "9903.06.09",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (SV) \u2014 Note 52(j)(7)(iii) \u2014 textiles; dual-eligible with 9903.05.95."
+    },
+    {
+      "code": "9903.06.10",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (AR) \u2014 Note 52(j)(8)(i)."
+    },
+    {
+      "code": "9903.06.11",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (AR) \u2014 Note 52(j)(8)(ii)."
+    },
+    {
+      "code": "9903.06.12",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (BD) \u2014 Note 52(j)(9)(i)."
+    },
+    {
+      "code": "9903.06.13",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (BD) \u2014 Note 52(j)(9)(ii)."
+    },
+    {
+      "code": "9903.06.14",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (TW) \u2014 Note 52(j)(10)(i)."
+    },
+    {
+      "code": "9903.06.15",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (TW) \u2014 Note 52(j)(10)(ii)."
+    },
+    {
+      "code": "9903.06.16",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (ID) \u2014 Note 52(j)(11)(i)."
+    },
+    {
+      "code": "9903.06.17",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (ID) \u2014 Note 52(j)(11)(ii)."
+    },
+    {
+      "code": "9903.06.18",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (EC) \u2014 Note 52(j)(12)(i)."
+    },
+    {
+      "code": "9903.06.19",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (EC) \u2014 Note 52(j)(12)(ii)."
+    },
+    {
+      "code": "9903.06.20",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (JO) \u2014 Note 52(j)(13)(i)."
+    },
+    {
+      "code": "9903.06.21",
+      "program": "SEC_301_FL",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "301-FL economy-specific exemption (JO) \u2014 Note 52(j)(13)(ii)."
+    }
+  ]
+}

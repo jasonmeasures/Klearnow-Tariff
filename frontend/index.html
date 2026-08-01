@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#013A56" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="description" content="KlearNow Tariff — check US duty stacks, 301-FL, and Chapter 99 in seconds." />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icons/icon.svg" />
+<title>KlearNow Tariff — US</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brandmark" aria-hidden="true">KN</div>
+  <div>
+    <h1>KlearNow Tariff</h1>
+    <div class="sub">US duty check · rule engine</div>
+  </div>
+  <span class="chip juris" title="Jurisdiction. Other customs territories are not yet modelled.">US</span>
+  <div class="spacer"></div>
+  <span class="chip" id="whochip" hidden></span>
+  <span class="chip" id="packchip"><span class="dot" id="packdot"></span><span id="packtext">connecting…</span></span>
+</div>
+
+<div class="layout">
+  <nav class="side" aria-label="Sections">
+    <div class="navgroup eyebrow">Use</div>
+    <button data-view="calc" aria-current="page">Check duty</button>
+    <button data-view="lookup">HTS list</button>
+    <button data-view="audit">Audit</button>
+    <div class="navgroup eyebrow">Manage</div>
+    <button data-view="rules">Rules <span class="badge" id="nav-rules">—</span></button>
+    <button data-view="upload">Upload</button>
+    <button data-view="history">Snapshots <span class="badge" id="nav-snaps">—</span></button>
+    <div class="navgroup eyebrow">Understand</div>
+    <button data-view="insights">Insights</button>
+    <button data-view="reference">API &amp; ref</button>
+  </nav>
+
+  <main>
+    <!-- ============================ CALCULATOR ============================ -->
+    <section class="view" id="view-calc">
+      <div class="hero-check">
+        <div class="hero-check-copy">
+          <p class="eyebrow">Quick check</p>
+          <h2>What does this HTS owe?</h2>
+          <p class="hero-lead">One code, one origin, one answer — including new 301-FL layers,
+            with the full Chapter&nbsp;99 stack when you need it.</p>
+        </div>
+        <div class="quick-card">
+          <div class="quick-grid">
+            <div class="field"><label class="label" for="qc-hts">HTS</label>
+              <input type="text" id="qc-hts" class="mono" placeholder="8708.29.5160" spellcheck="false"
+                autocomplete="off" inputmode="decimal" /></div>
+            <div class="field"><label class="label" for="qc-coo">Origin</label>
+              <input type="text" id="qc-coo" class="mono" placeholder="VN" maxlength="2"
+                style="text-transform:uppercase" spellcheck="false" autocomplete="off" /></div>
+            <div class="field"><label class="label" for="qc-value">Entered value (USD)</label>
+              <input type="text" id="qc-value" class="num" placeholder="10000" inputmode="decimal" /></div>
+            <div class="field"><label class="label" for="qc-date">Rate date</label>
+              <input type="date" id="qc-date" /></div>
+          </div>
+          <div class="quick-flags">
+            <label class="check"><input type="checkbox" id="qc-fl" checked />
+              <span>Apply 301-FL / auto stack for this origin</span></label>
+            <label class="check"><input type="checkbox" id="qc-list3" />
+              <span>China 301 List 3</span></label>
+            <label class="check"><input type="checkbox" id="qc-232" />
+              <span>232 auto part</span></label>
+          </div>
+          <div class="actions quick-actions">
+            <button class="btn-primary btn-lg" id="qc-run" type="button">Check duty</button>
+            <button class="btn-ghost btn-sm" id="qc-example" type="button">Try VN apparel</button>
+            <button class="btn-ghost btn-sm" id="qc-example-cn" type="button">Try CN parts</button>
+          </div>
+          <p class="cap" id="qc-htsmeta" style="margin:var(--sp-2) 0 0"></p>
+        </div>
+      </div>
+
+      <div id="calcbanner"></div>
+
+      <div class="cols c2 calc-body">
+        <div>
+          <details class="adv-panel" id="adv-panel">
+            <summary>
+              <span class="adv-title">Multi-line, engines &amp; scenarios</span>
+              <span class="cap">Batch paste, Ch99 pack, compare A/B</span>
+            </summary>
+            <div class="adv-body">
+              <div class="card">
+                <header><h5>Rule set</h5><div class="spacer"></div>
+                  <span class="cap" id="enginehint">select before assess</span></header>
+                <div class="body">
+                  <div class="engine-grid" id="enginegrid" role="radiogroup" aria-label="Assessment engine"></div>
+                  <p class="cap" style="margin:var(--sp-3) 0 0" id="enginenote">
+                    <b>Auto</b> stacks 301 / 301-FL / 232.
+                    <b>Ch99</b> runs the reciprocal / IEEPA country pack.</p>
+                </div>
+              </div>
+
+              <div class="card">
+                <header><h5>Scenarios</h5><div class="spacer"></div>
+                  <button class="btn-ghost btn-sm" id="clearscenarios" type="button">Clear</button></header>
+                <div class="body">
+                  <div class="scenario-slots">
+                    <div class="scenario-slot" data-slot="A">
+                      <div class="scenario-slot-hd"><span class="eyebrow">A</span>
+                        <span class="scenario-label" id="slotA-label">Empty</span></div>
+                      <div class="scenario-meta cap" id="slotA-meta">Save an assessment to pin it here.</div>
+                      <div class="actions" style="margin-top:var(--sp-2)">
+                        <button class="btn-secondary btn-sm" id="saveA" type="button" disabled>Save → A</button>
+                        <button class="btn-ghost btn-sm" id="showA" type="button" disabled>Show</button>
+                      </div>
+                    </div>
+                    <div class="scenario-slot" data-slot="B">
+                      <div class="scenario-slot-hd"><span class="eyebrow">B</span>
+                        <span class="scenario-label" id="slotB-label">Empty</span></div>
+                      <div class="scenario-meta cap" id="slotB-meta">Save another run here.</div>
+                      <div class="actions" style="margin-top:var(--sp-2)">
+                        <button class="btn-secondary btn-sm" id="saveB" type="button" disabled>Save → B</button>
+                        <button class="btn-ghost btn-sm" id="showB" type="button" disabled>Show</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="actions" style="margin-top:var(--sp-3)">
+                    <button class="btn-secondary" id="runboth" type="button">Run both engines</button>
+                    <button class="btn-primary" id="compareAB" type="button" disabled>Compare A ↔ B</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <header><h5>Entry</h5><div class="spacer"></div>
+                  <span class="cap" id="linecount">0 lines</span></header>
+                <div class="body">
+                  <div class="grid4">
+                    <div class="field"><label class="label" for="entryno">Entry number</label>
+                      <input type="text" id="entryno" placeholder="optional" /></div>
+                    <div class="field"><label class="label" for="mode">Mode of transport</label>
+                      <select id="mode">
+                        <option value="">Not stated</option><option value="OCEAN">Ocean</option>
+                        <option value="AIR">Air</option><option value="TRUCK">Truck</option>
+                        <option value="RAIL">Rail</option>
+                      </select></div>
+                    <div class="field"><label class="label" for="formal">Entry type</label>
+                      <select id="formal"><option value="1">Formal</option>
+                        <option value="0">Informal</option></select></div>
+                    <div class="field"><label class="label" for="knowledge">Assess as known on</label>
+                      <input type="date" id="knowledge" /></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <header><h5>Lines</h5><div class="spacer"></div>
+                  <button class="btn-secondary btn-sm" id="addline">Add line</button>
+                  <button class="btn-ghost btn-sm" id="loadsample">Load examples</button>
+                  <button class="btn-ghost btn-sm" id="clearall">Clear</button></header>
+                <div class="body flush">
+                  <table class="lines">
+                    <thead><tr>
+                      <th style="width:28px"></th><th style="min-width:130px">HTS</th>
+                      <th style="width:62px">Origin</th><th class="r" style="width:108px">Entered value</th>
+                      <th class="r" style="width:76px">Col&#8209;1 %</th><th style="width:128px">Entry date</th>
+                      <th style="width:88px">Claims</th><th style="width:34px"></th>
+                    </tr></thead>
+                    <tbody id="linebody"></tbody>
+                  </table>
+                </div>
+                <div class="body" style="border-top:1px solid var(--color-blue-gray-200)">
+                  <div class="actions">
+                    <button class="btn-primary" id="assess">Assess entry</button>
+                    <button class="btn-secondary" id="auditbtn">Audit as filed</button>
+                    <span class="spacer"></span>
+                    <button class="btn-ghost btn-sm" id="togglepaste">Paste rows</button>
+                  </div>
+                  <div id="pastewrap" hidden style="margin-top:var(--sp-3)">
+                    <label class="label" for="pastebox">Paste CSV or tab-separated rows</label>
+                    <textarea id="pastebox" spellcheck="false"
+placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
+8708.29.5160,CN,10000,2.5,2026-07-25,2026-07-25,s301_list_3
+6203.42.4010,VN,25000,16.6,2026-07-25,2026-07-25,"></textarea>
+                    <div class="actions" style="margin-top:var(--sp-2)">
+                      <button class="btn-secondary btn-sm" id="doparse">Add rows</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <div>
+          <div class="card result-card">
+            <header><h5 id="resulttitle">Allocation</h5><div class="spacer"></div>
+              <span class="chip-inline" id="resultengine" hidden></span>
+              <button class="btn-ghost btn-sm" id="exportcsv" hidden>Export CSV</button>
+              <button class="btn-ghost btn-sm" id="copyall" hidden>Copy</button></header>
+            <div id="results">
+              <div class="empty"><h4>Ready when you are</h4>
+                <p class="cap" style="max-width:40ch;margin:0 auto">Enter an HTS and origin above,
+                  then <b>Check duty</b>. Stack layers, suppressions, and citations appear here.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ HTS LIST / COVERAGE ============================ -->
+    <section class="view hide" id="view-lookup">
+      <div class="viewhead">
+        <h2>Which rules apply?</h2>
+        <p class="cap">Drop a spreadsheet, paste a list, or upload CSV / JSON / Excel.
+          No entered value needed — see Column&nbsp;1 and the Chapter&nbsp;99 rules for each HTS.</p>
+      </div>
+      <div id="lookupbanner"></div>
+
+      <div class="lookup-layout">
+        <div class="card lookup-input">
+          <header><h5>Your HTS list</h5>
+            <div class="spacer"></div>
+            <span class="cap" id="lookup-count">0 codes</span></header>
+          <div class="body">
+            <div class="grid3" style="margin-bottom:var(--sp-3)">
+              <div class="field"><label class="label" for="lookup-date">Rate date</label>
+                <input type="date" id="lookup-date" /></div>
+              <div class="field"><label class="label" for="lookup-coo">Default origin</label>
+                <input type="text" id="lookup-coo" class="mono" maxlength="2" placeholder="VN"
+                  style="text-transform:uppercase" title="Used when a row has no COO column" /></div>
+              <div class="field" style="display:flex;align-items:flex-end;padding-bottom:2px">
+                <label class="check"><input type="checkbox" id="lookup-cnlist3" checked />
+                  <span>Assume CN List&nbsp;3 when origin is China</span></label>
+              </div>
+            </div>
+
+            <div class="dropzone" id="lookup-drop" tabindex="0"
+              aria-label="Drop Excel, CSV, or JSON file here">
+              <input type="file" id="lookup-file" accept=".csv,.tsv,.txt,.json,.xlsx,.xls" hidden />
+              <p class="drop-title">Drop Excel, CSV, or JSON</p>
+              <p class="cap">or <button type="button" class="linkish" id="lookup-browse">browse</button>
+                · columns recognised: <span class="mono">hts</span>, <span class="mono">coo</span> / origin, date</p>
+            </div>
+
+            <div class="field" style="margin-top:var(--sp-4)">
+              <label class="label" for="lookup-paste">Or paste codes</label>
+              <textarea id="lookup-paste" spellcheck="false" rows="8"
+placeholder="hts,coo
+6203.42.4010,VN
+8708.10.3050,CN
+8517.12.0020,DE
+
+— or one HTS per line —
+8708103050
+6203424010"></textarea>
+            </div>
+
+            <div class="actions" style="margin-top:var(--sp-3)">
+              <button class="btn-primary btn-lg" id="lookup-run" type="button">Find applicable rules</button>
+              <button class="btn-ghost btn-sm" id="lookup-clear" type="button">Clear</button>
+              <button class="btn-ghost btn-sm" id="lookup-sample" type="button">Load sample list</button>
+            </div>
+            <p class="cap" style="margin:var(--sp-2) 0 0">Tip: with only HTS codes, set a
+              <b>default origin</b> so 301-FL and country stacks can resolve.</p>
+          </div>
+        </div>
+
+        <div class="card lookup-results">
+          <header><h5>Results</h5>
+            <div class="spacer"></div>
+            <button class="btn-ghost btn-sm" id="lookup-export" type="button" hidden>Export CSV</button></header>
+          <div id="lookup-out">
+            <div class="empty">
+              <h4>No list yet</h4>
+              <p class="cap" style="max-width:36ch;margin:0 auto">Add HTS codes on the left.
+                You’ll see Column&nbsp;1, 301-FL, and other Chapter&nbsp;99 headings that apply —
+                then open any row for the full rule trail.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ AUDIT ============================ -->
+    <section class="view hide" id="view-audit">
+      <div class="viewhead">
+        <h2>Audit an entry</h2>
+        <p class="cap">Compare what was filed against what the rules require.</p>
+      </div>
+      <div class="card"><div class="body">
+        <p style="margin:0 0 var(--sp-3)">The audit runs on the lines already in the calculator, so
+          there is one set of inputs rather than two. On each line, open <b>+</b> and enter the
+          Chapter&nbsp;99 codes as filed. Set <b>as known on</b> to the filing date so the entry is
+          judged against the rules in force then, not today's.</p>
+        <div class="actions">
+          <button class="btn-primary" id="gotoaudit">Open the calculator</button>
+        </div>
+        <details class="help" open><summary>What the audit checks</summary><div>
+          <table>
+            <tr><td>Missing code</td><td>A heading the rules require that was not filed, with its
+              duty impact. Includes affirmative $0 reporting lines, which are commonly omitted and
+              cause a transmit rejection.</td></tr>
+            <tr><td>Over&#8209;application</td><td>A code that was filed but is suppressed by an
+              exemption — an overpayment.</td></tr>
+            <tr><td>List difference</td><td>A Section 301 list code that differs from the expected
+              one. Reported as information, not an error: the lists are mutually exclusive and
+              membership is HTS&#8209;specific, so it needs an annex check rather than a
+              correction.</td></tr>
+            <tr><td>Reconciliation</td><td>Filed duty total against computed, to the cent.</td></tr>
+          </table></div></details>
+      </div></div>
+    </section>
+
+    <!-- ============================ RULES ============================ -->
+    <section class="view hide" id="view-rules">
+      <div class="viewhead">
+        <h2>Rules</h2>
+        <p class="cap">The live rule set. Filter, inspect, and — with authoring access — publish a
+          new snapshot. A draft cannot affect an assessment until it is published.</p>
+      </div>
+      <div id="rulesbanner"></div>
+      <div class="cols c2">
+        <div class="card">
+          <header><h5>Browse</h5><div class="spacer"></div>
+            <span class="cap" id="rulesfound">—</span></header>
+          <div class="body">
+            <div class="grid3">
+              <div class="field"><label class="label" for="f-program">Program</label>
+                <select id="f-program"><option value="">All</option></select></div>
+              <div class="field"><label class="label" for="f-action">Action</label>
+                <select id="f-action"><option value="">All</option>
+                  <option>DUTY</option><option>THRESHOLD</option><option>EXEMPTION</option>
+                  <option>INTRANSIT</option><option>SUPPRESSION</option></select></div>
+              <div class="field"><label class="label" for="f-status">Status</label>
+                <select id="f-status"><option value="">All</option>
+                  <option>PUBLISHED</option><option>DRAFT</option><option>RETIRED</option></select></div>
+            </div>
+            <div class="grid3">
+              <div class="field"><label class="label" for="f-coo">Origin</label>
+                <input type="text" id="f-coo" placeholder="CN" maxlength="2"
+                  style="text-transform:uppercase" /></div>
+              <div class="field"><label class="label" for="f-ch99">Chapter 99 starts with</label>
+                <input type="text" id="f-ch99" class="mono" placeholder="9903.88" /></div>
+              <div class="field"><label class="label" for="f-q">Search text</label>
+                <input type="text" id="f-q" placeholder="label, notes, citation" /></div>
+            </div>
+            <div class="actions"><button class="btn-secondary btn-sm" id="f-apply">Apply</button>
+              <button class="btn-ghost btn-sm" id="f-reset">Reset</button></div>
+          </div>
+          <div class="body flush scrollbox">
+            <table class="data"><thead><tr>
+              <th>Rule</th><th>Action</th><th>Ch.99</th><th>Window</th>
+            </tr></thead><tbody id="rulesbody"></tbody></table>
+          </div>
+        </div>
+        <div>
+          <div class="card"><header><h5>Detail</h5><div class="spacer"></div>
+            <button class="btn-ghost btn-sm" id="ruleraw" hidden>Raw</button></header>
+            <div id="ruledetail"><div class="empty"><h4>No rule selected</h4>
+              <p class="cap">Choose a rule to see its predicate, rate, windows and citation.</p>
+            </div></div>
+          </div>
+          <div class="card" id="publishcard" hidden>
+            <header><h5>Publish a snapshot</h5></header>
+            <div class="body">
+              <p class="cap" style="margin:0 0 var(--sp-3)">Freezes every published rule into a
+                hashed, immutable snapshot and activates it. Validation must pass first, and an
+                AI-drafted rule needs a named reviewer.</p>
+              <div class="actions" style="margin-bottom:var(--sp-3)">
+                <button class="btn-secondary btn-sm" id="runvalidate">Validate</button>
+              </div>
+              <div id="validateout"></div>
+              <div class="grid2">
+                <div class="field"><label class="label" for="snapversion">Version</label>
+                  <input type="text" id="snapversion" class="mono" placeholder="2026.08.01-1" /></div>
+                <div class="field"><label class="label" for="snapby">Your name</label>
+                  <input type="text" id="snapby" placeholder="required" /></div>
+              </div>
+              <div class="field"><label class="label" for="snapnote">What changed</label>
+                <input type="text" id="snapnote" placeholder="CSMS #… — one line" /></div>
+              <button class="btn-primary" id="dopublish" disabled>Publish &amp; activate</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ UPLOAD ============================ -->
+    <section class="view hide" id="view-upload">
+      <div class="viewhead">
+        <h2>Upload</h2>
+        <p class="cap">Load many HTSUS rates or tariff rules at once. Rules land as drafts and are
+          validated before they can affect a single assessment.</p>
+      </div>
+      <div id="uploadbanner"></div>
+      <div class="card">
+        <header><h5>What are you loading?</h5><div class="spacer"></div>
+          <select id="uploadkind" style="width:auto">
+            <option value="hts">HTSUS column-1 rates (CSV)</option>
+            <option value="rules">Tariff rules (JSON)</option>
+          </select></header>
+        <div class="body">
+          <div id="uploadhelp"></div>
+          <div class="drop" id="dropzone">
+            <p style="margin:0 0 var(--sp-2)"><b>Drop a file here</b> or choose one</p>
+            <input type="file" id="filepick" accept=".csv,.tsv,.txt,.json"
+              style="width:auto;display:inline-block" />
+          </div>
+          <div class="field" style="margin-top:var(--sp-4)">
+            <label class="label" for="uploadbox">Or paste the content</label>
+            <textarea id="uploadbox" spellcheck="false" style="min-height:180px"></textarea>
+          </div>
+          <div class="actions">
+            <button class="btn-secondary" id="uploadpreview">Preview</button>
+            <button class="btn-primary" id="uploadcommit" disabled>Load</button>
+            <span class="spacer"></span>
+            <button class="btn-ghost btn-sm" id="uploadtemplate">Show a template</button>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="previewcard" hidden>
+        <header><h5>Preview</h5><div class="spacer"></div>
+          <span class="cap" id="previewcount"></span></header>
+        <div class="body flush scrollbox"><div id="previewout"></div></div>
+      </div>
+    </section>
+
+    <!-- ============================ SNAPSHOTS ============================ -->
+    <section class="view hide" id="view-history">
+      <div class="viewhead">
+        <h2>Snapshots</h2>
+        <p class="cap">Every published rule set, hashed and immutable. Pin a hash to reproduce an
+          assessment months later — which is what you need when CBP asks why a line was filed the
+          way it was.</p>
+      </div>
+      <div id="historybanner"></div>
+      <div class="card"><header><h5>Published snapshots</h5></header>
+        <div class="body flush"><div id="snapsout"><div class="empty"><span class="busy"></span></div></div></div>
+      </div>
+      <div class="card"><header><h5>Compare two snapshots</h5></header>
+        <div class="body">
+          <div class="grid3">
+            <div class="field"><label class="label" for="diff-from">From</label>
+              <select id="diff-from"></select></div>
+            <div class="field"><label class="label" for="diff-to">To</label>
+              <select id="diff-to"></select></div>
+            <div class="field"><label class="label" for="dodiff">&nbsp;</label>
+              <button class="btn-secondary" id="dodiff">Compare</button></div>
+          </div>
+          <div id="diffout"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ INSIGHTS ============================ -->
+    <section class="view hide" id="view-insights">
+      <div class="viewhead">
+        <h2>Insights</h2>
+        <p class="cap">What the live rule set covers, and what needs attention.</p>
+      </div>
+      <div id="insightsout"><div class="empty"><span class="busy"></span></div></div>
+    </section>
+
+    <!-- ============================ REFERENCE ============================ -->
+    <section class="view hide" id="view-reference">
+      <div class="viewhead">
+        <h2>API &amp; reference</h2>
+        <p class="cap">Integrate other tools, connect Claude via MCP, and review the CBP mechanics
+          the engine implements.</p>
+      </div>
+      <div class="card api-card">
+        <header><h5>Integrate</h5></header>
+        <div class="body">
+          <p style="margin:0 0 var(--sp-3)">The rules engine is the API. Auth with
+            <code class="mono">X-API-Key</code> (local default <code class="mono">dev-internal</code>).</p>
+          <ul class="api-list">
+            <li><code class="mono">GET /v1/hts/{code}</code> — baseline Column-1 rate</li>
+            <li><code class="mono">POST /v1/hts:coverage</code> — which rules apply to an HTS list (no value)</li>
+            <li><code class="mono">POST /v1/entries:assess</code> — duty stack (<code class="mono">engine=auto|ch99</code>)</li>
+            <li><code class="mono">GET /v1/rules</code> — browse live rules</li>
+            <li><code class="mono">PUT /v1/admin/s301fl/countries/{iso2}</code> — hot-update 301-FL (no rebuild)</li>
+            <li><code class="mono">GET /v1/openapi.json</code> — machine-readable contract</li>
+          </ul>
+          <p class="cap" style="margin:var(--sp-3) 0 0">MCP for Claude / Cursor: run
+            <code class="mono">cd mcp && npm i && npm start</code> with the API up, then point the
+            client at that stdio server (see <code class="mono">mcp/README.md</code>). AI can assess
+            and upsert 301-FL rows without a frontend rebuild.</p>
+        </div>
+      </div>
+      <div class="cols c2">
+        <div class="card"><header><h5>Which date applies</h5></header>
+          <div class="body" id="ref-ratedate"><span class="busy"></span></div></div>
+        <div class="card"><header><h5>Reporting sequence</h5></header>
+          <div class="body" id="ref-stacking"><span class="busy"></span></div></div>
+      </div>
+      <div class="card"><header><h5>Claim flags in the live pack</h5><div class="spacer"></div>
+        <span class="cap">Discovered from the rules, not a hand-maintained list</span></header>
+        <div class="body flush scrollbox" id="ref-flags"><div class="empty"><span class="busy"></span></div></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>
