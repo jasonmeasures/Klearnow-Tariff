@@ -20,6 +20,7 @@ Open http://localhost:3000. Default API key: `dev-internal` (query `?key=dev-cal
 |---|---|
 | Most users | **Check duty** — HTS / origin / value / date → allocation |
 | Catalog / ops | **HTS list** — Excel / CSV / JSON / paste → which rules apply (no value) |
+| Authors | **Rule chat** — Claude drafts CSMS / tariff pack updates; Apply hot-reloads (no rebuild) |
 | Power users | Advanced panel — multi-line, Auto vs Ch99 engines, scenario A/B |
 | Authors / AI | **MCP** (`mcp/`) + `PUT /v1/admin/s301fl/...` — hot-update rules, no rebuild |
 | Other systems | **HTTP API** — `GET /v1/openapi.json`, `GET /v1/hts/{code}`, `POST /v1/entries:assess` |
@@ -33,7 +34,19 @@ Open http://localhost:3000. Default API key: `dev-internal` (query `?key=dev-cal
 | `tariff-rules/` | Source of truth — codes, 301-FL pack, Ch99 reciprocal, HTS column-1 |
 | `mcp/` | MCP stdio server for Claude Desktop / Cursor |
 
-## Connect Claude (or Cursor) — MCP
+## Rule chat (CSMS / tariff changes)
+
+1. Put your Anthropic key in `backend/.env`:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+2. Restart `cd backend && npm run dev`
+3. Open **Rule chat** (or the floating Chat button)
+4. Describe the notice → review the pending upsert → **Apply** (writes `s301fl_pack.json` and reloads)
+
+MCP (`mcp/`) still works for Claude Desktop / Cursor in parallel.
 
 Rules updates without rebuild:
 

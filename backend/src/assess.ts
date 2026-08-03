@@ -7,7 +7,14 @@ import {
   normalizeCh99,
 } from "../../tariff-rules/src/tariffRules.ts";
 import { assessS301fl } from "../../tariff-rules/src/s301fl.ts";
+import {
+  ch99ForChinaList,
+  chinaListIdFromFlags,
+  lookupChina301List,
+} from "../../tariff-rules/src/s301China.ts";
+import { classify232Metals } from "../../tariff-rules/src/s232Metals.ts";
 import { resolveCol1 } from "./htsLookup.ts";
+import { computeEntryFees } from "./fees.ts";
 import { rulepackPublic } from "./state.ts";
 
 export type Diagnostic = {
@@ -45,6 +52,19 @@ export type LineIn = {
   warehouse_withdrawal_date?: string;
   entry_type?: string;
   metal_content_value?: number | string;
+  /** Metal content as percent of entered value (e.g. 80 = 80%). Alternative to metal_content_value. */
+  metal_content_pct?: number | string;
+  /**
+   * Mixed metals — steel / aluminum / copper content separately.
+   * Each: { value?: number, pct?: number, melt_pour?: string }
+   */
+  metal_contents?: Record<
+    string,
+    { value?: number | string; pct?: number | string; melt_pour?: string }
+  >;
+  country_of_melt_pour?: string;
+  quantity?: number | string;
+  quantity_uom?: string;
   filed_ch99?: string[];
   filed_duty_total?: number | string;
   flags?: Record<string, boolean>;
@@ -115,8 +135,13 @@ function layer(opts: {
   basis?: string;
   basis_amount: number;
   rate_pct: number;
+  rate_label?: string;
+  duty_amount?: number;
 }): DutyLayer {
-  const duty = money2(opts.basis_amount * opts.rate_pct);
+  const duty =
+    opts.duty_amount != null
+      ? money2(opts.duty_amount)
+      : money2(opts.basis_amount * opts.rate_pct);
   return {
     stack_slot: opts.slot,
     program: uiProgram(opts.program),
@@ -126,17 +151,39 @@ function layer(opts: {
     source_ref: opts.source_ref,
     basis: opts.basis || "ENTERED_VALUE",
     basis_amount: money2(opts.basis_amount),
-    rate: pctLabel(opts.rate_pct),
+    rate: opts.rate_label || pctLabel(opts.rate_pct),
     rate_pct: opts.rate_pct,
     duty_amount: duty,
   };
 }
 
-function chinaListCode(flags: Record<string, boolean>): string | null {
-  if (flags.s301_list_3 || flags.s301_list3) return "9903.88.03";
-  if (flags.s301_list_4a || flags.s301_list4a) return "9903.88.01";
-  if (flags.s301_list_1 || flags.s301_list1) return "9903.88.03";
-  if (flags.s301_list_2 || flags.s301_list2) return "9903.88.03";
+function chinaListCode(
+  hts: string,
+  flags: Record<string, boolean>,
+  diagnostics: Diagnostic[],
+): string | null {
+  const fromHts = lookupChina301List(hts);
+  const fromFlag = chinaListIdFromFlags(flags);
+
+  if (fromHts && fromFlag && fromHts.list !== fromFlag) {
+    diagnostics.push({
+      severity: "WARNING",
+      code: "S301_LIST_CLAIM_MISMATCH",
+      message: `HTS ${fromHts.hts8} is on China 301 ${fromHts.list.replace("_", " ")} → ${fromHts.ch99}, but the claim flag says ${fromFlag}. Using HTS membership.`,
+      remediation: `Clear the wrong list claim and report ${fromHts.ch99} (Cervó / USTR list notes).`,
+    });
+  }
+
+  if (fromHts) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "S301_LIST_RESOLVED",
+      message: `China 301 ${fromHts.list.replace(/_/g, " ")} resolved from 8-digit HTS ${fromHts.hts8} → ${fromHts.ch99}.`,
+    });
+    return fromHts.ch99;
+  }
+
+  if (fromFlag) return ch99ForChinaList(fromFlag);
   return null;
 }
 
@@ -166,15 +213,18 @@ export function assessLine(line: LineIn, index: number) {
 
   let col1Pct = num(line.col1_rate_pct, NaN);
   let col1Source = "supplied";
+  let col1SpecificUsd = 0;
+  let col1Uom = String(line.quantity_uom || "").trim().toUpperCase();
+  let rateLabel = "";
+  const resolved = resolveCol1(hts, rd.date);
   if (!Number.isFinite(col1Pct)) {
-    const resolved = resolveCol1(hts, rd.date);
     if (resolved) {
       col1Pct = resolved.col1_pct;
       col1Source = "hts_table";
       diagnostics.push({
         severity: "INFO",
         code: "COL1_RESOLVED",
-        message: `Column-1 ${col1Pct}% resolved from HTS table for ${resolved.hts} (window ${resolved.start} → ${resolved.end}).`,
+        message: `Column-1 ${resolved.rate_label} resolved from HTS table for ${resolved.hts} (window ${resolved.start} → ${resolved.end}).`,
       });
     } else {
       col1Pct = 0;
@@ -187,9 +237,94 @@ export function assessLine(line: LineIn, index: number) {
       });
     }
   }
+  if (resolved) {
+    col1SpecificUsd = resolved.col1_specific_usd || 0;
+    col1Uom = col1Uom || (resolved.uom1 || "").toUpperCase();
+    rateLabel = resolved.rate_label;
+  }
   const col1 = col1Pct / 100;
+  const qty = num(line.quantity, NaN);
+  let specificDuty = 0;
+  if (col1SpecificUsd > 0) {
+    if (!Number.isFinite(qty) || qty <= 0) {
+      diagnostics.push({
+        severity: "ERROR",
+        code: "QTY_REQUIRED_FOR_SPECIFIC",
+        message: `Column-1 includes a specific rate (${rateLabel || `${col1SpecificUsd}/${col1Uom || "unit"}`}). Enter quantity in ${col1Uom || "the HTS UOM"} (e.g. BBL for lubricating oils at 84¢/bbl).`,
+        remediation: `Add quantity (${col1Uom || "UOM"}) — Cervó’s BBL QTY field for barrel-based oils.`,
+      });
+    } else {
+      specificDuty = money2(qty * col1SpecificUsd);
+    }
+  }
   const flags = line.flags || {};
   const filed = (line.filed_ch99 || []).map(normalizeCh99);
+
+  const pushCommodity = (zeroCommodity = false) => {
+    if (zeroCommodity) {
+      layers.push(
+        layer({
+          slot: "6.0",
+          program: "base",
+          ch99: null,
+          label: "Column-1 / Chapters 1–97",
+          reason: "Commodity line rate zeroed on this path (Ch.99 reports the operative rate).",
+          basis_amount: entered,
+          rate_pct: 0,
+          rate_label: rateLabel || pctLabel(0),
+        }),
+      );
+      return;
+    }
+    if (col1 > 0) {
+      layers.push(
+        layer({
+          slot: "6.0",
+          program: "base",
+          ch99: null,
+          label: "Column-1 ad valorem",
+          reason: "Ad valorem portion of Chapters 1–97 / Column 1.",
+          basis_amount: entered,
+          rate_pct: col1,
+        }),
+      );
+    }
+    if (specificDuty > 0) {
+      const cents =
+        resolved?.col1_specific_cents ??
+        Math.round(col1SpecificUsd * 10000) / 100;
+      layers.push(
+        layer({
+          slot: "6.0",
+          program: "base",
+          ch99: null,
+          label: `Column-1 specific (${col1Uom || "UOM"})`,
+          reason: `${trimDisp(cents)}¢/${col1Uom || "unit"} × ${qty} ${col1Uom || "units"}.`,
+          basis: "QUANTITY",
+          basis_amount: qty,
+          rate_pct: 0,
+          rate_label: `${trimDisp(cents)}¢/${col1Uom || "unit"}`,
+          duty_amount: specificDuty,
+        }),
+      );
+    } else if (!(col1 > 0)) {
+      layers.push(
+        layer({
+          slot: "6.0",
+          program: "base",
+          ch99: null,
+          label: "Column-1 / Chapters 1–97",
+          reason: rateLabel ? `Column-1 ${rateLabel}.` : "Commodity line rate.",
+          basis_amount: entered,
+          rate_pct: 0,
+          rate_label: rateLabel || "Free",
+        }),
+      );
+    }
+  };
+  function trimDisp(n: number) {
+    return String(Number(n.toFixed(4))).replace(/0+$/, "").replace(/\.$/, "");
+  }
 
   if (!hts) {
     diagnostics.push({
@@ -215,7 +350,96 @@ export function assessLine(line: LineIn, index: number) {
 
   rejectDeadFiled(filed, diagnostics);
 
-  const is232 = Boolean(flags.s232_auto_part || flags.s232_auto || flags.s232);
+  const metalsHit = classify232Metals(hts);
+  const legacyMelt = String(line.country_of_melt_pour || "")
+    .trim()
+    .toUpperCase()
+    .slice(0, 2);
+
+  type MetalPart = {
+    kind: string;
+    basis: number;
+    pct: number | null;
+    mode: "USD" | "PCT";
+    melt_pour: string;
+  };
+  const metalParts: MetalPart[] = [];
+  const rawContents = line.metal_contents && typeof line.metal_contents === "object"
+    ? line.metal_contents
+    : null;
+
+  if (rawContents) {
+    for (const kind of ["steel", "aluminum", "copper"] as const) {
+      const row = rawContents[kind];
+      if (!row || typeof row !== "object") continue;
+      const melt = String(row.melt_pour || "")
+        .trim()
+        .toUpperCase()
+        .slice(0, 2);
+      const pctRaw = num(row.pct, NaN);
+      const valRaw = num(row.value, NaN);
+      let basis = 0;
+      let mode: "USD" | "PCT" = "USD";
+      let pct: number | null = null;
+      if (Number.isFinite(valRaw) && valRaw > 0) {
+        basis = valRaw;
+        mode = "USD";
+        if (entered > 0) pct = money2((basis / entered) * 100);
+      } else if (Number.isFinite(pctRaw) && pctRaw > 0) {
+        mode = "PCT";
+        pct = pctRaw;
+        basis = money2(entered * (pctRaw / 100));
+      } else {
+        continue;
+      }
+      metalParts.push({ kind, basis, pct, mode, melt_pour: melt });
+    }
+  }
+
+  // Legacy single-content fields (primary metal)
+  if (!metalParts.length) {
+    const metalPctRaw = num(line.metal_content_pct, NaN);
+    let metalValLegacy = num(line.metal_content_value, NaN);
+    if (Number.isFinite(metalValLegacy) && metalValLegacy > 0) {
+      metalParts.push({
+        kind: metalsHit?.metal || "steel",
+        basis: metalValLegacy,
+        pct: entered > 0 ? money2((metalValLegacy / entered) * 100) : null,
+        mode: "USD",
+        melt_pour: legacyMelt,
+      });
+    } else if (Number.isFinite(metalPctRaw) && metalPctRaw > 0) {
+      metalParts.push({
+        kind: metalsHit?.metal || "steel",
+        basis: money2(entered * (metalPctRaw / 100)),
+        pct: metalPctRaw,
+        mode: "PCT",
+        melt_pour: legacyMelt,
+      });
+    }
+  }
+
+  const metalVal = money2(metalParts.reduce((a, p) => a + p.basis, 0));
+  const metalBasisMode: "USD" | "PCT" | "MIXED" | null = metalParts.length
+    ? metalParts.every((p) => p.mode === metalParts[0].mode)
+      ? metalParts[0].mode
+      : "MIXED"
+    : null;
+  const metalContentPct =
+    entered > 0 && metalVal > 0 ? money2((metalVal / entered) * 100) : null;
+  const meltPour =
+    metalParts.map((p) => p.melt_pour).filter(Boolean)[0] || legacyMelt;
+
+  const claimedAuto232 = Boolean(flags.s232_auto_part || flags.s232_auto || flags.s232);
+  // Pure metal articles (Ch.72–74/76): metals path wins over an accidental autos claim (R5).
+  if (metalsHit && claimedAuto232) {
+    diagnostics.push({
+      severity: "WARNING",
+      code: "R5_METALS_OVER_AUTOS",
+      message: `HTS chapter ${metalsHit.chapter} (${metalsHit.metal}) is treated as Section 232 metals (${metalsHit.duty_ch99}), not 232 auto-parts. Clear the auto-part claim unless annex evidence says otherwise.`,
+    });
+  }
+  const is232 = claimedAuto232 && !metalsHit;
   if (is232) {
     diagnostics.push({
       severity: "WARNING",
@@ -226,10 +450,71 @@ export function assessLine(line: LineIn, index: number) {
     });
   }
 
-  const chinaCode = coo === "CN" ? chinaListCode(flags) : null;
+  if (metalsHit) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "S232_METALS_TRIAGE",
+      message: `Chapter ${metalsHit.chapter} ${metalsHit.metal} article → ${metalsHit.duty_ch99} at ${metalsHit.rate_pct}% on metal-content value (CSMS #68253075). Mixed steel/aluminum/copper content is summed. Enter melt/pour (or smelt) per metal.`,
+    });
+    diagnostics.push({
+      severity: "WARNING",
+      code: "ADCVD_MAY_APPLY",
+      message:
+        "This product may also be subject to anti-dumping and/or countervailing duties. Confirm open AD/CVD orders for the HTS and exporter before filing.",
+    });
+  }
+
+  let blocked = false;
+  if (metalsHit && !(metalVal > 0)) {
+    blocked = true;
+    diagnostics.push({
+      severity: "ERROR",
+      code: "METAL_CONTENT_REQUIRED",
+      message: metalsHit.content_prompt,
+      remediation:
+        "Enter steel and/or aluminum and/or copper content as USD or % of entered. Duty basis is the sum of those contents.",
+    });
+  }
+  for (const p of metalParts) {
+    if (p.basis > 0 && !p.melt_pour) {
+      blocked = true;
+      diagnostics.push({
+        severity: "ERROR",
+        code: "MELT_POUR_REQUIRED",
+        message: `${p.kind} content is set but melt/pour (or smelt) country is missing.`,
+        remediation: `Enter ISO-2 for ${p.kind} melt & pour / smelt.`,
+      });
+    }
+  }
+  if (metalsHit && metalVal > 0 && !metalParts.length && !meltPour) {
+    blocked = true;
+    diagnostics.push({
+      severity: "ERROR",
+      code: "MELT_POUR_REQUIRED",
+      message: `${metalsHit.melt_pour_label} is required for Section 232 metals (ISO-2).`,
+      remediation: "Enter the melt & pour / smelt country (e.g. CN).",
+    });
+  }
+  if (metalsHit && metalVal > entered && entered > 0) {
+    diagnostics.push({
+      severity: "WARNING",
+      code: "METAL_CONTENT_GT_ENTERED",
+      message: `Combined metal content $${metalVal.toFixed(2)} exceeds entered value $${entered.toFixed(2)}.`,
+    });
+  }
+  if (metalParts.length > 1) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "MIXED_METAL_CONTENT",
+      message: `Mixed metals: ${metalParts
+        .map((p) => `${p.kind} $${p.basis.toFixed(2)}${p.melt_pour ? ` (${p.melt_pour})` : ""}`)
+        .join(" + ")} = $${metalVal.toFixed(2)} basis.`,
+    });
+  }
+
+  const chinaCode = coo === "CN" ? chinaListCode(hts, flags, diagnostics) : null;
   let partsDuty = 0;
   let metalsDuty = 0;
-  let blocked = false;
 
   // Trade-deal total path (non JP top-up) is blocked by R6
   const tradeDealAttempt =
@@ -249,6 +534,8 @@ export function assessLine(line: LineIn, index: number) {
       });
     }
   }
+
+  const applyMetals232 = Boolean(metalsHit && metalVal > 0 && !blocked);
 
   if (!blocked && chinaCode) {
     try {
@@ -296,17 +583,7 @@ export function assessLine(line: LineIn, index: number) {
         add301Fl(coo, entered, col1, layers, suppressed, diagnostics);
       }
 
-      layers.push(
-        layer({
-          slot: "6.0",
-          program: "base",
-          ch99: null,
-          label: "Column-1 / Chapters 1–97",
-          reason: "Commodity line rate.",
-          basis_amount: entered,
-          rate_pct: col1,
-        }),
-      );
+      pushCommodity(false);
     } catch (e) {
       diagnostics.push({
         severity: "ERROR",
@@ -342,20 +619,7 @@ export function assessLine(line: LineIn, index: number) {
     });
     layers.push(L232);
     push301FlSuppression(coo, entered, col1, layers, suppressed);
-    layers.push(
-      layer({
-        slot: "6.0",
-        program: "base",
-        ch99: null,
-        label: "Column-1 / Chapters 1–97",
-        reason:
-          top.ch1to97Line === 0
-            ? "Zeroed on commodity line when Japan 232 top-up applies (R3)."
-            : "Column-1 applies on commodity line.",
-        basis_amount: entered,
-        rate_pct: top.ch1to97Line,
-      }),
-    );
+    pushCommodity(top.ch1to97Line === 0);
   } else if (!blocked && is232) {
     // Non-JP 232 default 25% with TBC program label
     try {
@@ -380,17 +644,7 @@ export function assessLine(line: LineIn, index: number) {
         }),
       );
       push301FlSuppression(coo, entered, col1, layers, suppressed);
-      layers.push(
-        layer({
-          slot: "6.0",
-          program: "base",
-          ch99: null,
-          label: "Column-1 / Chapters 1–97",
-          reason: "Commodity line rate.",
-          basis_amount: entered,
-          rate_pct: col1,
-        }),
-      );
+      pushCommodity(false);
     } catch (e) {
       diagnostics.push({
         severity: "ERROR",
@@ -399,35 +653,31 @@ export function assessLine(line: LineIn, index: number) {
       });
       blocked = true;
     }
+  } else if (!blocked && applyMetals232 && metalsHit) {
+    // 232 metals wins over 301-FL (US Note 52(f) / 9903.05.90) — Cervó parity
+    push301FlSuppression(coo, entered, col1, layers, suppressed);
+    pushCommodity(false);
   } else if (!blocked) {
     // Non-232 → country-specific 301-FL from s301fl pack
     add301Fl(coo, entered, col1, layers, suppressed, diagnostics);
-    layers.push(
-      layer({
-        slot: "6.0",
-        program: "base",
-        ch99: null,
-        label: "Column-1 / Chapters 1–97",
-        reason: "Commodity line rate.",
-        basis_amount: entered,
-        rate_pct: col1,
-      }),
-    );
+    pushCommodity(false);
   }
 
-  // Metals separate line (R4)
-  const metalVal = num(line.metal_content_value);
-  if (metalVal > 0) {
+  // Metals separate line (R4) — current articles use 9903.82.02 @ 50%
+  if (applyMetals232 && metalsHit) {
     try {
-      const steel = assertComputable("9903.03.01");
+      const steel = assertComputable(metalsHit.duty_ch99);
       const Lm = layer({
         slot: "3.3",
         program: steel.program,
         ch99: steel.code,
-        label: "Section 232 metals — steel",
-        reason:
-          "Metals duty on metal-content value; excluded from parts TOTAL (R4).",
-        source_ref: steel.notes,
+        label: `Section 232 metal products — ${metalsHit.metal} (${metalsHit.rate_pct}%)`,
+        reason: `Metal-content basis $${metalVal.toFixed(2)}${
+          metalParts.length
+            ? ` [${metalParts.map((p) => `${p.kind} $${p.basis.toFixed(2)}`).join(" + ")}]`
+            : ""
+        }; melt/pour ${metalParts.map((p) => (p.melt_pour ? `${p.kind}:${p.melt_pour}` : "")).filter(Boolean).join(", ") || meltPour}. ${steel.notes}`,
+        source_ref: "CSMS #68253075 / U.S. note 16",
         basis: "METAL_CONTENT_VALUE",
         basis_amount: metalVal,
         rate_pct: steel.rate,
@@ -437,7 +687,7 @@ export function assessLine(line: LineIn, index: number) {
       diagnostics.push({
         severity: "INFO",
         code: "METALS_SEPARATE_LINE",
-        message: "232 metals reported on metal-content value and kept out of the parts subtotal.",
+        message: `232 metals on metal-content value via ${steel.code} (input as ${metalBasisMode === "PCT" ? "percent of entered" : metalBasisMode === "MIXED" ? "mixed USD/%" : "USD"}); kept out of parts subtotal (R4). Potential exclusions: ${metalsHit.potential_exclusions.map((e) => e.ch99).join(", ")}.`,
       });
     } catch (e) {
       diagnostics.push({
@@ -445,6 +695,7 @@ export function assessLine(line: LineIn, index: number) {
         code: "REVIEW_REQUIRED",
         message: e instanceof Error ? e.message : String(e),
       });
+      blocked = true;
     }
   }
 
@@ -454,12 +705,14 @@ export function assessLine(line: LineIn, index: number) {
       .reduce((a, l) => a + l.duty_amount, 0),
   );
   const totalDuty = money2(partsDuty + metalsDuty);
-  const effective = entered > 0 ? money2((partsDuty / entered) * 100) : 0;
+  // Effective rate includes metals — matches Cervó "duty rate" display
+  const effective = entered > 0 ? money2((totalDuty / entered) * 100) : 0;
 
   const seq = layers.filter((l) => l.ch99).map((l) => l.ch99 as string);
   const ordered = [
     ...seq.filter((c) => c.startsWith("9903.88")),
     ...seq.filter((c) => c === "9903.05.90"),
+    ...seq.filter((c) => c.startsWith("9903.82")),
     ...seq.filter((c) => c.startsWith("9903.94") || c.startsWith("9903.74")),
     ...seq.filter((c) => c.startsWith("9903.05") && c !== "9903.05.90"),
     ...seq.filter((c) => c.startsWith("9903.03")),
@@ -473,6 +726,24 @@ export function assessLine(line: LineIn, index: number) {
     entered_value: entered,
     col1_rate_pct: col1Pct,
     col1_source: col1Source,
+    col1_rate_label: rateLabel || null,
+    col1_specific_usd: col1SpecificUsd || null,
+    quantity: Number.isFinite(qty) ? qty : null,
+    quantity_uom: col1Uom || null,
+    needs_quantity: Boolean(col1SpecificUsd > 0),
+    metals: metalsHit
+      ? {
+          ...metalsHit,
+          needs_metal_content: true,
+          metal_content_value: metalVal > 0 ? metalVal : null,
+          metal_content_pct: metalContentPct,
+          metal_basis_mode: metalBasisMode,
+          metal_parts: metalParts,
+          country_of_melt_pour: meltPour || null,
+        }
+      : null,
+    china_301: resolved?.china_301 || lookupChina301List(hts),
+    usitc_url: resolved?.usitc_url || `https://hts.usitc.gov/search?query=${encodeURIComponent(hts.replace(/\D/g, "") || hts)}`,
     rate_determination_date: rd.date,
     rate_date_basis: rd.basis,
     layers,
@@ -483,6 +754,8 @@ export function assessLine(line: LineIn, index: number) {
       duty: totalDuty,
       parts_duty: partsDuty,
       metals_duty: metalsDuty,
+      specific_duty: specificDuty,
+      ad_valorem_commodity_duty: money2(entered * col1),
       effective_duty_rate_pct: effective,
     },
     blocked,
@@ -507,8 +780,8 @@ function push301FlSuppression(
       slot: "3.2",
       program: "SEC_301_FL",
       ch99: "9903.05.90",
-      label: "301-FL suppressed — Section 232 wins (R1)",
-      reason: "232 autos/parts and 301-FL are mutually exclusive; 232 wins (US Note 52(f)).",
+      label: "301-FL suppressed — Section 232 exclusion (9903.05.90)",
+      reason: "232 autos/parts/metals and 301-FL are mutually exclusive; 232 wins (US Note 52(f)).",
       source_ref: "CSMS #69326983 — 9903.05.90",
       basis_amount: entered,
       rate_pct: 0,
@@ -583,13 +856,29 @@ export function assessEntry(body: {
 }) {
   const lines = (body.lines || []).map((l, i) => assessLine(l, i));
   const duty = money2(lines.reduce((a, l) => a + l.totals.duty, 0));
+  const enteredTotal = money2(
+    lines.reduce((a, l) => a + (Number(l.entered_value) || 0), 0),
+  );
+  const feePack = computeEntryFees({
+    entered_value_total: enteredTotal,
+    formal_entry: body.formal_entry !== false,
+    mode_of_transport: body.mode_of_transport,
+  });
+  const landed = money2(enteredTotal + duty + feePack.total);
   return {
     entry_number: body.entry_number || null,
     jurisdiction: "US",
     rulepack: rulepackPublic(),
     lines,
-    totals: { duty, fees: 0 },
-    entry_fees: [],
+    totals: {
+      duty,
+      fees: feePack.total,
+      entered_value: enteredTotal,
+      landed_cost: landed,
+      effective_duty_rate_pct:
+        enteredTotal > 0 ? money2((duty / enteredTotal) * 100) : 0,
+    },
+    entry_fees: feePack.fees,
   };
 }
 

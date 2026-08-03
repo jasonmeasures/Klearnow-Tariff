@@ -13,7 +13,7 @@
 <title>KlearNow Tariff — US</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -22,7 +22,7 @@
   <div class="brandmark" aria-hidden="true">KN</div>
   <div>
     <h1>KlearNow Tariff</h1>
-    <div class="sub">US duty check · rule engine</div>
+    <div class="sub">Duty · coverage · live rules</div>
   </div>
   <span class="chip juris" title="Jurisdiction. Other customs territories are not yet modelled.">US</span>
   <div class="spacer"></div>
@@ -35,6 +35,7 @@
     <div class="navgroup eyebrow">Use</div>
     <button data-view="calc" aria-current="page">Check duty</button>
     <button data-view="lookup">HTS list</button>
+    <button data-view="chat">Rule chat</button>
     <button data-view="audit">Audit</button>
     <div class="navgroup eyebrow">Manage</div>
     <button data-view="rules">Rules <span class="badge" id="nav-rules">—</span></button>
@@ -58,30 +59,111 @@
         <div class="quick-card">
           <div class="quick-grid">
             <div class="field"><label class="label" for="qc-hts">HTS</label>
-              <input type="text" id="qc-hts" class="mono" placeholder="8708.29.5160" spellcheck="false"
-                autocomplete="off" inputmode="decimal" /></div>
+              <input type="text" id="qc-hts" class="mono" spellcheck="false"
+                autocomplete="off" inputmode="decimal"
+                title="10-digit HTS classification (with or without dots)" /></div>
             <div class="field"><label class="label" for="qc-coo">Origin</label>
-              <input type="text" id="qc-coo" class="mono" placeholder="VN" maxlength="2"
-                style="text-transform:uppercase" spellcheck="false" autocomplete="off" /></div>
+              <input type="text" id="qc-coo" class="country-field" data-country
+                title="Type ISO-2 and Tab, or search country name" /></div>
             <div class="field"><label class="label" for="qc-value">Entered value (USD)</label>
-              <input type="text" id="qc-value" class="num" placeholder="10000" inputmode="decimal" /></div>
+              <input type="text" id="qc-value" class="num" inputmode="decimal"
+                title="Customs entered value in US dollars" /></div>
             <div class="field"><label class="label" for="qc-date">Rate date</label>
-              <input type="date" id="qc-date" /></div>
+              <input type="date" id="qc-date" title="Rate-determination / entry date" /></div>
+            <div class="field" id="qc-qty-wrap" hidden>
+              <label class="label" for="qc-qty">Quantity <span id="qc-qty-uom" class="cap"></span></label>
+              <input type="text" id="qc-qty" class="num" inputmode="decimal"
+                title="Quantity in the HTS unit of measure (required when Column 1 is specific)" />
+              <p class="cap" id="qc-qty-hint" style="margin:var(--sp-1) 0 0"></p>
+            </div>
+            <div class="field" id="qc-metal-wrap" hidden style="grid-column:1 / -1">
+              <div class="metals-panel">
+                <p class="eyebrow" id="qc-metal-title">Section 232 metals</p>
+                <p class="cap" id="qc-metal-hint" style="margin:0 0 var(--sp-2)"></p>
+                <div class="content-mode" role="group" aria-label="Metal content input mode">
+                  <button type="button" class="mode-btn active" data-metal-mode="USD" id="qc-metal-mode-usd">USD value</button>
+                  <button type="button" class="mode-btn" data-metal-mode="PCT" id="qc-metal-mode-pct">% of entered</button>
+                </div>
+                <div class="metals-rows" id="qc-metals-rows">
+                  <div class="metal-row" data-metal="steel">
+                    <div class="metal-kind">Steel</div>
+                    <div class="field">
+                      <label class="label" for="qc-steel-content">Content</label>
+                      <input type="text" id="qc-steel-content" class="num metal-content" inputmode="decimal"
+                        title="Steel content — USD or % of entered (toggle above)" />
+                    </div>
+                    <div class="field">
+                      <label class="label" for="qc-steel-melt">Melt &amp; pour</label>
+                      <input type="text" id="qc-steel-melt" class="country-field" data-country
+                        title="Steel melt &amp; pour country — ISO-2 or name" />
+                    </div>
+                  </div>
+                  <div class="metal-row" data-metal="aluminum">
+                    <div class="metal-kind">Aluminum</div>
+                    <div class="field">
+                      <label class="label" for="qc-aluminum-content">Content</label>
+                      <input type="text" id="qc-aluminum-content" class="num metal-content" inputmode="decimal"
+                        title="Aluminum content — USD or % of entered" />
+                    </div>
+                    <div class="field">
+                      <label class="label" for="qc-aluminum-melt">Smelt / cast</label>
+                      <input type="text" id="qc-aluminum-melt" class="country-field" data-country
+                        title="Aluminum smelt / most recent cast country" />
+                    </div>
+                  </div>
+                  <div class="metal-row" data-metal="copper">
+                    <div class="metal-kind">Copper</div>
+                    <div class="field">
+                      <label class="label" for="qc-copper-content">Content</label>
+                      <input type="text" id="qc-copper-content" class="num metal-content" inputmode="decimal"
+                        title="Copper content — USD or % of entered" />
+                    </div>
+                    <div class="field">
+                      <label class="label" for="qc-copper-melt">Smelt / refine</label>
+                      <input type="text" id="qc-copper-melt" class="country-field" data-country
+                        title="Copper smelt / refined production country" />
+                    </div>
+                  </div>
+                </div>
+                <p class="cap" id="qc-metal-resolved" style="margin:var(--sp-2) 0 0"></p>
+                <div class="field" style="margin-top:var(--sp-2);max-width:220px">
+                  <label class="label" for="qc-mode">Mode of transport</label>
+                  <select id="qc-mode" title="Used for Harbor Maintenance Fee (ocean)">
+                    <option value="OCEAN" selected>Ocean</option>
+                    <option value="AIR">Air</option>
+                    <option value="TRUCK">Truck</option>
+                    <option value="RAIL">Rail</option>
+                  </select>
+                </div>
+                <div id="qc-exclusions" class="excl-list" hidden></div>
+              </div>
+            </div>
           </div>
           <div class="quick-flags">
-            <label class="check"><input type="checkbox" id="qc-fl" checked />
-              <span>Apply 301-FL / auto stack for this origin</span></label>
-            <label class="check"><input type="checkbox" id="qc-list3" />
-              <span>China 301 List 3</span></label>
             <label class="check"><input type="checkbox" id="qc-232" />
-              <span>232 auto part</span></label>
+              <span>232 auto part (claim)</span></label>
+            <details class="adv-override" id="qc-cn-adv">
+              <summary class="cap">Advanced: override China 301 list</summary>
+              <div class="field" style="margin:var(--sp-2) 0 0;min-width:200px">
+                <label class="label" for="qc-cnlist">Manual list claim</label>
+                <select id="qc-cnlist">
+                  <option value="auto" selected>Auto from HTS (recommended)</option>
+                  <option value="list_1">List 1 → 9903.88.01</option>
+                  <option value="list_2">List 2 → 9903.88.02</option>
+                  <option value="list_3">List 3 → 9903.88.03</option>
+                  <option value="list_4a">List 4A → 9903.88.15</option>
+                  <option value="none">Force none</option>
+                </select>
+                <p class="cap" style="margin:var(--sp-1) 0 0">Leave on Auto. Membership comes from the 8-digit HTS.</p>
+              </div>
+            </details>
           </div>
           <div class="actions quick-actions">
             <button class="btn-primary btn-lg" id="qc-run" type="button">Check duty</button>
             <button class="btn-ghost btn-sm" id="qc-example" type="button">Try VN apparel</button>
             <button class="btn-ghost btn-sm" id="qc-example-cn" type="button">Try CN parts</button>
           </div>
-          <p class="cap" id="qc-htsmeta" style="margin:var(--sp-2) 0 0"></p>
+          <div class="qc-meta" id="qc-htsmeta"></div>
         </div>
       </div>
 
@@ -143,7 +225,7 @@
                 <div class="body">
                   <div class="grid4">
                     <div class="field"><label class="label" for="entryno">Entry number</label>
-                      <input type="text" id="entryno" placeholder="optional" /></div>
+                      <input type="text" id="entryno" title="Optional entry number for the assessment" /></div>
                     <div class="field"><label class="label" for="mode">Mode of transport</label>
                       <select id="mode">
                         <option value="">Not stated</option><option value="OCEAN">Ocean</option>
@@ -214,6 +296,40 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
       </div>
     </section>
 
+    <!-- ============================ RULE CHAT ============================ -->
+    <section class="view hide" id="view-chat">
+      <div class="chat-hero">
+        <div>
+          <p class="eyebrow">Live pack</p>
+          <h2 class="display">Update rules when CSMS lands</h2>
+          <p class="hero-lead">Describe the notice in plain language. Claude proposes the pack
+            change; you confirm — hot-reload, no rebuild.</p>
+        </div>
+        <div class="chat-status" id="chat-status">
+          <span class="busy"></span> Checking Anthropic…
+        </div>
+      </div>
+
+      <div class="chat-shell">
+        <div class="chat-thread" id="chat-thread" aria-live="polite"></div>
+        <div class="chat-pending" id="chat-pending" hidden></div>
+        <div class="chat-suggest" id="chat-suggest">
+          <button type="button" data-prompt="A new CSMS updated Section 301 Forced Labor: country XX is now flat 12.5% under heading 9903.05.NN. Draft the pack upsert and wait for my confirmation.">New 301-FL flat rate</button>
+          <button type="button" data-prompt="Explain how 301-FL and Section 232 interact for Japan auto parts after 2026-07-24.">JP 232 vs 301-FL</button>
+          <button type="button" data-prompt="Look up HTS 8708.40.7580 Column-1 and show which Chapter 99 rules apply for COO BR on 2026-07-27.">Sample HTS + BR</button>
+          <button type="button" data-prompt="List the live 301-FL economies and call out anything unusual.">List 301-FL pack</button>
+        </div>
+        <form class="chat-composer" id="chat-form">
+          <textarea id="chat-input" rows="2"
+            title="Describe the rule change to propose (CSMS, country, rate, heading)"
+            required></textarea>
+          <button class="btn-primary" type="submit" id="chat-send">Send</button>
+        </form>
+        <p class="cap chat-footnote">Requires <code class="mono">ANTHROPIC_API_KEY</code> on the backend.
+          Writes need author key (<code class="mono">dev-internal</code>). Claude Desktop MCP still works in parallel.</p>
+      </div>
+    </section>
+
     <!-- ============================ HTS LIST / COVERAGE ============================ -->
     <section class="view hide" id="view-lookup">
       <div class="viewhead">
@@ -233,8 +349,8 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
               <div class="field"><label class="label" for="lookup-date">Rate date</label>
                 <input type="date" id="lookup-date" /></div>
               <div class="field"><label class="label" for="lookup-coo">Default origin</label>
-                <input type="text" id="lookup-coo" class="mono" maxlength="2" placeholder="VN"
-                  style="text-transform:uppercase" title="Used when a row has no COO column" /></div>
+                <input type="text" id="lookup-coo" class="country-field" data-country
+                  title="Default origin — ISO-2 or country name" /></div>
               <div class="field" style="display:flex;align-items:flex-end;padding-bottom:2px">
                 <label class="check"><input type="checkbox" id="lookup-cnlist3" checked />
                   <span>Assume CN List&nbsp;3 when origin is China</span></label>
@@ -344,12 +460,12 @@ placeholder="hts,coo
             </div>
             <div class="grid3">
               <div class="field"><label class="label" for="f-coo">Origin</label>
-                <input type="text" id="f-coo" placeholder="CN" maxlength="2"
-                  style="text-transform:uppercase" /></div>
+                <input type="text" id="f-coo" class="country-field" data-country
+                  title="Filter by origin — ISO-2 or country name" /></div>
               <div class="field"><label class="label" for="f-ch99">Chapter 99 starts with</label>
-                <input type="text" id="f-ch99" class="mono" placeholder="9903.88" /></div>
+                <input type="text" id="f-ch99" class="mono" title="Filter by Chapter 99 prefix" /></div>
               <div class="field"><label class="label" for="f-q">Search text</label>
-                <input type="text" id="f-q" placeholder="label, notes, citation" /></div>
+                <input type="text" id="f-q" title="Search label, notes, or citation" /></div>
             </div>
             <div class="actions"><button class="btn-secondary btn-sm" id="f-apply">Apply</button>
               <button class="btn-ghost btn-sm" id="f-reset">Reset</button></div>
@@ -379,12 +495,12 @@ placeholder="hts,coo
               <div id="validateout"></div>
               <div class="grid2">
                 <div class="field"><label class="label" for="snapversion">Version</label>
-                  <input type="text" id="snapversion" class="mono" placeholder="2026.08.01-1" /></div>
+                  <input type="text" id="snapversion" class="mono" title="Snapshot version id" /></div>
                 <div class="field"><label class="label" for="snapby">Your name</label>
-                  <input type="text" id="snapby" placeholder="required" /></div>
+                  <input type="text" id="snapby" title="Required author name" /></div>
               </div>
               <div class="field"><label class="label" for="snapnote">What changed</label>
-                <input type="text" id="snapnote" placeholder="CSMS #… — one line" /></div>
+                <input type="text" id="snapnote" title="One-line release note" /></div>
               <button class="btn-primary" id="dopublish" disabled>Publish &amp; activate</button>
             </div>
           </div>
@@ -509,5 +625,9 @@ placeholder="hts,coo
 </div>
 
 <script type="module" src="/app.js"></script>
+<button type="button" class="chat-fab" id="chat-fab" title="Rule chat">
+  <span class="fab-pulse" aria-hidden="true"></span>
+  Chat
+</button>
 </body>
 </html>

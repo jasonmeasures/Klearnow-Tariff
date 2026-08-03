@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { coverRows, parseCoverageInput } from "./coverage.ts";
+import * as XLSX from "xlsx";
+import { coverRows, isPlausibleHtsCell, parseCoverageInput } from "./coverage.ts";
 
 describe("HTS coverage", () => {
   it("parses paste with header and bare HTS lines", () => {
@@ -50,5 +52,67 @@ Notes about yellow cells
     assert.equal(rows[0].hts.replace(/\D/g, ""), "8708407580");
     assert.equal(rows[0].coo, "BR");
     assert.equal(rows[1].coo, "CN");
+  });
+
+  it("rejects footnote cells that mention Ch.99 codes as HTS", () => {
+    assert.equal(isPlausibleHtsCell("8708407580"), true);
+    assert.equal(isPlausibleHtsCell("8708.40.7580"), true);
+    assert.equal(
+      isPlausibleHtsCell(
+        "THE MASTER SWITCH. Y suppresses 301-FL (9903.05.90) and routes the line.",
+      ),
+      false,
+    );
+  });
+
+  it("skips Full Stack column footnotes in xlsx workbooks", () => {
+    const wb = XLSX.utils.book_new();
+    const full = [
+      ["Subaru — Full Tariff Stack"],
+      ["notes"],
+      ["#", "Primary HTS", "HTS (formatted)", "COO", "Entry Date"],
+      [1, "8708407580", "8708.40.7580", "BR", "2026-07-27"],
+      [2, "8708915000", "8708.91.5000", "CN", "2026-07-27"],
+      [
+        "Col G — 232 Auto Part?",
+        "",
+        "THE MASTER SWITCH. Y suppresses 301-FL (9903.05.90) and routes the line to the 232 autos/parts regime.",
+        "",
+        "",
+      ],
+      [
+        "Col L — Entry Date",
+        "",
+        "Text, ISO format. Anything before 2026-07-24 turns the Section 122 layer on.",
+        "",
+        "",
+      ],
+    ];
+    const sheet1 = [
+      ["HTS code", "COO"],
+      ["8708407580", "BR"],
+      ["8708915000", "CN"],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(full), "Full Stack");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet1), "Sheet1");
+    const b64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+    const rows = parseCoverageInput({ xlsx_base64: b64, filename: "stack.xlsx" });
+    assert.equal(rows.length, 2);
+    assert.ok(rows.every((r) => r.coo));
+  });
+
+  it("parses Subaru Full Tariff Stack workbook as 251 codes", () => {
+    const path = "/Users/jasonmeasures/Downloads/Subaru_Full_Tariff_Stack_v2.xlsx";
+    if (!existsSync(path)) return;
+    const rows = parseCoverageInput({
+      xlsx_base64: readFileSync(path).toString("base64"),
+      filename: "Subaru_Full_Tariff_Stack_v2.xlsx",
+    });
+    assert.equal(rows.length, 251);
+    assert.equal(rows.filter((r) => !r.coo).length, 0);
+    const covered = coverRows({ as_of: "2026-08-03", rows, assume_cn_list3: true });
+    assert.equal(covered.summary.rows, 251);
+    assert.equal(covered.summary.missing_coo, 0);
+    assert.equal(covered.summary.in_table, 251);
   });
 });

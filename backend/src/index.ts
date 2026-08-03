@@ -4,6 +4,7 @@ import { adminRouter } from "./admin.ts";
 import { assessEntry, auditEntry } from "./assess.ts";
 import { authMiddleware, requireScope } from "./auth.ts";
 import { assessCh99Entry } from "./ch99Assess.ts";
+import { chatRouter } from "./chat.ts";
 import { coverRows, parseCoverageInput } from "./coverage.ts";
 import { resolveCol1, htsTableMeta } from "./htsLookup.ts";
 import { insightsRouter } from "./insights.ts";
@@ -129,6 +130,7 @@ app.use("/v1", rulesRouter);
 app.use("/v1", insightsRouter);
 app.use("/v1", referenceRouter);
 app.use("/v1", adminRouter);
+app.use("/v1", chatRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

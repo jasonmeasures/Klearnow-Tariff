@@ -32,9 +32,9 @@
     },
     {
       "id": "SEC_232_METALS",
-      "ch99_family": "9903.03.xx / 9903.85.xx",
+      "ch99_family": "9903.82.xx (primary) / 9903.03.xx (legacy)",
       "status": "ACTIVE",
-      "detail": "Steel/aluminum. Reported on separate entry line against metal-content value; excluded from parts TOTAL. Precedence vs 232 autos on Ch.73 derivatives: CONFLICTING GUIDANCE — open with Marek/Vantage Point.",
+      "detail": "Steel/aluminum/copper via 9903.82.02 (+50%, CSMS #68253075). Metal-content value (R4). Mutually exclusive with 301-FL → 9903.05.90. Chapter triage 72–74/76. R5: metals wins over autos claim for those chapters.",
       "compute": true,
       "compute_caveat": "Do not fold into parts TOTAL"
     },

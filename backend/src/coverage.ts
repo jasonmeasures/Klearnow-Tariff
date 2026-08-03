@@ -313,6 +313,32 @@ function rowLooksLikeHeader(cells: unknown[]): boolean {
   return headers.some(isHtsHeader);
 }
 
+/** True for HTS code cells (digits / dotted); false for workbook footnotes that mention Ch.99 codes. */
+export function isPlausibleHtsCell(raw: unknown): boolean {
+  const s = String(raw ?? "").trim();
+  if (!s || s.length > 20) return false;
+  if (!/^[\d.\s-]+$/.test(s)) return false;
+  const digits = s.replace(/\D/g, "");
+  return digits.length >= 6 && digits.length <= 10;
+}
+
+function pickHtsFromMappedCells(
+  obj: Record<string, unknown>,
+  headers: string[],
+): string {
+  const primaryKey = headers.find((h) => h.includes("primary_hts"));
+  const htsKey = headers.find(isHtsHeader);
+  const formattedKey = headers.find((h) => h.includes("hts_formatted") || h === "hts_formatted");
+  for (const key of [primaryKey, htsKey, formattedKey]) {
+    if (!key) continue;
+    const v = obj[key];
+    if (v !== undefined && v !== null && String(v).trim() && isPlausibleHtsCell(v)) {
+      return String(v).trim();
+    }
+  }
+  return "";
+}
+
 function sheetToCoverageRows(sheet: XLSX.WorkSheet): CoverageRowIn[] {
   const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
@@ -334,7 +360,7 @@ function sheetToCoverageRows(sheet: XLSX.WorkSheet): CoverageRowIn[] {
       .map((row) => {
         const cells = row || [];
         const hts = String(cells[0] ?? "").trim();
-        if (!hts || !/\d{4}/.test(hts.replace(/\D/g, ""))) return null;
+        if (!isPlausibleHtsCell(hts)) return null;
         return normalizeParsedRow({ hts, coo: String(cells[1] ?? "").trim() });
       })
       .filter(Boolean) as CoverageRowIn[];
@@ -350,14 +376,9 @@ function sheetToCoverageRows(sheet: XLSX.WorkSheet): CoverageRowIn[] {
       obj[h] = cells[i];
     });
     // Map Subaru / ops sheet aliases onto canonical keys before normalize
-    const htsKey = headers.find(isHtsHeader);
     const cooKey = headers.find(isCooHeader);
-    // Prefer Primary HTS (digits) over formatted when both exist
-    const primaryKey = headers.find((h) => h.includes("primary_hts"));
-    const formattedKey = headers.find((h) => h.includes("hts_formatted") || h === "hts_formatted");
-    if (primaryKey && obj[primaryKey]) obj.hts = obj[primaryKey];
-    else if (htsKey && obj[htsKey]) obj.hts = obj[htsKey];
-    else if (formattedKey && obj[formattedKey]) obj.hts = obj[formattedKey];
+    const hts = pickHtsFromMappedCells(obj, headers);
+    if (hts) obj.hts = hts;
     if (cooKey && obj[cooKey]) obj.coo = obj[cooKey];
 
     const s232Key = headers.find((h) => h.includes("232") && h.includes("auto"));
@@ -375,31 +396,23 @@ function sheetToCoverageRows(sheet: XLSX.WorkSheet): CoverageRowIn[] {
     if (dateKey && obj[dateKey]) obj.as_of = obj[dateKey];
 
     const row = normalizeParsedRow(obj);
-    if (!row.hts) continue;
-    // skip note / blank lines mistaken for data
-    if (!/\d{6,}/.test(row.hts.replace(/\D/g, ""))) continue;
+    if (!isPlausibleHtsCell(row.hts)) continue;
     out.push(row);
   }
   return out;
 }
 
 function pickCoverageSheet(wb: XLSX.WorkBook): XLSX.WorkSheet {
-  const prefer = ["full stack", "lines", "hts", "catalog", "sheet1"];
   const names = wb.SheetNames;
-  for (const p of prefer) {
-    const hit = names.find((n) => n.toLowerCase().includes(p));
-    if (hit) return wb.Sheets[hit];
-  }
-  // Prefer the sheet with the most rows that look like an HTS header
   let best = names[0];
   let bestScore = -1;
   for (const n of names) {
-    const matrix = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[n], {
-      header: 1,
-      defval: "",
-    });
-    const idx = matrix.findIndex((row) => rowLooksLikeHeader(row || []));
-    const score = idx >= 0 ? matrix.length - idx : 0;
+    const rows = sheetToCoverageRows(wb.Sheets[n]);
+    // Score by countable HTS lines; tiny ties favor clean sheet names over annotated workbooks.
+    let score = rows.length;
+    const lower = n.toLowerCase();
+    if (lower === "sheet1" || /^hts/.test(lower) || lower.includes("lines")) score += 0.5;
+    if (lower.includes("full stack") || lower.includes("notes")) score -= 0.25;
     if (score > bestScore) {
       bestScore = score;
       best = n;
@@ -453,7 +466,7 @@ export function parseCoverageInput(body: {
         if (cols.length === 1) return normalizeParsedRow({ hts: cols[0] });
         return normalizeParsedRow({ hts: cols[0], coo: cols[1] });
       })
-      .filter((r) => r.hts && /\d{6,}/.test(r.hts.replace(/\D/g, "")));
+      .filter((r) => isPlausibleHtsCell(r.hts));
   }
 
   const keys = cells(lines[headerIdx]).map(normHeaderCell);
@@ -463,8 +476,10 @@ export function parseCoverageInput(body: {
     keys.forEach((k, i) => {
       if (k && cols[i] !== undefined) obj[k] = cols[i];
     });
+    const hts = pickHtsFromMappedCells(obj, keys);
+    if (hts) obj.hts = hts;
     return normalizeParsedRow(obj);
-  }).filter((r) => r.hts && /\d{6,}/.test(r.hts.replace(/\D/g, "")));
+  }).filter((r) => isPlausibleHtsCell(r.hts));
 }
 
 function guessKeys(n: number): string[] {

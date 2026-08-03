@@ -28,7 +28,7 @@
       "rate": 0.1,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "Steel duty 10%. NOTE: this code number also appeared historically as the Section 122 global surcharge (sunset 2026-07-24). Current confirmed treatment per Jason 2026-07-30: steel duty 10%, MFN normal. Metals duty is reported on a separate entry line against metal-content value and is excluded from parts TOTAL."
+      "notes": "Legacy steel 10% heading. Prefer 9903.82.02 (+50%) for current aluminum/steel/copper articles under CSMS #68253075. Metals duty reported on metal-content value (R4)."
     },
     {
       "code": "9903.74.11",
@@ -40,14 +40,42 @@
       "notes": "Medium/heavy vehicle parts exclusion \u2014 0%."
     },
     {
+      "code": "9903.82.01",
+      "program": "SEC_232_METALS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 metals carve-out / 0% content exclusion (claim-gated). Surface as potential exclusion alongside article duty 9903.82.02."
+    },
+    {
       "code": "9903.82.02",
-      "program": "SEC_301",
+      "program": "SEC_232_METALS",
       "kind": "DUTY",
       "rate": 0.5,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "Section 301 \u2014 50%. Stacks on MFN; not suppressed by 232 (301 reports first)."
+      "notes": "Section 232 metal products — aluminum, steel, or copper articles and listed derivatives (U.S. note 16 / CSMS #68253075). +50% ad valorem. Mutually exclusive with 301-FL → report 9903.05.90. Assessed on metal-content value (R4)."
     },
+    {
+      "code": "9903.82.03",
+      "program": "SEC_232_METALS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Aggregate applicable metal weight < 15% → 0% additional. Does NOT apply to articles classifiable in chapters 72, 73, 74, or 76."
+    },
+    {
+      "code": "9903.82.06",
+      "program": "SEC_232_METALS",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 US-content metal reduction path — 10% additional when claimed (Cervó: US Content Metal Reduction). Claim-gated; not auto-selected."
+    },
+
     {
       "code": "9903.88.01",
       "program": "SEC_301_CHINA_LEGACY",
@@ -55,7 +83,16 @@
       "rate": 0.25,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "Legacy China 301 List 4A \u2014 25%. Stacks with 232 (both report; 301 first)."
+      "notes": "Legacy China 301 List 1 — 25% (U.S. note 20(a)/(b)). Stacks with 232 (both report; 301 first)."
+    },
+    {
+      "code": "9903.88.02",
+      "program": "SEC_301_CHINA_LEGACY",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Legacy China 301 List 2 — 25% (U.S. note 20(c)/(d)). Includes 2710.19.30 lubricating oils. Stacks with 232."
     },
     {
       "code": "9903.88.03",
@@ -64,7 +101,16 @@
       "rate": 0.25,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "Legacy China 301 List 3 \u2014 25%. Example stack: CN 8708 List 3 = 25% (301) + 25% (232) + 2.5% col-1 = 52.5%."
+      "notes": "Legacy China 301 List 3 — 25%. Example stack: CN 8708 List 3 = 25% (301) + 25% (232) + 2.5% col-1 = 52.5%."
+    },
+    {
+      "code": "9903.88.15",
+      "program": "SEC_301_CHINA_LEGACY",
+      "kind": "DUTY",
+      "rate": 0.075,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Legacy China 301 List 4A — 7.5% (U.S. note 20(r)/(s)). Stacks with 232 (both report; 301 first)."
     },
     {
       "code": "9903.94.05",

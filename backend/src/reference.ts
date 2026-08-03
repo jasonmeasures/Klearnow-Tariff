@@ -21,6 +21,22 @@ referenceRouter.get("/reference/claim-flags", (_req, res) => {
         rule_count: 1,
       },
       {
+        flag: "s301_list_1",
+        label: "China Section 301 List 1",
+        kind: "annex_membership",
+        programs: ["s301"],
+        headings: ["9903.88.01"],
+        rule_count: 1,
+      },
+      {
+        flag: "s301_list_2",
+        label: "China Section 301 List 2",
+        kind: "annex_membership",
+        programs: ["s301"],
+        headings: ["9903.88.02"],
+        rule_count: 1,
+      },
+      {
         flag: "s301_list_3",
         label: "China Section 301 List 3",
         kind: "annex_membership",
@@ -33,7 +49,7 @@ referenceRouter.get("/reference/claim-flags", (_req, res) => {
         label: "China Section 301 List 4A",
         kind: "annex_membership",
         programs: ["s301"],
-        headings: ["9903.88.01"],
+        headings: ["9903.88.15"],
         rule_count: 1,
       },
       {

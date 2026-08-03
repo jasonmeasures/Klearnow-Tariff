@@ -1,10 +1,9 @@
 "use strict";
 /* ==========================================================================
    Tariff Rules Engine — browser app
-   No build step, no framework, no browser storage. State lives in memory for
-   the session. Every number on screen comes from the engine; this file holds
-   no rule logic of its own, by design.
    ========================================================================== */
+
+import { bindCountryField, countryIsoFrom, formatCountry, resolveCountryIso } from "./countries.js";
 
 const KEY = new URLSearchParams(location.search).get("key") || "dev-internal";
 
@@ -76,12 +75,14 @@ function show(view) {
   $$("nav.side button").forEach(b =>
     b.dataset.view === view ? b.setAttribute("aria-current", "page")
                             : b.removeAttribute("aria-current"));
+  document.body.classList.toggle("view-chat-on", view === "chat");
   if (view === "rules") loadRules();
   if (view === "insights") loadInsights();
   if (view === "history") loadSnapshots();
   if (view === "reference") loadReference();
   if (view === "upload") renderUploadHelp();
   if (view === "lookup") initLookup();
+  if (view === "chat") initChat();
 }
 $$("nav.side button").forEach(b => b.onclick = () => show(b.dataset.view));
 $("#gotoaudit").onclick = () => show("calc");
@@ -209,9 +210,16 @@ function applyScopes() {
 }
 
 /* ================================================================ QUICK CHECK */
+function initCountryFields(root = document) {
+  root.querySelectorAll("input.country-field, input[data-country]").forEach((el) => {
+    bindCountryField(el);
+  });
+}
+
 function initQuickCheck() {
   const d = $("#qc-date");
   if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+  if (d) d.addEventListener("change", () => previewHtsMeta());
   const hts = $("#qc-hts");
   if (hts) {
     let t = null;
@@ -220,50 +228,252 @@ function initQuickCheck() {
       t = setTimeout(previewHtsMeta, 350);
     });
   }
+  document.querySelectorAll("[data-metal-mode]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-metal-mode]").forEach(b => b.classList.toggle("active", b === btn));
+      syncMetalModeUi();
+      updateMetalResolved();
+    });
+  });
+  ["qc-value", "qc-steel-content", "qc-aluminum-content", "qc-copper-content"].forEach(id => {
+    const el = $("#" + id);
+    if (el) el.addEventListener("input", updateMetalResolved);
+  });
+  initCountryFields();
+}
+
+function metalInputMode() {
+  const active = document.querySelector("[data-metal-mode].active");
+  return active?.dataset.metalMode === "PCT" ? "PCT" : "USD";
+}
+
+function syncMetalModeUi() {
+  const mode = metalInputMode();
+  $$(".metal-content").forEach((input) => {
+    input.placeholder = "";
+    input.title = mode === "PCT"
+      ? "Percent of entered value for this metal"
+      : "Dollar value of this metal’s content";
+  });
+}
+
+function readMetalContentsFromQuick() {
+  const mode = metalInputMode();
+  const kinds = ["steel", "aluminum", "copper"];
+  const out = {};
+  for (const k of kinds) {
+    const raw = ($(`#qc-${k}-content`)?.value || "").trim();
+    const melt = countryIsoFrom($(`#qc-${k}-melt`));
+    if (!raw && !melt) continue;
+    const n = Number(String(raw).replace(/[$,\s]/g, ""));
+    const row = {};
+    if (Number.isFinite(n) && n > 0) {
+      if (mode === "PCT") row.pct = n;
+      else row.value = n;
+    }
+    if (melt) row.melt_pour = melt;
+    if (row.value != null || row.pct != null || row.melt_pour) out[k] = row;
+  }
+  return out;
+}
+
+function updateMetalResolved() {
+  const el = $("#qc-metal-resolved");
+  if (!el) return;
+  const entered = Number(($("#qc-value")?.value || "").replace(/[$,\s]/g, ""));
+  const mode = metalInputMode();
+  const parts = [];
+  let total = 0;
+  for (const k of ["steel", "aluminum", "copper"]) {
+    const raw = Number(($(`#qc-${k}-content`)?.value || "").replace(/[$,\s]/g, ""));
+    if (!Number.isFinite(raw) || raw <= 0) continue;
+    let basis = raw;
+    if (mode === "PCT") {
+      if (!(Number.isFinite(entered) && entered > 0)) {
+        parts.push(`${k} ${raw}%`);
+        continue;
+      }
+      basis = entered * raw / 100;
+    }
+    total += basis;
+    parts.push(`${k} $${basis.toFixed(2)}`);
+  }
+  if (!parts.length) { el.textContent = ""; return; }
+  el.textContent = `Metal-content basis ${parts.join(" + ")} = $${total.toFixed(2)}` +
+    (Number.isFinite(entered) && entered > 0 ? ` (${((total / entered) * 100).toFixed(1)}% of entered)` : "");
 }
 
 async function previewHtsMeta() {
   const el = $("#qc-htsmeta");
+  const wrap = $("#qc-qty-wrap");
+  const metalWrap = $("#qc-metal-wrap");
   const hts = ($("#qc-hts")?.value || "").trim();
   if (!el) return;
-  if (!hts || hts.replace(/\D/g, "").length < 6) { el.textContent = ""; return; }
+  if (!hts || hts.replace(/\D/g, "").length < 6) {
+    el.innerHTML = "";
+    if (wrap) wrap.hidden = true;
+    if (metalWrap) metalWrap.hidden = true;
+    return;
+  }
   const asOf = $("#qc-date")?.value || new Date().toISOString().slice(0, 10);
   try {
     const r = await api(`/v1/hts/${encodeURIComponent(hts)}?as_of=${encodeURIComponent(asOf)}`);
-    const pct = Number(r.col1_pct);
-    const shown = pct > 0 && pct < 1 ? pct * 100 : pct;
-    el.innerHTML = `Column 1 <b class="mono">${esc(String(shown))}%</b>` +
-      (r.desc ? ` — ${esc(r.desc)}` : "") +
-      ` <span class="cap">(${esc(r.start)} → ${esc(r.end)})</span>`;
+    const bits = [];
+    bits.push(`Column 1 <b class="mono">${esc(r.rate_label || formatQuickCol1(r))}</b>`);
+    if (r.desc) bits.push(esc(r.desc));
+    bits.push(`<span class="cap">(${esc(r.start)} → ${esc(r.end)})</span>`);
+    const china = r.china_301;
+    if (china?.list) {
+      bits.push(
+        `<span class="pill pill-301" title="Resolved from 8-digit HTS membership">China 301 ${esc(china.list.replace(/_/g, " "))} → ${esc(china.ch99)}</span>`,
+      );
+    }
+    if (r.metals) {
+      bits.push(
+        `<span class="pill pill-metals">232 ${esc(r.metals.metal)} → ${esc(r.metals.duty_ch99)} @ ${esc(String(r.metals.rate_pct))}%</span>`,
+      );
+    }
+    const url = r.usitc_url || `https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}`;
+    bits.push(`<a class="usitc-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">USITC HTS</a>`);
+    el.innerHTML = bits.join(" · ");
+
+    if (wrap) {
+      const need = Boolean(r.needs_quantity);
+      wrap.hidden = !need;
+      const uom = (r.uom1 || "").toUpperCase();
+      const uomEl = $("#qc-qty-uom");
+      if (uomEl) uomEl.textContent = uom ? `(${uom})` : "";
+      const hint = $("#qc-qty-hint");
+      if (hint) {
+        const pct = Number(r.col1_pct) || 0;
+        const cents = r.col1_specific_cents ?? (r.col1_specific_usd != null
+          ? Math.round(Number(r.col1_specific_usd) * 10000) / 100 : null);
+        const parts = [];
+        if (pct > 0) parts.push(`entered value × ${pct}%`);
+        if (cents != null && Number(cents) > 0) {
+          parts.push(`quantity (${uom || "UOM"}) × ${cents}¢/${uom || "unit"}`);
+        }
+        hint.textContent = need
+          ? `Column 1 from this HTS: ${parts.join(" + ") || r.rate_label}. Enter the quantity reported on the entry in ${uom || "the HTS unit of quantity"}.`
+          : "";
+      }
+      const qty = $("#qc-qty");
+      if (qty) {
+        qty.placeholder = "";
+        qty.title = need
+          ? `Quantity in ${uom || "the HTS unit of measure"} — required for specific Column-1 rates`
+          : "Quantity in the HTS unit of measure";
+      }
+    }
+
+    if (metalWrap) {
+      const m = r.metals;
+      metalWrap.hidden = !m;
+      if (m) {
+        const title = $("#qc-metal-title");
+        if (title) title.textContent = `Section 232 metals — ${m.metal} (enter all metals in the article)`;
+        const hint = $("#qc-metal-hint");
+        if (hint) {
+          hint.textContent = `Primary from HTS: ${m.metal}. Enter steel, aluminum, and/or copper content separately (USD or %). Melt/pour (or smelt) is required for each metal you enter. Duty uses the sum of content values.`;
+        }
+        // Highlight primary metal row
+        $$(".metal-row").forEach((row) => {
+          row.style.outline = row.dataset.metal === m.metal ? "2px solid var(--color-orange-500)" : "";
+        });
+        const excl = $("#qc-exclusions");
+        if (excl) {
+          excl.hidden = false;
+          excl.innerHTML = `<span class="eyebrow">Potential exclusion codes</span>` +
+            (m.potential_exclusions || []).map(e =>
+              `<div class="excl-item"><code class="mono">${esc(e.ch99)}</code> ${esc(e.label)}</div>`
+            ).join("");
+        }
+        syncMetalModeUi();
+        initCountryFields($("#qc-metal-wrap"));
+        updateMetalResolved();
+      }
+    }
   } catch {
-    el.textContent = "No Column-1 row for this HTS in the baseline table.";
+    el.innerHTML = `No Column-1 row for this HTS in the baseline table. ` +
+      `<a class="usitc-link" href="https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">Look up on USITC</a>`;
+    if (wrap) wrap.hidden = true;
+    if (metalWrap) metalWrap.hidden = true;
   }
+}
+
+function formatQuickCol1(r) {
+  const pct = Number(r.col1_pct);
+  const shown = pct > 0 && pct < 1 ? pct * 100 : pct;
+  const parts = [];
+  if (shown > 0) parts.push(`${shown}%`);
+  if (r.col1_specific_cents || r.col1_specific_usd) {
+    const c = r.col1_specific_cents ?? Math.round(Number(r.col1_specific_usd) * 10000) / 100;
+    parts.push(`${c}¢/${r.uom1 || "unit"}`);
+  }
+  return parts.length ? parts.join(" + ") : "Free";
 }
 
 function applyQuickToLines() {
   const hts = ($("#qc-hts").value || "").trim();
-  const coo = ($("#qc-coo").value || "").trim().toUpperCase();
+  const coo = countryIsoFrom($("#qc-coo"));
   const value = ($("#qc-value").value || "").trim();
   const date = $("#qc-date").value || new Date().toISOString().slice(0, 10);
+  const quantity = ($("#qc-qty")?.value || "").trim();
+  const metal_contents = readMetalContentsFromQuick();
   const flags = {};
-  if ($("#qc-list3")?.checked) flags.s301_list_3 = true;
+  const cn = $("#qc-cnlist")?.value || "auto";
+  if (cn === "list_1") flags.s301_list_1 = true;
+  if (cn === "list_2") flags.s301_list_2 = true;
+  if (cn === "list_3") flags.s301_list_3 = true;
+  if (cn === "list_4a") flags.s301_list_4a = true;
   if ($("#qc-232")?.checked) flags.s232_auto_part = true;
   S.engine = "auto";
   const radio = document.querySelector('input[name="engine"][value="auto"]');
   if (radio) radio.checked = true;
   syncEngineChrome();
-  S.lines = [blankLine({
+  const qtyUom = ($("#qc-qty-uom")?.textContent || "").replace(/[()]/g, "").trim();
+  // Backward-compat single fields from primary metal if only one present
+  const kinds = Object.keys(metal_contents);
+  const over = {
     hts, coo, entered_value: value, entry_date: date, release_date: date, flags,
-  })];
+    quantity: quantity || undefined,
+    quantity_uom: quantity ? qtyUom : undefined,
+    metal_contents: kinds.length ? metal_contents : undefined,
+  };
+  if (kinds.length === 1) {
+    const k = kinds[0];
+    const row = metal_contents[k];
+    if (row.value != null) over.metal_content_value = String(row.value);
+    if (row.pct != null) over.metal_content_pct = String(row.pct);
+    if (row.melt_pour) over.country_of_melt_pour = row.melt_pour;
+  }
+  S.lines = [blankLine(over)];
   renderLines();
+  const modeEl = $("#mode");
+  if (modeEl && ($("#qc-metal-wrap") && !$("#qc-metal-wrap").hidden)) {
+    modeEl.value = $("#qc-mode")?.value || "OCEAN";
+  }
 }
 
 async function runQuickCheck() {
   applyQuickToLines();
   const bad = [];
   if (!($("#qc-hts").value || "").trim()) bad.push("HTS");
-  if (!($("#qc-coo").value || "").trim()) bad.push("origin");
+  if (!countryIsoFrom($("#qc-coo"))) bad.push("origin (ISO-2 or country name)");
   if (!($("#qc-value").value || "").trim()) bad.push("entered value");
+  const qtyWrap = $("#qc-qty-wrap");
+  if (qtyWrap && !qtyWrap.hidden && !($("#qc-qty")?.value || "").trim()) {
+    bad.push("quantity (" + (($("#qc-qty-uom")?.textContent || "").replace(/[()]/g, "").trim() || "UOM") + ")");
+  }
+  const metalWrap = $("#qc-metal-wrap");
+  if (metalWrap && !metalWrap.hidden) {
+    const contents = readMetalContentsFromQuick();
+    const withVal = Object.entries(contents).filter(([, r]) => r.value != null || r.pct != null);
+    if (!withVal.length) bad.push("at least one metal content (steel, aluminum, or copper)");
+    for (const [k, r] of withVal) {
+      if (!r.melt_pour) bad.push(`${k} melt/pour country`);
+    }
+  }
   if (bad.length) {
     banner("#calcbanner", "err", "Need a few fields", bad.join(", ") + " required for a quick check.");
     return;
@@ -280,7 +490,8 @@ if (qcEx) qcEx.onclick = () => {
   $("#qc-coo").value = "VN";
   $("#qc-value").value = "25000";
   $("#qc-date").value = "2026-07-25";
-  $("#qc-list3").checked = false;
+  if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
+  if ($("#qc-qty")) $("#qc-qty").value = "";
   $("#qc-232").checked = false;
   previewHtsMeta();
   runQuickCheck();
@@ -291,7 +502,8 @@ if (qcCn) qcCn.onclick = () => {
   $("#qc-coo").value = "CN";
   $("#qc-value").value = "10000";
   $("#qc-date").value = "2026-07-25";
-  $("#qc-list3").checked = true;
+  if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
+  if ($("#qc-qty")) $("#qc-qty").value = "";
   $("#qc-232").checked = true;
   previewHtsMeta();
   runQuickCheck();
@@ -303,7 +515,7 @@ function blankLine(over = {}) {
   return Object.assign({
     _id: ++S.seq, _open: false, line_id: "", hts: "", coo: "", entered_value: "",
     col1_rate_pct: "", entry_date: today, release_date: today, it_date: "", loaded_date: "",
-    warehouse_withdrawal_date: "", entry_type: "CONSUMPTION", metal_content_value: "",
+    warehouse_withdrawal_date: "", entry_type: "CONSUMPTION",     metal_content_value: "", metal_content_pct: "", metal_contents: null,
     country_of_melt_pour: "", ch98_provision: "", ch98_us_content_value: "",
     quantity: "", quantity_uom: "", net_weight_kg: "", filed_ch99: "",
     filed_duty_total: "", flags: {},
@@ -321,13 +533,14 @@ function renderLines() {
       <td><button class="disclose" data-act="toggle" data-i="${i}"
             aria-expanded="${L._open}" title="More fields">${L._open ? "&minus;" : "+"}</button></td>
       <td><input type="text" class="mono" data-f="hts" data-i="${i}" value="${esc(L.hts)}"
-            placeholder="6203.42.4010" spellcheck="false" /></td>
-      <td><input type="text" class="mono" data-f="coo" data-i="${i}" value="${esc(L.coo)}"
-            placeholder="CN" maxlength="2" style="text-transform:uppercase" spellcheck="false" /></td>
+            spellcheck="false" title="10-digit HTS" /></td>
+      <td><input type="text" class="country-field" data-country data-f="coo" data-i="${i}"
+            value="${esc(L.coo && L.coo.length === 2 ? formatCountry(L.coo) : L.coo)}"
+            title="Origin — ISO-2 or country name" /></td>
       <td><input type="text" class="num" data-f="entered_value" data-i="${i}"
-            value="${esc(L.entered_value)}" placeholder="10000" inputmode="decimal" /></td>
+            value="${esc(L.entered_value)}" inputmode="decimal" title="Entered value (USD)" /></td>
       <td><input type="text" class="num" data-f="col1_rate_pct" data-i="${i}"
-            value="${esc(L.col1_rate_pct)}" placeholder="2.5" inputmode="decimal" /></td>
+            value="${esc(L.col1_rate_pct)}" inputmode="decimal" title="Column-1 % if overriding HTS table" /></td>
       <td><input type="date" data-f="entry_date" data-i="${i}" value="${esc(L.entry_date)}" /></td>
       <td><span class="claimcount ${n ? "" : "none"}">${n ? n + " set" : "none"}</span></td>
       <td><button class="btn-danger" data-act="del" data-i="${i}"
@@ -340,6 +553,7 @@ function renderLines() {
   const runBoth = $("#runboth");
   if (runBoth) runBoth.disabled = !S.lines.length;
   syncEngineChrome();
+  initCountryFields(tb);
 }
 
 function lineDetail(L, i) {
@@ -364,13 +578,14 @@ function lineDetail(L, i) {
         <span>${esc(f.label)}<br><span class="flagname">${esc(f.flag)}</span></span></label>`).join("") +
       `</div></fieldset>`;
   }
-  const fld = (lab, f, extra = "", cls = "") =>
+  const fld = (lab, f, extra = "", cls = "", tip = "") =>
     `<div class="field"><label class="label">${lab}</label>
       <input type="${extra.includes("date") ? "date" : "text"}" class="${cls}"
-        data-f="${f}" data-i="${i}" value="${esc(L[f])}" ${extra.replace("date", "")} /></div>`;
+        data-f="${f}" data-i="${i}" value="${esc(L[f])}"
+        ${tip ? `title="${esc(tip)}"` : ""} ${extra.replace("date", "")} /></div>`;
   td.innerHTML = `
     <div class="grid4">
-      ${fld("Line reference", "line_id", 'placeholder="auto"')}
+      ${fld("Line reference", "line_id", "", "", "Optional line id; blank uses sequence")}
       <div class="field"><label class="label">Entry type</label>
         <select data-f="entry_type" data-i="${i}">${
           ["CONSUMPTION", "IT", "WAREHOUSE", "OVERCARRIED", "FTZ"].map(v =>
@@ -380,22 +595,25 @@ function lineDetail(L, i) {
       ${fld("IT date", "it_date", "date")}
       ${fld("Warehouse withdrawal", "warehouse_withdrawal_date", "date")}
       ${fld("Loaded on final mode", "loaded_date", "date")}
-      ${fld("Metal content value", "metal_content_value", 'inputmode="decimal"', "num")}
-      ${fld("Country of melt &amp; pour", "country_of_melt_pour", 'maxlength="2" style="text-transform:uppercase"', "mono")}
-      ${fld("Chapter 98 provision", "ch98_provision", 'placeholder="9802.00.80"', "mono")}
+      ${fld("Metal content USD", "metal_content_value", 'inputmode="decimal"', "num", "Dollar value of metal content (or use % field)")}
+      ${fld("Metal content % of entered", "metal_content_pct", 'inputmode="decimal"', "num", "Percent of entered value that is metal content")}
+      ${fld("Country of melt &amp; pour", "country_of_melt_pour", "data-country", "country-field", "Primary melt/pour ISO-2 or name")}
+      ${fld("Chapter 98 provision", "ch98_provision", "", "mono", "Chapter 98 provision if claimed")}
       ${fld("US content value", "ch98_us_content_value", 'inputmode="decimal"', "num")}
       ${fld("Net weight (kg)", "net_weight_kg", 'inputmode="decimal"', "num")}
-      ${fld("Quantity", "quantity", 'inputmode="decimal"', "num")}
+      ${fld("Quantity", "quantity", 'inputmode="decimal"', "num", "HTS quantity when Column 1 is specific")}
     </div>
+    <p class="cap" style="margin:var(--sp-2) 0">Mixed metals: set steel / aluminum / copper content on Quick Check, or pass <span class="mono">metal_contents</span> in paste/API. Advanced single melt/pour is the fallback primary.</p>
     <div class="grid2">
       <div class="field"><label class="label">Chapter 99 codes as filed</label>
         <input type="text" class="mono" data-f="filed_ch99" data-i="${i}"
-          value="${esc(L.filed_ch99)}" placeholder="9903.88.03 9903.94.05" />
+          value="${esc(L.filed_ch99)}" title="Space or comma separated Chapter 99 codes as filed" />
         <span class="cap">Space or comma separated. Enables <b>Audit as filed</b>.</span></div>
       ${fld("Duty as filed", "filed_duty_total", 'inputmode="decimal"', "num")}
     </div>
     ${claims || '<p class="cap">No claim flags in the current rule pack.</p>'}`;
   tr.appendChild(td);
+  initCountryFields(tr);
   return tr;
 }
 
@@ -404,7 +622,14 @@ $("#linebody").addEventListener("input", e => {
   if (i === undefined) return;
   if (t.dataset.f) {
     let v = t.value;
-    if (["coo", "country_of_melt_pour"].includes(t.dataset.f)) v = v.toUpperCase();
+    if (["coo", "country_of_melt_pour"].includes(t.dataset.f)) {
+      v = countryIsoFrom(t) || resolveCountryIso(v) || v.toUpperCase();
+      if (countryIsoFrom(t) || resolveCountryIso(t.value)) {
+        // keep formatted display; store ISO on line
+        S.lines[i][t.dataset.f] = countryIsoFrom(t) || resolveCountryIso(t.value);
+        return;
+      }
+    }
     S.lines[i][t.dataset.f] = v;
     if (v !== t.value) t.value = v;
   } else if (t.dataset.flag) {
@@ -457,7 +682,7 @@ $("#loadsample").onclick = () => {
 
 const LINE_COLS = ["line_id", "hts", "coo", "entered_value", "col1_rate_pct", "entry_date",
   "release_date", "it_date", "loaded_date", "warehouse_withdrawal_date", "metal_content_value",
-  "country_of_melt_pour", "ch98_provision", "ch98_us_content_value", "net_weight_kg",
+  "metal_content_pct", "country_of_melt_pour", "ch98_provision", "ch98_us_content_value", "net_weight_kg",
   "quantity", "filed_ch99", "filed_duty_total", "flags"];
 
 $("#doparse").onclick = () => {
@@ -495,19 +720,22 @@ function payload() {
   const lines = S.lines.map((L, i) => {
     const o = {
       line_id: L.line_id || String(i + 1), hts: L.hts.trim(),
-      coo: L.coo.trim().toUpperCase(), entered_value: num(L.entered_value) ?? "0",
+      coo: (resolveCountryIso(L.coo) || String(L.coo || "").trim().toUpperCase().slice(0, 2)),
+      entered_value: num(L.entered_value) ?? "0",
       entry_type: L.entry_type || "CONSUMPTION",
       flags: Object.fromEntries(Object.entries(L.flags).filter(([, v]) => v)),
     };
-    ["col1_rate_pct", "metal_content_value", "ch98_us_content_value", "net_weight_kg",
+    ["col1_rate_pct", "metal_content_value", "metal_content_pct", "ch98_us_content_value", "net_weight_kg",
      "quantity", "filed_duty_total"].forEach(k => {
       const v = num(L[k]); if (v) o[k] = v;
     });
+    if (L.metal_contents && typeof L.metal_contents === "object") o.metal_contents = L.metal_contents;
+    if ((L.quantity_uom || "").trim()) o.quantity_uom = L.quantity_uom.trim();
     ["entry_date", "release_date", "it_date", "loaded_date", "warehouse_withdrawal_date"]
       .forEach(k => { if (L[k]) o[k] = L[k]; });
-    ["country_of_melt_pour", "ch98_provision"].forEach(k => {
-      if ((L[k] || "").trim()) o[k] = L[k].trim();
-    });
+    const melt = resolveCountryIso(L.country_of_melt_pour) || String(L.country_of_melt_pour || "").trim().toUpperCase().slice(0, 2);
+    if (melt) o.country_of_melt_pour = melt;
+    if ((L.ch98_provision || "").trim()) o.ch98_provision = L.ch98_provision.trim();
     const filed = (L.filed_ch99 || "").split(/[;\s,]+/).filter(Boolean);
     if (filed.length) o.filed_ch99 = filed;
     return o;
@@ -756,11 +984,12 @@ function renderResults(R) {
 
   let html = `<div class="body" style="padding:var(--sp-4) var(--sp-4) 0">
     <div class="summary">
-      <div class="stat"><div class="k">Duty</div><div class="v">$${money(R.totals?.duty)}</div></div>
+      <div class="stat"><div class="k">Duty rate</div>
+        <div class="v">${pct(R.totals?.effective_duty_rate_pct)}%</div></div>
+      <div class="stat"><div class="k">Total duties</div><div class="v">$${money(R.totals?.duty)}</div></div>
       <div class="stat"><div class="k">Fees</div><div class="v">$${money(R.totals?.fees ?? 0)}</div></div>
-      <div class="stat"><div class="k">Lines</div><div class="v">${lines.length}</div></div>
-      <div class="stat ${nErr ? "bad" : "good"}"><div class="k">Blocking</div>
-        <div class="v">${nErr}</div></div>
+      <div class="stat"><div class="k">Landed</div>
+        <div class="v">$${money(R.totals?.landed_cost ?? ((Number(R.totals?.entered_value)||0) + (Number(R.totals?.duty)||0) + (Number(R.totals?.fees)||0)))}</div></div>
     </div>
     <p class="cap" style="margin:var(--sp-2) 0 0">${
       nErr ? `<b style="color:var(--color-red-700)">${nErr} error${nErr > 1 ? "s" : ""}</b> — the duty is wrong or indeterminate until resolved. `
@@ -769,10 +998,15 @@ function renderResults(R) {
       nInfo ? `, ${nInfo} note${nInfo > 1 ? "s" : ""}` : ""}.</p>`;
 
   if (R.entry_fees?.length) {
-    html += `<p class="cap" style="margin:var(--sp-2) 0 0">Entry-level fees, computed once then
-      pro-rated to lines: ` + R.entry_fees.map(f =>
-      `<b>${esc(f.label)}</b> $${money(f.amount)}` +
-      (f.capped ? " (at ceiling)" : f.floored ? " (at floor)" : "")).join(" &middot; ") + `</p>`;
+    html += `<div class="cost-break">
+      <div class="eyebrow">Cost breakdown</div>
+      <div class="cost-row"><span>Entered value</span><span>$${money(R.totals?.entered_value)}</span></div>
+      <div class="cost-row"><span>Total duties</span><span>$${money(R.totals?.duty)}</span></div>` +
+      R.entry_fees.map(f =>
+        `<div class="cost-row"><span>${esc(f.label)}${f.floored ? " (floor)" : f.capped ? " (cap)" : ""}</span><span>$${money(f.amount)}</span></div>`
+      ).join("") +
+      `<div class="cost-row total"><span>Landed cost</span><span>$${money(R.totals?.landed_cost)}</span></div>
+    </div>`;
   }
   html += `</div>`;
 
@@ -828,7 +1062,9 @@ function renderLedger(L) {
         <div class="why">${esc(x.label || "")}</div>
         ${x.reason ? `<div class="why">${esc(x.reason)}</div>` : ""}
         ${x.source_ref ? `<div class="src">${esc(x.source_ref)}</div>` : ""}</td>
-      <td class="r"><div>$${money(x.basis_amount)}</div>
+      <td class="r"><div>${x.basis === "QUANTITY"
+        ? `${esc(String(x.basis_amount))} ${esc((L.quantity_uom || "").toLowerCase() || "units")}`
+        : `$${money(x.basis_amount)}`}</div>
         <div class="basis">${esc(String(x.basis || "").toLowerCase().replace(/_/g, " "))}</div></td>
       <td class="r">${esc(x.rate || "")}</td>
       <td class="r"><b>$${money(x.duty_amount)}</b></td></tr>`;
@@ -851,11 +1087,20 @@ function renderLedger(L) {
     <div class="head"><span class="cap">line ${esc(L.line_id)}</span>
       <span class="hts">${esc(L.hts)}</span><span class="coo">${esc(L.coo)}</span>
       <span class="mono cap">$${money(L.entered_value)} entered</span>
+      ${L.quantity != null ? `<span class="mono cap">${esc(String(L.quantity))} ${esc(L.quantity_uom || "")}</span>` : ""}
       <span class="spacer"></span>
+      ${L.china_301?.list
+        ? `<span class="pill pill-301">301 ${esc(L.china_301.list.replace(/_/g, " "))} → ${esc(L.china_301.ch99)}</span>`
+        : ""}
+      ${L.usitc_url
+        ? `<a class="usitc-link" href="${esc(L.usitc_url)}" target="_blank" rel="noopener noreferrer">USITC</a>`
+        : ""}
       <span class="cap mono">${(L.ch99_sequence || []).join(" → ") || "no Chapter 99"}</span></div>
     <div class="ratedate"><span>Rate-determination date</span>
       <b>${esc(L.rate_determination_date)}</b>
-      <span class="cap">${esc(L.rate_date_basis || "")}</span></div>
+      <span class="cap">${esc(L.rate_date_basis || "")}</span>
+      ${L.col1_rate_label ? `<span class="cap"> · Column 1 <b class="mono">${esc(L.col1_rate_label)}</b></span>` : ""}
+    </div>
     <table class="ledger"><thead><tr><th style="width:52px">Slot</th>
       <th>Chapter 99 / provision</th><th class="r" style="width:126px">Basis</th>
       <th class="r" style="width:148px">Rate</th><th class="r" style="width:108px">Duty</th>
@@ -1596,7 +1841,7 @@ async function runLookup() {
   try {
     const body = {
       as_of: $("#lookup-date").value || undefined,
-      default_coo: ($("#lookup-coo").value || "").trim().toUpperCase() || undefined,
+      default_coo: countryIsoFrom($("#lookup-coo")) || undefined,
       assume_cn_list3: $("#lookup-cnlist3").checked,
     };
     if (Lookup.fileB64) {
@@ -1725,5 +1970,155 @@ function exportLookupCsv() {
   a.download = `hts-coverage-${Lookup.last.as_of || "export"}.csv`;
   a.click(); URL.revokeObjectURL(a.href);
 }
+
+/* ================================================================ RULE CHAT */
+const Chat = {
+  session: "web-" + Math.random().toString(36).slice(2, 10),
+  messages: [],
+  pending: [],
+  inited: false,
+};
+
+function initChat() {
+  refreshChatStatus();
+  if (Chat.inited) { renderChatThread(); renderChatPending(); return; }
+  Chat.inited = true;
+  if (!Chat.messages.length) {
+    Chat.messages.push({
+      role: "assistant",
+      content: "Tell me about a CSMS or tariff change and I’ll draft the pack update. " +
+        "Writes land only after you click Apply — no rebuild.",
+    });
+  }
+  renderChatThread();
+  $("#chat-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const input = $("#chat-input");
+    const text = (input.value || "").trim();
+    if (!text) return;
+    input.value = "";
+    await sendChat(text);
+  };
+  $$("#chat-suggest [data-prompt]").forEach(b => {
+    b.onclick = () => sendChat(b.dataset.prompt);
+  });
+  const fab = $("#chat-fab");
+  if (fab) fab.onclick = () => show("chat");
+  renderChatPending();
+}
+
+async function refreshChatStatus() {
+  const el = $("#chat-status");
+  if (!el) return;
+  try {
+    const s = await api("/v1/chat/status");
+    el.className = "chat-status " + (s.configured ? "ok" : "bad");
+    el.textContent = s.configured
+      ? `Claude ready · ${s.model}`
+      : "Set ANTHROPIC_API_KEY in backend/.env";
+  } catch (e) {
+    el.className = "chat-status bad";
+    el.textContent = "Chat API unreachable";
+  }
+}
+
+function renderChatThread() {
+  const thread = $("#chat-thread");
+  if (!thread) return;
+  thread.innerHTML = Chat.messages.map(m => `<div class="chat-msg ${esc(m.role)}">
+    <div class="chat-bubble">${esc(m.content)}</div>
+    <div class="meta">${m.role === "user" ? "You" : "KlearNow"}</div>
+  </div>`).join("");
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function renderChatPending() {
+  const box = $("#chat-pending");
+  if (!box) return;
+  if (!Chat.pending.length) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  box.innerHTML = Chat.pending.map(p => `<div class="pending-card">
+    <div class="spacer"><span class="eyebrow">Pending pack write</span><br>
+      <b>${esc(p.summary)}</b>
+      <div class="cap mono">${esc(p.id)}</div></div>
+    <button type="button" class="btn-primary btn-sm" data-apply="${esc(p.id)}">Apply</button>
+    <button type="button" class="btn-ghost btn-sm" data-discard="${esc(p.id)}">Discard</button>
+  </div>`).join("");
+  $$("#chat-pending [data-apply]").forEach(b => {
+    b.onclick = () => applyPending(b.dataset.apply);
+  });
+  $$("#chat-pending [data-discard]").forEach(b => {
+    b.onclick = () => discardPending(b.dataset.discard);
+  });
+}
+
+async function sendChat(text) {
+  Chat.messages.push({ role: "user", content: text });
+  renderChatThread();
+  const send = $("#chat-send");
+  const was = send.textContent;
+  send.disabled = true; send.innerHTML = '<span class="busy"></span>';
+  try {
+    const history = Chat.messages
+      .filter(m => m.role === "user" || m.role === "assistant")
+      .map(m => ({ role: m.role, content: m.content }));
+    const r = await api("/v1/chat", {
+      method: "POST",
+      body: JSON.stringify({ session_id: Chat.session, messages: history }),
+    });
+    Chat.messages.push({ role: "assistant", content: r.reply || "(empty)" });
+    Chat.pending = r.pending || [];
+    renderChatThread();
+    renderChatPending();
+    refreshChatStatus();
+  } catch (e) {
+    Chat.messages.push({ role: "assistant", content: "Error: " + e.message });
+    renderChatThread();
+  } finally {
+    send.disabled = false; send.textContent = was;
+  }
+}
+
+async function applyPending(id) {
+  try {
+    const r = await api("/v1/chat/apply", {
+      method: "POST",
+      body: JSON.stringify({ session_id: Chat.session, pending_id: id }),
+    });
+    Chat.pending = (Chat.pending || []).filter(p => p.id !== id);
+    Chat.messages.push({
+      role: "assistant",
+      content: `Applied to live pack: ${r.applied?.summary || id}\n` +
+        `Economies: ${r.result?.economies ?? "—"} · hash ${r.result?.rulepack?.hash || ""}`,
+    });
+    renderChatThread();
+    renderChatPending();
+    try {
+      const h = await api("/v1/health");
+      S.pack = h.rulepack;
+      $("#packtext").innerHTML =
+        `pack ${esc(h.rulepack.version)} &middot; ${h.rulepack.rules} rules ` +
+        `<code>${esc((h.rulepack.hash || "").slice(0, 19))}…</code>`;
+      $("#nav-rules").textContent = h.rulepack.rules;
+    } catch { /* ignore */ }
+  } catch (e) {
+    Chat.messages.push({ role: "assistant", content: "Apply failed: " + e.message });
+    renderChatThread();
+  }
+}
+
+async function discardPending(id) {
+  try {
+    await api("/v1/chat/discard", {
+      method: "POST",
+      body: JSON.stringify({ session_id: Chat.session, pending_id: id }),
+    });
+  } catch { /* ignore */ }
+  Chat.pending = (Chat.pending || []).filter(p => p.id !== id);
+  renderChatPending();
+}
+
+const fabBoot = $("#chat-fab");
+if (fabBoot) fabBoot.onclick = () => show("chat");
 
 boot();

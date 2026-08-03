@@ -188,6 +188,15 @@ function openApiDoc(serverUrl: string) {
       "/v1/programs": {
         get: { summary: "Programs + engines", responses: { "200": { description: "Programs" } } },
       },
+      "/v1/chat": {
+        post: {
+          summary: "Conversational CSMS / rule authoring (Anthropic + tools)",
+          responses: { "200": { description: "Reply + pending actions" } },
+        },
+      },
+      "/v1/chat/apply": {
+        post: { summary: "Apply a pending pack write from chat", responses: { "200": { description: "Applied" } } },
+      },
       "/v1/admin/reload": {
         post: { summary: "Hot-reload pack caches (no rebuild)", responses: { "200": { description: "Reloaded" } } },
       },

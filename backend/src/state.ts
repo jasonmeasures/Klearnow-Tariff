@@ -37,6 +37,7 @@ function fileHash(): string {
     "hts_rates.json",
     "s301fl_pack.json",
     "ch99_rules.json",
+    "s301_china_lists.json",
   ];
   const parts = files
     .filter((f) => existsSync(join(DATA, f)))
