@@ -2,7 +2,8 @@
 
 US Chapter 99 duty allocation against the file-authored `tariff-rules` pack.
 **Quick check first** (single HTS → stack), then multi-line / engines / scenarios.
-Local build first; later copy into `kn-playground/applications/KlearNow-Tariff/`.
+Local build first. Rollout: **playground → WordPress (external) → engine framework**.
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) and [`wordpress/klearnow-duty-stack/`](wordpress/klearnow-duty-stack/).
 
 ```bash
 # Backend (port 8080)
@@ -12,7 +13,17 @@ cd backend && npm install && npm run dev
 cd frontend && npm install && npm run dev
 ```
 
-Open http://localhost:3000. Default API key: `dev-internal` (query `?key=dev-calculate` for calculator-only).
+Open http://localhost:3000. Default API key: `dev-internal` (admin). Guest/external: `?embed=1&surface=external` or key `dev-external`.
+
+## Access model
+
+| Who | Sign-on | What they get |
+|-----|---------|---------------|
+| External (WordPress) | Auth0 optional · guest allowed | Duty stack / HTS list / Audit only · **5 stacks + 2 extracts / day** (50+10 when signed in) · **no admin** |
+| Playground internal | Auth0 | Full product for authors; Manage / Rule chat only if `admin` claim |
+| Engine framework | Auth0 | Same roles as playground (later) |
+
+Admin is never shown to guests or WordPress embeds. Admin claim: Auth0 `https://klearnow.com/roles` includes `admin`.
 
 ## Product surface
 
@@ -101,7 +112,11 @@ Baseline HTS table: place the classification workbook at repo root, then `cd bac
 cd backend && npm test
 ```
 
-## Later: kn-playground
+## Later: kn-playground → WordPress → engine
 
-Copy `backend/`, `frontend/`, `tariff-rules/`, `mcp/` → `kn-playground/applications/KlearNow-Tariff/`,
-add deploy scripts and Entra SSO. Terraform stays with the repo owner.
+1. Copy `backend/`, `frontend/`, `tariff-rules/`, `mcp/` → `kn-playground/applications/KlearNow-Tariff/`.
+2. Set `APP_SURFACE=playground`, Auth0 env, Terraform SSO (repo owner).
+3. WordPress: install `wordpress/klearnow-duty-stack` and point at Amplify URL with `?embed=1&surface=external`.
+4. Engine framework reuses the same Auth0 apps / admin claim.
+
+Also see [`DEPLOYMENT.md`](DEPLOYMENT.md).

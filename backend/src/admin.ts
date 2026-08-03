@@ -10,13 +10,13 @@ import {
   s301flMeta,
   type FlCountry,
 } from "../../tariff-rules/src/s301fl.ts";
-import { requireScope } from "./auth.ts";
+import { requireAdmin, requireScope } from "./auth.ts";
 import { htsTableMeta, reloadHtsTable } from "./htsLookup.ts";
 import { refreshRulepackState, rulepackPublic } from "./state.ts";
 
 export const adminRouter = Router();
 
-adminRouter.post("/admin/reload", requireScope("write_rules"), (_req, res) => {
+adminRouter.post("/admin/reload", requireScope("write_rules"), requireAdmin, (_req, res) => {
   reloadS301fl();
   reloadHtsTable();
   refreshRulepackState();
@@ -36,7 +36,7 @@ adminRouter.get("/admin/s301fl", requireScope("read_rules"), (_req, res) => {
   });
 });
 
-adminRouter.put("/admin/s301fl/countries/:iso2", requireScope("write_rules"), (req, res) => {
+adminRouter.put("/admin/s301fl/countries/:iso2", requireScope("write_rules"), requireAdmin, (req, res) => {
   try {
     const iso2 = String(req.params.iso2 || "").trim().toUpperCase();
     if (!/^[A-Z]{2}$/.test(iso2) && iso2 !== "EU") {
@@ -100,7 +100,7 @@ adminRouter.put("/admin/s301fl/countries/:iso2", requireScope("write_rules"), (r
   }
 });
 
-adminRouter.delete("/admin/s301fl/countries/:iso2", requireScope("write_rules"), (req, res) => {
+adminRouter.delete("/admin/s301fl/countries/:iso2", requireScope("write_rules"), requireAdmin, (req, res) => {
   const iso2 = String(req.params.iso2 || "").trim().toUpperCase();
   const path = s301flDataPath();
   const pack = JSON.parse(readFileSync(path, "utf8")) as { countries: FlCountry[] };

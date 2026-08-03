@@ -26,7 +26,23 @@
   </div>
   <span class="chip juris" title="Jurisdiction. Other customs territories are not yet modelled.">US</span>
   <div class="spacer"></div>
+  <a class="tool-link" id="rps-link" href="http://localhost:3002" target="_blank" rel="noopener noreferrer"
+     title="Restricted Party Screening (applications/RPS)">
+    RPS <span aria-hidden="true">↗</span>
+  </a>
+  <label class="role-switch" id="role-switch" title="Local demo — Auth0 replaces this in playground / WordPress">
+    <span class="cap">View as</span>
+    <select id="role-select" aria-label="Demo role">
+      <option value="admin">Admin</option>
+      <option value="user">User</option>
+      <option value="guest">Guest</option>
+    </select>
+  </label>
+  <span class="chip role-chip" id="rolechip" hidden></span>
+  <span class="chip" id="quotachip" hidden title="Daily usage"></span>
   <span class="chip" id="whochip" hidden></span>
+  <button type="button" class="btn-ghost btn-sm" id="auth-login" hidden>Sign in</button>
+  <button type="button" class="btn-ghost btn-sm" id="auth-logout" hidden>Sign out</button>
   <span class="chip" id="packchip"><span class="dot" id="packdot"></span><span id="packtext">connecting…</span></span>
 </div>
 
@@ -35,15 +51,15 @@
     <div class="navgroup eyebrow">Use</div>
     <button data-view="calc" aria-current="page">Duty stack</button>
     <button data-view="lookup">HTS list</button>
-    <button data-view="chat">Rule chat</button>
+    <button data-view="chat" data-admin-only>Rule chat</button>
     <button data-view="audit">Audit</button>
-    <div class="navgroup eyebrow">Manage</div>
-    <button data-view="rules">Rules <span class="badge" id="nav-rules">—</span></button>
-    <button data-view="upload">Upload</button>
-    <button data-view="history">Snapshots <span class="badge" id="nav-snaps">—</span></button>
-    <div class="navgroup eyebrow">Understand</div>
-    <button data-view="insights">Insights</button>
-    <button data-view="reference">API &amp; ref</button>
+    <div class="navgroup eyebrow" data-admin-only>Manage</div>
+    <button data-view="rules" data-admin-only data-rules-browse>Rules <span class="badge" id="nav-rules">—</span></button>
+    <button data-view="upload" data-admin-only>Upload</button>
+    <button data-view="history" data-admin-only>Snapshots <span class="badge" id="nav-snaps">—</span></button>
+    <div class="navgroup eyebrow" data-rules-browse>Understand</div>
+    <button data-view="insights" data-rules-browse>Insights</button>
+    <button data-view="reference" data-rules-browse>API &amp; ref</button>
   </nav>
 
   <main>

@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "vite": "^6.0.7"
+  },
+  "dependencies": {
+    "@auth0/auth0-spa-js": "^2.24.1"
   }
 }

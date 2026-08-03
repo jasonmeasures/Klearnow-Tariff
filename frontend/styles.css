@@ -96,6 +96,17 @@ a{color:var(--color-primary-600)}
 .chip.juris{background:var(--color-marigold-500);color:var(--color-primary-900);
   border-color:transparent;font-weight:700;letter-spacing:.04em}
 
+.tool-link{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:5px 10px;border-radius:99px;
+  font-size:.857rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:#fff;text-decoration:none;
+  border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);
+  white-space:nowrap;
+}
+.tool-link:hover{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.45)}
+.tool-link span{opacity:.7;font-size:.75rem;font-weight:500;text-transform:none;letter-spacing:0}
+
 .layout{display:grid;grid-template-columns:var(--nav-w) minmax(0,1fr);align-items:start}
 @media (max-width:900px){ .layout{grid-template-columns:minmax(0,1fr)} }
 
@@ -800,3 +811,28 @@ body.view-chat-on .chat-fab{display:none}
   .chat-composer{grid-template-columns:1fr}
   .chat-fab{right:14px;bottom:14px}
 }
+
+/* External / WordPress embed */
+body.embed .side{display:none}
+body.embed .layout{grid-template-columns:1fr}
+body.embed .topbar .sub{display:none}
+body.embed .role-switch{display:none}
+#quotachip{font-variant-numeric:tabular-nums;max-width:42ch;overflow:hidden;text-overflow:ellipsis}
+.topbar #auth-login,.topbar #auth-logout{
+  align-self:center;color:#fff;border-color:rgba(255,255,255,.35)
+}
+.role-switch{
+  display:flex;align-items:center;gap:8px;align-self:center;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);
+  border-radius:999px;padding:4px 10px 4px 12px;
+}
+.role-switch .cap{color:rgba(255,255,255,.75);letter-spacing:.08em;font-size:.65rem}
+.role-switch select{
+  background:transparent;border:0;color:#fff;font:inherit;font-weight:600;
+  font-size:.8rem;padding:2px 4px;cursor:pointer;outline:none;
+}
+.role-switch select option{color:var(--color-blue-sapphire-900)}
+.role-chip{font-weight:600;max-width:28ch}
+.role-chip.role-admin{background:var(--color-marigold-500);color:var(--color-primary-900)}
+.role-chip.role-user{background:var(--color-primary-300);color:#fff}
+.role-chip.role-guest{background:rgba(255,255,255,.2);color:#fff}

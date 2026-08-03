@@ -1,11 +1,28 @@
 "use strict";
 /* ==========================================================================
-   Tariff Rules Engine — browser app
+   KlearNow Tariff — browser app (Duty stack)
    ========================================================================== */
 
 import { bindCountryField, countryIsoFrom, formatCountry, resolveCountryIso } from "./countries.js";
+import {
+  SURFACE,
+  apiKeyFromQuery,
+  clientId,
+  getAccessToken,
+  getConfig,
+  getDemoRole,
+  initAuth,
+  isAuthenticated,
+  isEmbed,
+  loadConfig,
+  login,
+  logout,
+  refreshToken,
+  rpsUrl,
+  setDemoRole,
+} from "./auth.js";
 
-const KEY = new URLSearchParams(location.search).get("key") || "dev-internal";
+let KEY = apiKeyFromQuery();
 
 const S = {
   me: null, pack: null, flags: [], programs: [], snapshots: [],
@@ -14,6 +31,7 @@ const S = {
   engines: { auto: "Auto-parts stacking + 301-FL by COO", ch99: "Ch99 reciprocal / IEEPA pack" },
   engine: "auto",
   scenarios: { A: null, B: null },
+  config: null,
 };
 
 const ENGINE_TITLE = {
@@ -48,10 +66,17 @@ const pct = v => Number.isFinite(Number(v))
 const dshort = v => v ? String(v).slice(0, 10) : "—";
 
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    ...opts,
-    headers: { "Content-Type": "application/json", "X-API-Key": KEY, ...(opts.headers || {}) },
-  });
+  await refreshToken();
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Client-Id": clientId(),
+    ...(opts.headers || {}),
+  };
+  const token = getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  else if (KEY) headers["X-API-Key"] = KEY;
+
+  const res = await fetch(path, { ...opts, headers });
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
@@ -59,7 +84,10 @@ async function api(path, opts = {}) {
     let d = data && (data.detail ?? data.error ?? data.message);
     if (Array.isArray(d)) d = d.map(x => `${(x.loc || []).join(".")}: ${x.msg}`).join("; ");
     else if (d && typeof d === "object") d = JSON.stringify(d);
-    throw new Error(d || `${res.status} ${res.statusText}`);
+    const err = new Error(d || `${res.status} ${res.statusText}`);
+    err.status = res.status;
+    err.payload = data;
+    throw err;
   }
   return data;
 }
@@ -90,6 +118,19 @@ $("#gotoaudit").onclick = () => show("calc");
 
 /* ================================================================ BOOT */
 async function boot() {
+  document.body.dataset.surface = SURFACE;
+  if (isEmbed()) document.body.classList.add("embed");
+
+  try {
+    S.config = await loadConfig();
+    await initAuth();
+  } catch (e) {
+    console.warn("config/auth", e);
+  }
+
+  bindAuthChrome();
+  bindRpsLink();
+
   try {
     const h = await api("/v1/health");
     S.pack = h.rulepack;
@@ -109,11 +150,22 @@ async function boot() {
   try {
     S.me = await api("/v1/me");
     $("#whochip").hidden = false;
-    const roles = [S.me.can.write_rules && "author", S.me.can.read_rules && "read rules",
-                   S.me.can.calculate && "calculate"].filter(Boolean).join(" · ");
-    $("#whochip").innerHTML = `${esc(S.me.tenant_id)} <span class="cap"
-      style="color:var(--color-primary-100)">${esc(roles || "no access")}</span>`;
+    const role = S.me.role || (S.me.can?.admin ? "admin" : S.me.can?.write_rules ? "admin" : "user");
+    $("#whochip").innerHTML = `${esc(S.me.key_id || S.me.tenant_id)}`;
+    renderRoleChip({ ...S.me, role });
     applyScopes();
+    renderQuota(S.me.quota);
+    if (!isEmbed()) {
+      const notes = {
+        admin: "You are Admin: sidebar shows Manage + Rule chat.",
+        user: "You are User: Duty stack only — Manage and Rule chat are hidden.",
+        guest: "You are Guest: same chrome as User, with daily stack/extract caps.",
+      };
+      banner("#calcbanner", "info", notes[role] || "Signed in",
+        role === "admin"
+          ? "Switch View as → User or Guest to compare."
+          : "Switch View as → Admin to unlock Manage.");
+    }
   } catch { /* auth disabled or anonymous */ }
   try { S.flags = (await api("/v1/reference/claim-flags")).flags || []; } catch { S.flags = []; }
   try {
@@ -128,9 +180,94 @@ async function boot() {
   } catch { /* no scope */ }
   if (!S.lines.length) addLine();
   initQuickCheck();
-  if ("serviceWorker" in navigator) {
+  if ("serviceWorker" in navigator && !isEmbed()) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }
+}
+
+function bindRpsLink() {
+  const a = $("#rps-link");
+  if (!a) return;
+  const url = rpsUrl();
+  if (!url) {
+    a.hidden = true;
+    return;
+  }
+  a.hidden = false;
+  a.href = url;
+}
+
+function bindAuthChrome() {
+  const loginBtn = $("#auth-login");
+  const logoutBtn = $("#auth-logout");
+  const roleSel = $("#role-select");
+  const roleWrap = $("#role-switch");
+
+  // Local / playground demo: Admin vs User vs Guest. Hidden on WordPress embed.
+  if (roleWrap) {
+    const showSwitch = !isEmbed() && SURFACE !== "external";
+    roleWrap.hidden = !showSwitch;
+    if (roleSel && showSwitch) {
+      roleSel.value = getDemoRole();
+      roleSel.onchange = () => {
+        setDemoRole(roleSel.value);
+        KEY = apiKeyFromQuery();
+        location.reload();
+      };
+    }
+  }
+
+  if (loginBtn) {
+    loginBtn.onclick = async () => {
+      try { await login(); }
+      catch (e) { banner("#calcbanner", "err", "Sign-in unavailable", e.message); }
+    };
+  }
+  if (logoutBtn) {
+    logoutBtn.onclick = () => logout();
+  }
+  void isAuthenticated().then((ok) => {
+    const auth0Ready = Boolean(import.meta.env.VITE_AUTH0_DOMAIN || S.config?.auth0);
+    if (loginBtn) loginBtn.hidden = ok || !auth0Ready;
+    if (logoutBtn) logoutBtn.hidden = !ok;
+  });
+}
+
+function renderRoleChip(me) {
+  const el = $("#rolechip");
+  if (!el || !me) return;
+  el.hidden = false;
+  const role = me.role || "user";
+  el.className = `chip role-chip role-${role}`;
+  const labels = {
+    admin: "Admin — Manage + Rule chat",
+    user: "User — Duty stack · no admin",
+    guest: "Guest — limited tries · no admin",
+  };
+  el.textContent = labels[role] || role;
+  el.title = me.auth === "api_key"
+    ? `Local demo key ${me.key_id}`
+    : `Auth via ${me.auth}`;
+}
+
+function renderQuota(q) {
+  const el = $("#quotachip");
+  if (!el || !q) return;
+  el.hidden = false;
+  if (q.unlimited) {
+    el.textContent = "Unlimited";
+    el.title = "Admin / internal — no daily caps";
+    return;
+  }
+  el.textContent = `Stacks ${q.stacks_remaining}/${q.stacks_limit} · Extracts ${q.extracts_remaining}/${q.extracts_limit}`;
+  el.title = `Resets ${q.day} (UTC). Sign in for a higher allowance.`;
+}
+
+async function refreshMeQuota() {
+  try {
+    S.me = await api("/v1/me");
+    renderQuota(S.me.quota);
+  } catch { /* ignore */ }
 }
 
 function renderEnginePicker() {
@@ -180,18 +317,45 @@ function syncEngineChrome() {
 }
 
 function applyScopes() {
-  const can = S.me.can;
-  if (!can.read_rules) {
-    ["rules", "upload", "history", "insights"].forEach(v => {
+  const can = S.me?.can || {};
+  const isAdmin = Boolean(can.admin || S.me?.role === "admin");
+  const canManage = Boolean(can.write_rules || isAdmin);
+  const canBrowseRules = Boolean(can.read_rules && canManage); // browse pack only with Manage
+
+  const hideManage = !canManage || isEmbed() || SURFACE === "external";
+  $$("[data-admin-only]").forEach((el) => el.classList.toggle("hide", hideManage));
+  $$("[data-rules-browse]").forEach((el) =>
+    el.classList.toggle("hide", hideManage),
+  );
+
+  // Non-admin / external: Use nav only (Duty stack, HTS list, Audit)
+  if (hideManage) {
+    ["rules", "upload", "history", "insights", "chat", "reference"].forEach((v) => {
       const b = document.querySelector(`nav.side button[data-view="${v}"]`);
       if (b) b.classList.add("hide");
     });
-    const g = $$("nav.side .navgroup")[1];
-    if (g) g.classList.add("hide");
+    $$("nav.side .navgroup").forEach((g) => {
+      if (/manage|understand/i.test(g.textContent || "")) g.classList.add("hide");
+    });
+    const fab = $("#chatfab");
+    if (fab) fab.hidden = true;
+    // If they were on an admin view, bounce to Duty stack
+    const adminViews = new Set(["rules", "upload", "history", "insights", "chat", "reference"]);
+    const cur = document.querySelector("nav.side button[aria-current='page']");
+    if (cur && adminViews.has(cur.dataset.view)) show("calc");
+  } else {
+    ["rules", "upload", "history", "insights", "chat", "reference"].forEach((v) => {
+      const b = document.querySelector(`nav.side button[data-view="${v}"]`);
+      if (b) b.classList.remove("hide");
+    });
+    $$("nav.side .navgroup").forEach((g) => g.classList.remove("hide"));
+    const fab = $("#chatfab");
+    if (fab) fab.hidden = false;
   }
-  // v1 pack is file-authored — publish/upload are disabled even for author keys
-  $("#publishcard").hidden = true;
-  if (can.read_rules) {
+
+  const pub = $("#publishcard");
+  if (pub) pub.hidden = true;
+  if (canBrowseRules && !hideManage) {
     banner("#rulesbanner", "info", "Live pack + MCP",
       "Browse the seeded pack. Hot-update 301-FL via PUT /v1/admin/s301fl/countries/{iso2} or the MCP server (mcp/) — no rebuild. Full file edits still live in tariff-rules/data/.");
     banner("#uploadbanner", "info", "Upload disabled in v1",
@@ -202,7 +366,7 @@ function applyScopes() {
   ["uploadcommit", "uploadpreview", "filepick", "uploadbox", "dopublish", "runvalidate"].forEach(id => {
     const el = $("#" + id);
     if (!el) return;
-    if (id === "runvalidate") return; // validate still useful
+    if (id === "runvalidate") return;
     el.disabled = true;
   });
   if (!can.write_rules) {
@@ -781,8 +945,10 @@ async function run(mode) {
     S.last._engine = mode === "audit" ? "auto" : S.engine;
     renderResults(S.last);
     updateScenarioActions();
+    void refreshMeQuota();
   } catch (e) {
     banner("#calcbanner", "err", mode === "audit" ? "Audit failed" : "Assessment failed", e.message);
+    if (e.status === 429) void refreshMeQuota();
   } finally { btn.disabled = false; btn.textContent = was; renderLines(); syncEngineChrome(); }
 }
 $("#assess").onclick = () => run("assess");
