@@ -12,10 +12,18 @@ import {
   chinaListIdFromFlags,
   lookupChina301List,
 } from "../../tariff-rules/src/s301China.ts";
-import { classify232Metals } from "../../tariff-rules/src/s232Metals.ts";
+import { classify232Metals, resolve232Metals } from "../../tariff-rules/src/s232Metals.ts";
 import { resolveCol1 } from "./htsLookup.ts";
 import { computeEntryFees } from "./fees.ts";
 import { rulepackPublic } from "./state.ts";
+import {
+  SEC_122_CH99,
+  filingEra,
+  filingEraLabel,
+  s301flAppliesOn as s301flEraApplies,
+  sec122AppliesOn,
+  wrongEraFiledCode,
+} from "./programEras.ts";
 
 export type Diagnostic = {
   severity: "ERROR" | "WARNING" | "INFO";
@@ -88,10 +96,7 @@ function pctLabel(decimalRate: number): string {
 
 /** 301-FL (CSMS #69326983) — pack effective date; not applied before that day. */
 export function s301flAppliesOn(rateDay: string): boolean {
-  const eff = String(s301flMeta().effective || "2026-07-24").slice(0, 10);
-  const day = String(rateDay || "").slice(0, 10);
-  if (!day || !eff) return false;
-  return day >= eff;
+  return s301flEraApplies(rateDay);
 }
 
 function rateDate(line: LineIn): { date: string; basis: string } {
@@ -124,6 +129,7 @@ function uiProgram(id: string): string {
     SEC_301_FL: "s301fl",
     SEC_232_AUTOS: "s232",
     SEC_232_METALS: "s232",
+    SEC_122: "s122",
     TRADE_DEAL_JP: "s232",
     TRADE_DEAL_EU: "s232",
     TRADE_DEAL_KR: "s232",
@@ -165,13 +171,41 @@ function layer(opts: {
   };
 }
 
+/** Map filed legacy China 301 headings → list id (U.S. note 20 / CSMS Tranche codes). */
+const FILED_CHINA_301: Record<string, "list_1" | "list_2" | "list_3" | "list_4a"> = {
+  "9903.88.01": "list_1",
+  "9903.88.02": "list_2",
+  "9903.88.03": "list_3",
+  "9903.88.15": "list_4a",
+};
+
+function inferChinaFlagsFromFiled(
+  filed: string[],
+  flags: Record<string, boolean>,
+): Record<string, boolean> {
+  const next = { ...flags };
+  for (const c of filed) {
+    const list = FILED_CHINA_301[normalizeCh99(c)];
+    if (list === "list_1") next.s301_list_1 = true;
+    if (list === "list_2") next.s301_list_2 = true;
+    if (list === "list_3") next.s301_list_3 = true;
+    if (list === "list_4a") next.s301_list_4a = true;
+  }
+  return next;
+}
+
 function chinaListCode(
   hts: string,
   flags: Record<string, boolean>,
   diagnostics: Diagnostic[],
+  filed: string[] = [],
 ): string | null {
   const fromHts = lookupChina301List(hts);
   const fromFlag = chinaListIdFromFlags(flags);
+  const fromFiled = filed
+    .map(normalizeCh99)
+    .map((c) => FILED_CHINA_301[c])
+    .find(Boolean);
 
   if (fromHts && fromFlag && fromHts.list !== fromFlag) {
     diagnostics.push({
@@ -192,6 +226,16 @@ function chinaListCode(
   }
 
   if (fromFlag) return ch99ForChinaList(fromFlag);
+
+  if (fromFiled) {
+    const code = ch99ForChinaList(fromFiled);
+    diagnostics.push({
+      severity: "INFO",
+      code: "S301_LIST_FROM_FILED",
+      message: `China 301 ${fromFiled.replace(/_/g, " ")} inferred from filed ${code} (HTS not in seeded USTR list pack — membership claim accepted).`,
+    });
+    return code;
+  }
   return null;
 }
 
@@ -265,8 +309,8 @@ export function assessLine(line: LineIn, index: number) {
       specificDuty = money2(qty * col1SpecificUsd);
     }
   }
-  const flags = line.flags || {};
   const filed = (line.filed_ch99 || []).map(normalizeCh99);
+  const flags = inferChinaFlagsFromFiled(filed, line.flags || {});
 
   const pushCommodity = (zeroCommodity = false) => {
     if (zeroCommodity) {
@@ -358,7 +402,7 @@ export function assessLine(line: LineIn, index: number) {
 
   rejectDeadFiled(filed, diagnostics);
 
-  const metalsHit = classify232Metals(hts);
+  const metalsHit = resolve232Metals({ hts, filed_ch99: filed, flags });
   const legacyMelt = String(line.country_of_melt_pour || "")
     .trim()
     .toUpperCase()
@@ -440,7 +484,8 @@ export function assessLine(line: LineIn, index: number) {
 
   const claimedAuto232 = Boolean(flags.s232_auto_part || flags.s232_auto || flags.s232);
   // Pure metal articles (Ch.72–74/76): metals path wins over an accidental autos claim (R5).
-  if (metalsHit && claimedAuto232) {
+  const chapterMetals = classify232Metals(hts);
+  if (metalsHit && claimedAuto232 && chapterMetals) {
     diagnostics.push({
       severity: "WARNING",
       code: "R5_METALS_OVER_AUTOS",
@@ -459,10 +504,16 @@ export function assessLine(line: LineIn, index: number) {
   }
 
   if (metalsHit) {
+    const basisNote =
+      metalsHit.basis === "ENTERED_VALUE"
+        ? `${metalsHit.duty_ch99} @ ${metalsHit.rate_pct}% on entered value (derivative / copper path — U.S. note 16 / CSMS #68253075).`
+        : `Chapter ${metalsHit.chapter} ${metalsHit.metal} article → ${metalsHit.duty_ch99} at ${metalsHit.rate_pct}% on metal-content value (CSMS #68253075). Mixed steel/aluminum/copper content is summed. Enter melt/pour (or smelt) per metal.`;
     diagnostics.push({
       severity: "INFO",
-      code: "S232_METALS_TRIAGE",
-      message: `Chapter ${metalsHit.chapter} ${metalsHit.metal} article → ${metalsHit.duty_ch99} at ${metalsHit.rate_pct}% on metal-content value (CSMS #68253075). Mixed steel/aluminum/copper content is summed. Enter melt/pour (or smelt) per metal.`,
+      code: metalsHit.claim_gated ? "S232_METALS_CLAIM" : "S232_METALS_TRIAGE",
+      message: metalsHit.claim_gated
+        ? `Section 232 metals claimed via filed Chapter 99 (${metalsHit.duty_ch99}). ${basisNote}`
+        : basisNote,
     });
     diagnostics.push({
       severity: "WARNING",
@@ -473,19 +524,22 @@ export function assessLine(line: LineIn, index: number) {
   }
 
   let blocked = false;
-  if (metalsHit && !(metalVal > 0)) {
-    blocked = true;
+  /** Metals content/melt-pour gaps must not block Sec 122 / China 301 / 301-FL on entered value. */
+  let metalsReady = true;
+  const metalsNeedsContent = Boolean(metalsHit && metalsHit.basis === "METAL_CONTENT_VALUE");
+  if (metalsNeedsContent && !(metalVal > 0)) {
+    metalsReady = false;
     diagnostics.push({
       severity: "ERROR",
       code: "METAL_CONTENT_REQUIRED",
-      message: metalsHit.content_prompt,
+      message: metalsHit!.content_prompt,
       remediation:
-        "Enter steel and/or aluminum and/or copper content as USD or % of entered. Duty basis is the sum of those contents.",
+        "Enter steel and/or aluminum and/or copper content as USD or % of entered. Duty basis is the sum of those contents. Other layers (Sec 122 / 301-FL / China 301) still assess on entered value.",
     });
   }
   for (const p of metalParts) {
-    if (p.basis > 0 && !p.melt_pour) {
-      blocked = true;
+    if (metalsNeedsContent && p.basis > 0 && !p.melt_pour) {
+      metalsReady = false;
       diagnostics.push({
         severity: "ERROR",
         code: "MELT_POUR_REQUIRED",
@@ -494,12 +548,12 @@ export function assessLine(line: LineIn, index: number) {
       });
     }
   }
-  if (metalsHit && metalVal > 0 && !metalParts.length && !meltPour) {
-    blocked = true;
+  if (metalsNeedsContent && metalVal > 0 && !metalParts.length && !meltPour) {
+    metalsReady = false;
     diagnostics.push({
       severity: "ERROR",
       code: "MELT_POUR_REQUIRED",
-      message: `${metalsHit.melt_pour_label} is required for Section 232 metals (ISO-2).`,
+      message: `${metalsHit!.melt_pour_label} is required for Section 232 metals (ISO-2).`,
       remediation: "Enter the melt & pour / smelt country (e.g. CN).",
     });
   }
@@ -520,7 +574,7 @@ export function assessLine(line: LineIn, index: number) {
     });
   }
 
-  const chinaCode = coo === "CN" ? chinaListCode(hts, flags, diagnostics) : null;
+  const chinaCode = coo === "CN" ? chinaListCode(hts, flags, diagnostics, filed) : null;
   let partsDuty = 0;
   let metalsDuty = 0;
 
@@ -543,7 +597,11 @@ export function assessLine(line: LineIn, index: number) {
     }
   }
 
-  const applyMetals232 = Boolean(metalsHit && metalVal > 0 && !blocked);
+  const applyMetals232 = Boolean(
+    metalsHit &&
+      !blocked &&
+      (metalsHit.basis === "ENTERED_VALUE" || (metalVal > 0 && metalsReady)),
+  );
 
   if (!blocked && chinaCode) {
     try {
@@ -587,7 +645,17 @@ export function assessLine(line: LineIn, index: number) {
           }),
         );
         push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+      } else if (metalsHit) {
+        // China 301 + 232 metals triage: China first; Sec 122 out via 9903.03.06; FL suppressed when metals ready
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+        if (applyMetals232) {
+          push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
+        } else {
+          add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
+        }
       } else {
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
         add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
       }
 
@@ -627,6 +695,7 @@ export function assessLine(line: LineIn, index: number) {
     });
     layers.push(L232);
     push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
+    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
     pushCommodity(top.ch1to97Line === 0);
   } else if (!blocked && is232) {
     // Non-JP 232 default 25% with TBC program label
@@ -652,6 +721,7 @@ export function assessLine(line: LineIn, index: number) {
         }),
       );
       push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
+      applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
       pushCommodity(false);
     } catch (e) {
       diagnostics.push({
@@ -664,30 +734,42 @@ export function assessLine(line: LineIn, index: number) {
   } else if (!blocked && applyMetals232 && metalsHit) {
     // 232 metals wins over 301-FL (US Note 52(f) / 9903.05.90) — Cervó parity
     push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
+    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+    pushCommodity(false);
+  } else if (!blocked && metalsHit) {
+    // Metals triage without content yet: still carve Sec 122 out of the 232 universe
+    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+    add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
     pushCommodity(false);
   } else if (!blocked) {
-    // Non-232 → country-specific 301-FL from s301fl pack
+    // Non-232 → Sec 122 (historical window) or 301-FL (from 2026-07-24)
+    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
     add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
     pushCommodity(false);
   }
 
-  // Metals separate line (R4) — current articles use 9903.82.02 @ 50%
+  // Metals layer (R4) — 9903.82.02 on metal-content; 9903.82.09 on entered value
   if (applyMetals232 && metalsHit) {
     try {
       const steel = assertComputable(metalsHit.duty_ch99);
+      const onEntered = metalsHit.basis === "ENTERED_VALUE";
       const Lm = layer({
         slot: "3.3",
         program: steel.program,
         ch99: steel.code,
-        label: `Section 232 metal products — ${metalsHit.metal} (${metalsHit.rate_pct}%)`,
-        reason: `Metal-content basis $${metalVal.toFixed(2)}${
-          metalParts.length
-            ? ` [${metalParts.map((p) => `${p.kind} $${p.basis.toFixed(2)}`).join(" + ")}]`
-            : ""
-        }; melt/pour ${metalParts.map((p) => (p.melt_pour ? `${p.kind}:${p.melt_pour}` : "")).filter(Boolean).join(", ") || meltPour}. ${steel.notes}`,
+        label: onEntered
+          ? `Section 232 metals / derivatives — ${steel.code} (${metalsHit.rate_pct}% entered value)`
+          : `Section 232 metal products — ${metalsHit.metal} (${metalsHit.rate_pct}%)`,
+        reason: onEntered
+          ? `Entered-value basis $${entered.toFixed(2)}; U.S. note 16 derivative/copper path. ${steel.notes}`
+          : `Metal-content basis $${metalVal.toFixed(2)}${
+              metalParts.length
+                ? ` [${metalParts.map((p) => `${p.kind} $${p.basis.toFixed(2)}`).join(" + ")}]`
+                : ""
+            }; melt/pour ${metalParts.map((p) => (p.melt_pour ? `${p.kind}:${p.melt_pour}` : "")).filter(Boolean).join(", ") || meltPour}. ${steel.notes}`,
         source_ref: "CSMS #68253075 / U.S. note 16",
-        basis: "METAL_CONTENT_VALUE",
-        basis_amount: metalVal,
+        basis: onEntered ? "ENTERED_VALUE" : "METAL_CONTENT_VALUE",
+        basis_amount: onEntered ? entered : metalVal,
         rate_pct: steel.rate,
       });
       layers.push(Lm);
@@ -695,7 +777,9 @@ export function assessLine(line: LineIn, index: number) {
       diagnostics.push({
         severity: "INFO",
         code: "METALS_SEPARATE_LINE",
-        message: `232 metals on metal-content value via ${steel.code} (input as ${metalBasisMode === "PCT" ? "percent of entered" : metalBasisMode === "MIXED" ? "mixed USD/%" : "USD"}); kept out of parts subtotal (R4). Potential exclusions: ${metalsHit.potential_exclusions.map((e) => e.ch99).join(", ")}.`,
+        message: onEntered
+          ? `232 metals derivative via ${steel.code} on entered value; kept out of parts subtotal (R4).`
+          : `232 metals on metal-content value via ${steel.code} (input as ${metalBasisMode === "PCT" ? "percent of entered" : metalBasisMode === "MIXED" ? "mixed USD/%" : "USD"}); kept out of parts subtotal (R4). Potential exclusions: ${metalsHit.potential_exclusions.map((e) => e.ch99).join(", ")}.`,
       });
     } catch (e) {
       diagnostics.push({
@@ -709,7 +793,11 @@ export function assessLine(line: LineIn, index: number) {
 
   partsDuty = money2(
     layers
-      .filter((l) => l.basis !== "METAL_CONTENT_VALUE")
+      .filter(
+        (l) =>
+          l.basis !== "METAL_CONTENT_VALUE" &&
+          !String(l.ch99 || "").startsWith("9903.82."),
+      )
       .reduce((a, l) => a + l.duty_amount, 0),
   );
   const totalDuty = money2(partsDuty + metalsDuty);
@@ -719,11 +807,11 @@ export function assessLine(line: LineIn, index: number) {
   const seq = layers.filter((l) => l.ch99).map((l) => l.ch99 as string);
   const ordered = [
     ...seq.filter((c) => c.startsWith("9903.88")),
-    ...seq.filter((c) => c === "9903.05.90"),
+    ...seq.filter((c) => c === "9903.05.90" || c === "9903.03.06" || c === "9903.03.03"),
     ...seq.filter((c) => c.startsWith("9903.82")),
     ...seq.filter((c) => c.startsWith("9903.94") || c.startsWith("9903.74")),
     ...seq.filter((c) => c.startsWith("9903.05") && c !== "9903.05.90"),
-    ...seq.filter((c) => c.startsWith("9903.03")),
+    ...seq.filter((c) => c.startsWith("9903.03") && c !== "9903.03.06" && c !== "9903.03.03"),
   ];
   const ch99_sequence_unique = [...new Set(ordered.length ? ordered : seq)];
 
@@ -817,6 +905,99 @@ function push301FlSuppression(
     }),
     reason: `Suppressed by 9903.05.90. Would otherwise have assessed $${wouldDuty.toFixed(2)}.`,
   });
+}
+
+function addSec122(
+  entered: number,
+  layers: DutyLayer[],
+  diagnostics: Diagnostic[],
+  rateDay?: string,
+) {
+  if (!rateDay || !sec122AppliesOn(rateDay)) return;
+  if (layers.some((l) => l.ch99 === SEC_122_CH99)) return;
+  try {
+    const meta = assertComputable(SEC_122_CH99);
+    layers.push(
+      layer({
+        slot: "3.2",
+        program: "SEC_122",
+        ch99: meta.code,
+        label: "Section 122 — 10% surcharge",
+        reason: `Entry/rate date ${rateDay} falls in the Sec 122 window (${filingEraLabel("sec_122")}: 2026-02-24–2026-07-23). Sunset 2026-07-24 when 301-FL replaced it.`,
+        source_ref: meta.notes,
+        basis_amount: entered,
+        rate_pct: meta.rate,
+      }),
+    );
+    diagnostics.push({
+      severity: "INFO",
+      code: "SEC_122_APPLIED",
+      message: `Section 122 ${meta.code} @ ${(meta.rate * 100).toFixed(0)}% applied for ${rateDay}.`,
+    });
+  } catch (e) {
+    diagnostics.push({
+      severity: "ERROR",
+      code: "REVIEW_REQUIRED",
+      message: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
+/** Sec 122 stacks with China 301; it does not stack with Section 232 (autos or metals) — report 9903.03.06. */
+function applySec122Or232Exclusion(
+  entered: number,
+  layers: DutyLayer[],
+  suppressed: SuppressedLayer[],
+  diagnostics: Diagnostic[],
+  rateDay: string | undefined,
+  in232Universe: boolean,
+) {
+  if (!rateDay || !sec122AppliesOn(rateDay)) return;
+  if (!in232Universe) {
+    addSec122(entered, layers, diagnostics, rateDay);
+    return;
+  }
+  if (!layers.some((l) => l.ch99 === "9903.03.06")) {
+    layers.push(
+      layer({
+        slot: "3.2",
+        program: "SEC_232_METALS",
+        ch99: "9903.03.06",
+        label: "Excluded from Section 122 (232 universe)",
+        reason:
+          "Section 232 autos/parts or metals coverage removes the Section 122 surcharge — report 9903.03.06 (R2b).",
+        source_ref: getCh99("9903.03.06")?.notes || "Sec 122 vs 232 carve-out",
+        basis_amount: entered,
+        rate_pct: 0,
+      }),
+    );
+  }
+  try {
+    const meta = assertComputable(SEC_122_CH99);
+    const would = money2(entered * meta.rate);
+    if (!suppressed.some((s) => s.ch99 === SEC_122_CH99)) {
+      suppressed.push({
+        ...layer({
+          slot: "3.2",
+          program: "SEC_122",
+          ch99: meta.code,
+          label: "Section 122 — 10% surcharge (suppressed)",
+          reason: `Suppressed by 9903.03.06. Would otherwise have assessed $${would.toFixed(2)}.`,
+          source_ref: meta.notes,
+          basis_amount: entered,
+          rate_pct: meta.rate,
+        }),
+        reason: `Suppressed by 9903.03.06. Would otherwise have assessed $${would.toFixed(2)}.`,
+      });
+    }
+    diagnostics.push({
+      severity: "INFO",
+      code: "SEC_122_SUPPRESSED_BY_232",
+      message: `Section 122 ${SEC_122_CH99} suppressed by 9903.03.06 (232 universe) on ${rateDay}.`,
+    });
+  } catch {
+    /* registry gap — still reported 9903.03.06 above */
+  }
 }
 
 function add301Fl(
@@ -918,31 +1099,56 @@ export function auditEntry(body: {
     duty_impact: number;
   }> = [];
 
+  /** Entry Summary Number from ES-003 line_id `ENTRY:ESL`, else each line is its own entry. */
+  const entryKeyFor = (lineId: string, index: number) => {
+    const id = String(lineId || "");
+    const i = id.indexOf(":");
+    if (i > 0) return id.slice(0, i);
+    return id || String(index + 1);
+  };
+
+  // Sec 122 is an entry-level surcharge — filing 9903.03.01 on any ESL satisfies the entry.
+  const filedByEntry = new Map<string, Set<string>>();
+  (body.lines || []).forEach((raw, i) => {
+    const key = entryKeyFor(raw.line_id || String(i + 1), i);
+    if (!filedByEntry.has(key)) filedByEntry.set(key, new Set());
+    const set = filedByEntry.get(key)!;
+    for (const c of raw.filed_ch99 || []) set.add(normalizeCh99(c));
+  });
+
   (body.lines || []).forEach((raw, i) => {
     const L = assessed.lines[i];
     if (!L) return;
+    const entryKey = entryKeyFor(L.line_id, i);
+    const entryFiled = filedByEntry.get(entryKey) || new Set();
     const filed = new Set((raw.filed_ch99 || []).map(normalizeCh99));
     const computed = new Set(L.ch99_sequence);
     for (const c of computed) {
-      if (!filed.has(c) && getCh99(c)?.kind === "DUTY") {
-        const layer = L.layers.find((x) => x.ch99 === c);
-        findings.push({
-          severity: "ERROR",
-          category: "MISSING_CH99",
-          line_id: L.line_id,
-          message: `Computed Chapter 99 ${c} was not filed.`,
-          remediation: `Add ${c} to the entry line in CBP reporting order.`,
-          duty_impact: layer?.duty_amount ?? 0,
-        });
-      }
+      if (filed.has(c) || getCh99(c)?.kind !== "DUTY") continue;
+      // Global Sec 122: already on another ESL of this entry → not missing.
+      if (c === SEC_122_CH99 && entryFiled.has(SEC_122_CH99)) continue;
+      const layer = L.layers.find((x) => x.ch99 === c);
+      findings.push({
+        severity: "ERROR",
+        category: "MISSING_CH99",
+        line_id: L.line_id,
+        message: `Computed Chapter 99 ${c} was not filed.`,
+        remediation: `Add ${c} to the entry line in CBP reporting order.`,
+        duty_impact: layer?.duty_amount ?? 0,
+      });
     }
-    // Prefer Entry Date (rate date) for IEEPA CAPE windowing — same dates as the IEEPA CAPE tool.
+    // Prefer Entry Date (rate date) for era checks (IEEPA → Sec 122 → 301-FL).
     const rateDay = String(
       (L as { rate_determination_date?: string }).rate_determination_date ||
         raw.entry_date ||
         raw.release_date ||
         "",
     ).slice(0, 10);
+    const metals = resolve232Metals({
+      hts: String(L.hts || raw.hts || ""),
+      filed_ch99: [...filed],
+      flags: raw.flags || {},
+    });
     for (const c of filed) {
       if (c.startsWith("9903.01.") || c.startsWith("9903.02.")) {
         const inWindow =
@@ -957,44 +1163,50 @@ export function auditEntry(body: {
               "Review CAPE / PSC eligibility with the broker. Do not refile 9903.01.xx prospectively after 2026-02-23.",
             duty_impact: 0,
           });
-        } else if (rateDay && rateDay >= "2026-02-24") {
-          findings.push({
-            severity: "ERROR",
-            category: "DEAD_PROGRAM",
-            line_id: L.line_id,
-            message: `Filed ${c} (IEEPA) on ${rateDay} after the program ended — not a live filing.`,
-            remediation: "Remove the IEEPA heading; reassess under live programs (232 / 301 / 301-FL / Sec 122 as applicable).",
-            duty_impact: 0,
-          });
-        } else if (rateDay && rateDay < "2025-02-04") {
-          findings.push({
-            severity: "WARNING",
-            category: "EXTRA_CH99",
-            line_id: L.line_id,
-            message: `Filed ${c} (IEEPA) on ${rateDay} before the IEEPA program start (2025-02-04).`,
-            remediation: "Confirm with the broker whether this heading belongs on the entry.",
-            duty_impact: 0,
-          });
-        } else {
-          findings.push({
-            severity: "ERROR",
-            category: "DEAD_PROGRAM",
-            line_id: L.line_id,
-            message: `Filed ${c} (IEEPA) is not a live program.`,
-            remediation: "Remove the IEEPA heading from the filing.",
-            duty_impact: 0,
-          });
+          continue;
         }
-      } else if (!computed.has(c) && !L.suppressed.some((s) => s.ch99 === c)) {
+      }
+
+      const wrong = rateDay ? wrongEraFiledCode(c, rateDay) : null;
+      if (wrong) {
         findings.push({
-          severity: "WARNING",
-          category: "EXTRA_CH99",
+          severity: wrong.severity,
+          category: wrong.category === "WRONG_ERA" ? "WRONG_ERA" : wrong.category,
           line_id: L.line_id,
-          message: `Filed Chapter 99 ${c} was not produced by the current pack.`,
-          remediation: "Confirm the claim flags and annex determinations, or remove the code.",
+          message: wrong.message,
+          remediation: wrong.remediation,
           duty_impact: 0,
         });
+        continue;
       }
+
+      if (computed.has(c) || L.suppressed.some((s) => s.ch99 === c)) continue;
+
+      // Article-path metals (82.02) need content — ES-003 cannot supply it.
+      if (
+        metals &&
+        metals.basis === "METAL_CONTENT_VALUE" &&
+        (c.startsWith("9903.82.") || c === "9903.03.06" || c === "9903.03.03")
+      ) {
+        findings.push({
+          severity: "INFO",
+          category: "NEEDS_INPUTS",
+          line_id: L.line_id,
+          message: `Filed ${c} on metals HTS ${L.hts} — Section 232 article path needs metal-content value + melt/pour to confirm (not on ES-003).`,
+          remediation: "Open in Quick Check with metal content to validate 9903.82.02 / exclusions.",
+          duty_impact: 0,
+        });
+        continue;
+      }
+
+      findings.push({
+        severity: "WARNING",
+        category: "EXTRA_CH99",
+        line_id: L.line_id,
+        message: `Filed Chapter 99 ${c} was not produced by the pack for ${rateDay || "this rate date"} (${filingEraLabel(filingEra(rateDay))}).`,
+        remediation: "Confirm the claim flags and annex determinations, or remove the code.",
+        duty_impact: 0,
+      });
     }
   });
 

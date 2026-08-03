@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "as_of": "2026-08-03",
-  "source": "USTR List 2 / FR 83 FR 40823 (U.S. note 20(d)); List 1/3/4A stubs extend later",
+  "source": "USTR List 2 / FR 83 FR 40823 (U.S. note 20(d)); List 4A seeded for known CN filings (U.S. note 20(s) / 9903.88.15); List 1/3 still incomplete — ES-003 also infers list from filed 9903.88.xx",
   "lists": {
     "list_1": {
       "ch99": "9903.88.01",
@@ -307,7 +307,9 @@
     "list_4a": {
       "ch99": "9903.88.15",
       "rate_pct": 7.5,
-      "hts8": []
+      "hts8": [
+        "7321.89.00"
+      ]
     }
   }
 }

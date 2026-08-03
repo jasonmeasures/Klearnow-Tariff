@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#013A56" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="description" content="KlearNow Tariff — check US duty stacks, 301-FL, and Chapter 99 in seconds." />
+<meta name="description" content="KlearNow Tariff — build the US duty stack: correct tariffs, proposed rates, and Chapter 99 application." />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icons/icon.svg" />
@@ -22,7 +22,7 @@
   <div class="brandmark" aria-hidden="true">KN</div>
   <div>
     <h1>KlearNow Tariff</h1>
-    <div class="sub">Duty · coverage · live rules</div>
+    <div class="sub">Duty stack · coverage · live rules</div>
   </div>
   <span class="chip juris" title="Jurisdiction. Other customs territories are not yet modelled.">US</span>
   <div class="spacer"></div>
@@ -33,7 +33,7 @@
 <div class="layout">
   <nav class="side" aria-label="Sections">
     <div class="navgroup eyebrow">Use</div>
-    <button data-view="calc" aria-current="page">Check duty</button>
+    <button data-view="calc" aria-current="page">Duty stack</button>
     <button data-view="lookup">HTS list</button>
     <button data-view="chat">Rule chat</button>
     <button data-view="audit">Audit</button>
@@ -51,10 +51,10 @@
     <section class="view" id="view-calc">
       <div class="hero-check">
         <div class="hero-check-copy">
-          <p class="eyebrow">Quick check</p>
-          <h2>What does this HTS owe?</h2>
-          <p class="hero-lead">One code, one origin, one answer — including new 301-FL layers,
-            with the full Chapter&nbsp;99 stack when you need it.</p>
+          <p class="eyebrow">Duty stack</p>
+          <h2>Every layer.<br />Correct order.<br /><em>Before CBP sees it.</em></h2>
+          <p class="hero-lead">Proposed duty rates and Chapter&nbsp;99 application—
+            China&nbsp;301, Sec&nbsp;122 / 301-FL, 232—stacked the way the entry should file.</p>
         </div>
         <div class="quick-card">
           <div class="quick-grid">
@@ -159,9 +159,9 @@
             </details>
           </div>
           <div class="actions quick-actions">
-            <button class="btn-primary btn-lg" id="qc-run" type="button">Check duty</button>
-            <button class="btn-ghost btn-sm" id="qc-example" type="button">Try VN apparel</button>
-            <button class="btn-ghost btn-sm" id="qc-example-cn" type="button">Try CN parts</button>
+            <button class="btn-primary btn-lg" id="qc-run" type="button">Run the stack</button>
+            <button class="btn-ghost btn-sm" id="qc-example" type="button">VN apparel</button>
+            <button class="btn-ghost btn-sm" id="qc-example-cn" type="button">CN parts</button>
           </div>
           <div class="qc-meta" id="qc-htsmeta"></div>
         </div>
@@ -173,8 +173,8 @@
         <div>
           <details class="adv-panel" id="adv-panel">
             <summary>
-              <span class="adv-title">Multi-line, engines &amp; scenarios</span>
-              <span class="cap">Batch paste, Ch99 pack, compare A/B</span>
+              <span class="adv-title">Multi-line &amp; scenarios</span>
+              <span class="cap">Batch paste · engine · A/B compare</span>
             </summary>
             <div class="adv-body">
               <div class="card">
@@ -282,14 +282,14 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
 
         <div>
           <div class="card result-card">
-            <header><h5 id="resulttitle">Allocation</h5><div class="spacer"></div>
+            <header><h5 id="resulttitle">Stack result</h5><div class="spacer"></div>
               <span class="chip-inline" id="resultengine" hidden></span>
               <button class="btn-ghost btn-sm" id="exportcsv" hidden>Export CSV</button>
               <button class="btn-ghost btn-sm" id="copyall" hidden>Copy</button></header>
             <div id="results">
-              <div class="empty"><h4>Ready when you are</h4>
-                <p class="cap" style="max-width:40ch;margin:0 auto">Enter an HTS and origin above,
-                  then <b>Check duty</b>. Stack layers, suppressions, and citations appear here.</p></div>
+              <div class="empty"><h4>Stack is empty</h4>
+                <p class="cap" style="max-width:40ch;margin:0 auto">Drop in an HTS, origin, value, and rate date—
+                  then <b>Run the stack</b>. Rates, application order, and suppressions show here.</p></div>
             </div>
           </div>
         </div>
@@ -419,9 +419,9 @@ placeholder="hts,coo
                 from ACE Reports. Or <button type="button" class="linkish" id="audit-browse">browse</button>.</p>
               <input type="file" id="audit-file" accept=".xlsx,.xls" hidden />
             </div>
-            <p class="cap" style="margin:var(--sp-3) 0 0">tip: Entry Date drives Col‑1 windows and IEEPA
-              CAPE eligibility (2025‑02‑04 through 2026‑02‑23). China 301 uses HTS list membership only
-              (no List 3 assume). Metals / 232 auto‑part claims are not on ES‑003 — those gaps need Quick Check.</p>
+            <p class="cap" style="margin:var(--sp-3) 0 0">tip: Entry Date selects the era — IEEPA ended 2026‑02‑23, Sec 122 (9903.03.01) through 2026‑07‑23,
+              then 301‑FL from 2026‑07‑24. China 301 uses HTS list membership only. Metals content is not on ES‑003 —
+              those lines show Needs inputs.</p>
             <div class="actions" style="margin-top:var(--sp-3)">
               <button class="btn-primary" id="audit-run" disabled>RUN ES-003 AUDIT</button>
               <button class="btn-ghost" id="audit-clear">Clear</button>

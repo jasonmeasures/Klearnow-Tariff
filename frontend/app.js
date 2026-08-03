@@ -971,7 +971,7 @@ $("#runboth").onclick = () => runBothEngines();
 
 function renderResults(R) {
   const audit = R._mode === "audit";
-  $("#resulttitle").textContent = audit ? "Audit against filed" : "Allocation";
+  $("#resulttitle").textContent = audit ? "Audit against filed" : "Stack result";
   $("#exportcsv").hidden = $("#copyall").hidden = false;
   const engChip = $("#resultengine");
   if (engChip) {
@@ -1927,7 +1927,7 @@ function renderLookup(R) {
         html += `<p class="cap" style="margin:var(--sp-2) 0 0">${row.notes.map(esc).join(" · ")}</p>`;
       }
       html += `<div class="actions" style="margin-top:var(--sp-2)">
-        <button type="button" class="btn-secondary btn-sm" data-send-calc="${i}">Check duty for this HTS</button>
+        <button type="button" class="btn-secondary btn-sm" data-send-calc="${i}">Run stack for this HTS</button>
       </div></div></td></tr>`;
     }
   });
@@ -1951,7 +1951,7 @@ function renderLookup(R) {
       $("#qc-date").value = row.as_of || $("#lookup-date").value;
       show("calc");
       banner("#calcbanner", "info", "From HTS list",
-        `${row.hts} loaded into Quick check — add value if needed, then Check duty.`);
+        `${row.hts} loaded into Duty stack — add value if needed, then Run the stack.`);
     };
   });
 }
@@ -2126,12 +2126,14 @@ const Es003 = {
 };
 
 const AUDIT_STATUS = {
-  ieepa_cape: { lbl: "IEEPA CAPE", cls: "st-el" },
+  wrong_era: { lbl: "Wrong era", cls: "st-ex" },
   stack_gap: { lbl: "Missing Ch.99", cls: "st-ar" },
-  dead_program: { lbl: "Dead program", cls: "st-ex" },
+  needs_inputs: { lbl: "Needs inputs", cls: "st-rv" },
   extra: { lbl: "Extra / review", cls: "st-rv" },
-  out_of_range: { lbl: "Outside window", cls: "st-or" },
-  clean: { lbl: "Aligned", cls: "st-ok" },
+  ieepa_cape: { lbl: "IEEPA CAPE", cls: "st-el" },
+  out_of_range: { lbl: "Outside IEEPA window", cls: "st-or" },
+  clean: { lbl: "Aligned for era", cls: "st-ok" },
+  dead_program: { lbl: "Dead program", cls: "st-ex" },
 };
 
 function initEs003Audit() {
@@ -2177,7 +2179,7 @@ async function ingestEs003File(f) {
   $("#audit-export").hidden = true;
   $("#audit-out").innerHTML = `<div class="empty"><h4>Parsing…</h4></div>`;
   try {
-    Es003.ingest = await api("/v1/es003:ingest", {
+    Es003.ingest = await api("/v1/es003/ingest", {
       method: "POST",
       body: JSON.stringify({ xlsx_base64: Es003.fileB64, filename: name }),
     });
@@ -2233,7 +2235,7 @@ async function runEs003Audit() {
   const was = btn.textContent;
   btn.disabled = true; btn.innerHTML = '<span class="busy"></span>';
   try {
-    Es003.last = await api("/v1/es003:audit", {
+    Es003.last = await api("/v1/es003/audit", {
       method: "POST",
       body: JSON.stringify({
         xlsx_base64: Es003.fileB64,
@@ -2269,32 +2271,37 @@ function renderEs003Audit(R) {
 
   const chips = [
     ["all", "All", entries.length],
-    ["ieepa_cape", AUDIT_STATUS.ieepa_cape.lbl, byStatus.ieepa_cape || 0],
+    ["wrong_era", AUDIT_STATUS.wrong_era.lbl, byStatus.wrong_era || 0],
     ["stack_gap", AUDIT_STATUS.stack_gap.lbl, byStatus.stack_gap || 0],
-    ["dead_program", AUDIT_STATUS.dead_program.lbl, byStatus.dead_program || 0],
+    ["needs_inputs", AUDIT_STATUS.needs_inputs.lbl, byStatus.needs_inputs || 0],
     ["extra", AUDIT_STATUS.extra.lbl, byStatus.extra || 0],
-    ["out_of_range", AUDIT_STATUS.out_of_range.lbl, byStatus.out_of_range || 0],
     ["clean", AUDIT_STATUS.clean.lbl, byStatus.clean || 0],
+    ["ieepa_cape", AUDIT_STATUS.ieepa_cape.lbl, byStatus.ieepa_cape || 0],
   ];
 
+  const eras = t.era_counts || {};
+  const eraBits = [
+    eras.sec_122 ? `${eras.sec_122} Sec 122 era` : null,
+    eras.s301fl ? `${eras.s301fl} 301-FL era` : null,
+    eras.ieepa ? `${eras.ieepa} IEEPA era` : null,
+  ].filter(Boolean).join(" · ");
+
   let html = `<div class="audit-review">
-    <div class="audit-stage-badge">Stage B · analysis</div>
+    <div class="audit-stage-badge">Stage B · analysis by Entry Date</div>
+    <p class="cap" style="margin:0 0 var(--sp-3)">Timeline: IEEPA ended 2026-02-23 → Sec 122 through 2026-07-23 → 301-FL from 2026-07-24.
+      ${eraBits ? `<b>${esc(eraBits)}</b> in this file.` : ""}</p>
     <div class="audit-metrics">
-      <div class="audit-metric accent"><div class="k">IEEPA (CAPE window)</div>
-        <div class="v">$${money(t.ieepa_duty)}</div>
-        <div class="cap">${t.ieepa_entries || 0} entries</div></div>
+      <div class="audit-metric accent"><div class="k">Aligned for era</div>
+        <div class="v">${t.clean_entries || 0}</div>
+        <div class="cap">ES-003 computable stack matches</div></div>
+      <div class="audit-metric warn"><div class="k">Wrong era / missing</div>
+        <div class="v">${(t.wrong_era_entries || 0) + (t.stack_gap_entries || 0)}</div>
+        <div class="cap">${t.wrong_era_entries || 0} wrong · ${t.stack_gap_entries || 0} missing</div></div>
+      <div class="audit-metric"><div class="k">Needs inputs</div>
+        <div class="v">${t.needs_inputs_entries || 0}</div>
+        <div class="cap">metals content not on ES-003</div></div>
       <div class="audit-metric"><div class="k">Entries</div><div class="v">${t.entries || 0}</div>
-        <div class="cap">${t.entry_lines || 0} lines</div></div>
-      <div class="audit-metric warn"><div class="k">Stack gaps</div>
-        <div class="v">${t.stack_gap_entries || 0}</div>
-        <div class="cap">missing live Ch.99</div></div>
-      <div class="audit-metric"><div class="k">Findings</div>
-        <div class="v">${t.finding_count || 0}</div>
-        <div class="cap">duty impact $${money(t.net_duty_impact)}</div></div>
-      <div class="audit-metric"><div class="k">Entered value</div>
-        <div class="v" style="font-size:1.15rem">$${money(t.entered_value)}</div></div>
-      <div class="audit-metric"><div class="k">Aligned</div>
-        <div class="v">${t.clean_entries || 0}</div></div>
+        <div class="cap">${t.entry_lines || 0} lines · $${money(t.entered_value)} value</div></div>
     </div>
     <div class="pillrow audit-filters" style="margin:var(--sp-3) 0">
       ${chips.map(([k, label, n]) =>
@@ -2313,9 +2320,8 @@ function renderEs003Audit(R) {
         <button type="button" class="audit-entry-head" data-toggle-entry="${esc(e.id)}">
           <span class="st-badge ${st.cls}">${esc(st.lbl)}</span>
           <span class="mono entry-id">${esc(e.id)}</span>
-          <span class="cap">${esc(e.entry_date || "—")}</span>
+          <span class="cap">${esc(e.entry_date || "—")} · ${esc(e.filing_era_label || "")}</span>
           <span class="cap">${esc((e.countries || []).join(", ") || "—")}</span>
-          <span class="metric-inline">IEEPA <b>$${money(e.ieepa_duty)}</b></span>
           <span class="metric-inline">${e.line_count} lines · ${e.finding_count} findings</span>
           <span class="chev" aria-hidden="true">${open ? "▾" : "▸"}</span>
         </button>`;
@@ -2347,7 +2353,7 @@ function renderEs003Audit(R) {
         }
         if ((e.lines || []).length) {
           html += `<table class="data audit-lines"><thead><tr>
-            <th>#</th><th>HTS</th><th>COO</th><th class="r">Value</th><th class="r">IEEPA</th>
+            <th>#</th><th>HTS</th><th>COO</th><th class="r">Value</th>
             <th>Filed</th><th>Computed</th>
           </tr></thead><tbody>`;
           for (const L of e.lines) {
@@ -2356,7 +2362,6 @@ function renderEs003Audit(R) {
               <td class="mono">${esc(L.hts || "")}</td>
               <td>${esc(L.coo || "")}</td>
               <td class="r">$${money(L.entered_value)}</td>
-              <td class="r">${L.ieepa_duty ? "$" + money(L.ieepa_duty) : "—"}</td>
               <td class="mono cap">${esc((L.filed_ch99 || []).join(" ") || "—")}</td>
               <td class="mono cap">${esc((L.computed_ch99 || []).join(" ") || "—")}</td>
             </tr>`;

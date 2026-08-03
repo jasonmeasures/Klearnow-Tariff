@@ -14,7 +14,8 @@
       "ch99_family": "9903.03.01 (as 122 surcharge)",
       "status": "SUNSET",
       "detail": "10% global surcharge expired by operation of law 12:01 a.m. 2026-07-24 (150 days after effect). No extension legislation. 301-FL turned on the same instant — 301-FL is the functional replacement, not an addition.",
-      "compute": false
+      "compute": true,
+      "compute_caveat": "Historical only — apply when Entry Date is 2026-02-24..2026-07-23"
     },
     {
       "id": "SEC_301_FL",
@@ -32,9 +33,9 @@
     },
     {
       "id": "SEC_232_METALS",
-      "ch99_family": "9903.82.xx (primary) / 9903.03.xx (legacy)",
+      "ch99_family": "9903.82.02 (articles, 50% metal-content) / 9903.82.09 (derivatives/copper, 25% entered value) / 9903.03.06 (Sec 122 exclusion)",
       "status": "ACTIVE",
-      "detail": "Steel/aluminum/copper via 9903.82.02 (+50%, CSMS #68253075). Metal-content value (R4). Mutually exclusive with 301-FL → 9903.05.90. Chapter triage 72–74/76. R5: metals wins over autos claim for those chapters.",
+      "detail": "CSMS #68253075 / U.S. note 16. 9903.82.02 assesses +50% on metal-content value (R4). 9903.82.09 assesses +25% on entered value for copper articles and derivative aluminum/steel. Mutually exclusive with 301-FL → 9903.05.90. Suppresses Sec 122 via 9903.03.06 (R2b). Chapter triage 72–74/76; annex derivatives outside those chapters are claim-gated when 9903.82.09 / 9903.03.06 are filed.",
       "compute": true,
       "compute_caveat": "Do not fold into parts TOTAL"
     },
@@ -42,7 +43,7 @@
       "id": "SEC_301_CHINA_LEGACY",
       "ch99_family": "9903.88.xx",
       "status": "ACTIVE",
-      "detail": "Legacy China 301 lists. NOT suppressed by 232 — both report, 301 first.",
+      "detail": "Legacy China 301 lists. NOT suppressed by 232 — both report, 301 first. Also stacks with Sec 122 (9903.03.01) when the line is outside the 232 universe. Continues in the 301-FL era alongside 9903.05.xx.",
       "compute": true
     },
     {

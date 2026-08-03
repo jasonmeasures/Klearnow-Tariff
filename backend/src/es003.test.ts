@@ -122,7 +122,13 @@ describe("ES-003 audit", () => {
 
     const result = auditEs003({ xlsx_base64: buf.toString("base64"), filename: "test.xlsx" });
     assert.ok(result.findings.some((f) => f.category === "IEEPA_REFUND_CANDIDATE"));
-    assert.ok(result.findings.some((f) => f.category === "DEAD_PROGRAM" && String(f.line_id).includes("BII0002")));
+    assert.ok(
+      result.findings.some(
+        (f) =>
+          (f.category === "WRONG_ERA" || f.category === "DEAD_PROGRAM") &&
+          String(f.line_id).includes("BII0002"),
+      ),
+    );
     assert.ok(result.ieepa.lines_in_window >= 1);
   });
 
@@ -227,5 +233,36 @@ describe("ES-003 audit", () => {
     assert.equal(sample.status, "ieepa_cape");
     assert.ok(sample.observations.length > 0);
     assert.ok(sample.guidance);
+  });
+
+  it("Sec 122–era sample (10).xlsx — all 8 entries clean under live stack", () => {
+    const path =
+      "/Users/jasonmeasures/Downloads/ES-003 Entry Summary Line Tariff Details (10).xlsx";
+    if (!existsSync(path)) return;
+    const result = auditEs003({
+      xlsx_base64: readFileSync(path).toString("base64"),
+      filename: "ES-003-(10).xlsx",
+    });
+    assert.equal(result.meta.entries, 8);
+    for (const e of result.entries) {
+      assert.equal(
+        e.status,
+        "clean",
+        `${e.id} expected clean, got ${e.status}: ${JSON.stringify(e.by_category)}`,
+      );
+      assert.equal(e.by_category.EXTRA_CH99 || 0, 0, e.id);
+      assert.equal(e.by_category.MISSING_CH99 || 0, 0, e.id);
+      assert.equal(e.by_category.WRONG_ERA || 0, 0, e.id);
+    }
+    // Spot-check the previous false-positive entries
+    const bii = result.entries.find((e) => e.id === "BII05992854")!;
+    assert.ok(bii.computed_ch99.includes("9903.03.01"));
+    assert.ok(bii.computed_ch99.includes("9903.88.15"));
+    assert.ok(bii.computed_ch99.includes("9903.82.09"));
+    assert.ok(bii.computed_ch99.includes("9903.03.06"));
+    const prefab = result.entries.find((e) => e.id === "BII05999206")!;
+    assert.ok(prefab.computed_ch99.includes("9903.82.09"));
+    assert.ok(prefab.computed_ch99.includes("9903.88.03"));
+    assert.ok(!prefab.computed_ch99.includes("9903.03.01")); // metals ESLs + China only entry's non-metals? actually entry has 9406 metals only + 7321 — no Sec 122. Correct.
   });
 });

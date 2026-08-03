@@ -10,7 +10,7 @@
       "rate": 0.0,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "Exclusion \u2014 0%, MFN applies normally."
+      "notes": "Exclusion — report when Section 232 autos/parts or metals applies so Section 122 (9903.03.01) does not stack. 0%, MFN applies normally."
     },
     {
       "code": "9903.03.03",
@@ -19,16 +19,16 @@
       "rate": 0.0,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "Exclusion \u2014 0%, MFN applies normally."
+      "notes": "Exclusion — 0%, MFN applies normally."
     },
     {
       "code": "9903.03.01",
-      "program": "SEC_232_METALS",
+      "program": "SEC_122",
       "kind": "DUTY",
       "rate": 0.1,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "Legacy steel 10% heading. Prefer 9903.82.02 (+50%) for current aluminum/steel/copper articles under CSMS #68253075. Metals duty reported on metal-content value (R4)."
+      "notes": "Section 122 10% global surcharge (19 U.S.C. §2132). In force 2026-02-24 through 2026-07-23; sunset 12:01 a.m. 2026-07-24 when 301-FL replaced it. Not IEEPA. Suppressed by 9903.03.06 when 232 applies."
     },
     {
       "code": "9903.74.11",
@@ -74,6 +74,15 @@
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
       "notes": "Section 232 US-content metal reduction path — 10% additional when claimed (Cervó: US Content Metal Reduction). Claim-gated; not auto-selected."
+    },
+    {
+      "code": "9903.82.09",
+      "program": "SEC_232_METALS",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 — copper articles and derivative aluminum/steel articles (U.S. note 16(c)(vi)–(viii)/(xi); CSMS #68253075 family). +25% ad valorem on entered value. Pairs with Sec 122 exclusion 9903.03.06. Distinct from 9903.82.02 (50% on metal-content value for primary articles)."
     },
 
     {

@@ -5,10 +5,17 @@
 import * as XLSX from "xlsx";
 import { auditEntry, type LineIn } from "./assess.ts";
 import { normalizeCh99 } from "../../tariff-rules/src/tariffRules.ts";
+import {
+  IEEPA_END,
+  IEEPA_START,
+  filingEra,
+  filingEraLabel,
+  inIeepaWindow,
+} from "./programEras.ts";
 
-/** CAPE / IEEPA Tool window (inclusive). */
-export const IEEPA_RANGE_START = "2025-02-04";
-export const IEEPA_RANGE_END = "2026-02-23";
+/** @deprecated use IEEPA_START / IEEPA_END from programEras */
+export const IEEPA_RANGE_START = IEEPA_START;
+export const IEEPA_RANGE_END = IEEPA_END;
 
 const COL = {
   entryNum: "Entry Summary Number",
@@ -108,8 +115,7 @@ export function isIeepaHts(hts: string): boolean {
 }
 
 export function inIeepaRefundWindow(entryDate: string | null | undefined): boolean {
-  const d = String(entryDate || "").slice(0, 10);
-  return Boolean(d && d >= IEEPA_RANGE_START && d <= IEEPA_RANGE_END);
+  return inIeepaWindow(entryDate);
 }
 
 function detectFormat(headers: string[]): "standard" | "extended" {
@@ -428,9 +434,14 @@ export function auditEs003(body: {
     computed_duty: entries.reduce((a, e) => a + e.computed_duty, 0),
     net_duty_impact: findings.reduce((a, f) => a + (Number(f.duty_impact) || 0), 0),
     stack_gap_entries: statusCounts.stack_gap || 0,
+    wrong_era_entries: statusCounts.wrong_era || 0,
     ieepa_cape_entries: statusCounts.ieepa_cape || 0,
-    dead_program_entries: statusCounts.dead_program || 0,
+    needs_inputs_entries: statusCounts.needs_inputs || 0,
     clean_entries: statusCounts.clean || 0,
+    era_counts: entries.reduce((acc: Record<string, number>, e) => {
+      acc[e.filing_era] = (acc[e.filing_era] || 0) + 1;
+      return acc;
+    }, {}),
   };
 
   return {
@@ -482,6 +493,8 @@ export type EntryReview = {
   entry_type: string | null;
   importer: string | null;
   port: string | null;
+  filing_era: string;
+  filing_era_label: string;
   countries: string[];
   line_count: number;
   entered_value: number;
@@ -513,18 +526,22 @@ export type EntryReview = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
+  wrong_era: "Wrong-era filing",
   dead_program: "Dead program filed",
   stack_gap: "Missing live Ch.99",
   ieepa_cape: "IEEPA CAPE candidate",
+  needs_inputs: "Needs inputs (metals)",
   extra: "Extra / review Ch.99",
   out_of_range: "IEEPA outside window",
-  clean: "Aligned",
+  clean: "Aligned for era",
 };
 
 function pickEntryStatus(byCat: Record<string, number>, hasIeepaOutOfWindow: boolean): string {
-  if (byCat.DEAD_PROGRAM) return "dead_program";
+  // Never lead with IEEPA for post-IEEPA eras; wrong-era / stack gaps first.
+  if (byCat.WRONG_ERA || byCat.DEAD_PROGRAM) return "wrong_era";
   if (byCat.MISSING_CH99) return "stack_gap";
   if (byCat.IEEPA_REFUND_CANDIDATE) return "ieepa_cape";
+  if (byCat.NEEDS_INPUTS) return "needs_inputs";
   if (byCat.EXTRA_CH99) return "extra";
   if (hasIeepaOutOfWindow) return "out_of_range";
   return "clean";
@@ -597,8 +614,10 @@ function buildEntryReviews(
     const CAT_LBL: Record<string, string> = {
       IEEPA_REFUND_CANDIDATE: "IEEPA CAPE candidate",
       DEAD_PROGRAM: "Dead program filed",
+      WRONG_ERA: "Wrong-era filing",
       MISSING_CH99: "Missing live Ch.99",
       EXTRA_CH99: "Extra / review Ch.99",
+      NEEDS_INPUTS: "Needs inputs (metals)",
     };
     const observations: AuditObservation[] = entryFindings.map((f) => ({
       code: f.category,
@@ -615,18 +634,30 @@ function buildEntryReviews(
     const filed_duty_total = srcRows.reduce((a, r) => a + (r.filed_duty_total || 0), 0);
     const ieepa_duty = srcRows.reduce((a, r) => a + (r.ieepa_duty || 0), 0);
     const computed_duty = entryLines.reduce((a, L) => a + (Number(L.computed_duty) || 0), 0);
+    const era = filingEra(first?.entry_date);
+    const eraLbl = filingEraLabel(era);
 
-    let guidance = "No stack findings for this entry.";
-    if (status === "ieepa_cape") {
-      guidance = `IEEPA filed in CAPE window (${IEEPA_RANGE_START}–${IEEPA_RANGE_END}). Review refund / CAPE eligibility; do not refile IEEPA prospectively.`;
+    let guidance = `Entry Date ${first?.entry_date || "—"} is in the ${eraLbl}. No stack findings for codes we can compute from ES-003 (HTS + COO + date).`;
+    if (status === "wrong_era") {
+      guidance = `Wrong-era Chapter 99 for ${eraLbl} (Entry Date ${first?.entry_date}). IEEPA ended ${IEEPA_END}; Sec 122 ran through 2026-07-23; 301-FL starts 2026-07-24.`;
+    } else if (status === "ieepa_cape") {
+      guidance = `IEEPA filed in CAPE window (${IEEPA_START}–${IEEPA_END}). Review refund / CAPE eligibility; do not refile IEEPA prospectively.`;
     } else if (status === "stack_gap") {
-      guidance = "Live rule pack expects Chapter 99 heading(s) that were not filed on this entry.";
-    } else if (status === "dead_program") {
-      guidance = "IEEPA (or other dead program) filed after the program end — remove from go-forward filings.";
+      guidance =
+        era === "sec_122"
+          ? "Sec 122 era: still missing required Chapter 99 on this entry (9903.03.01 is satisfied if present on any ESL)."
+          : era === "s301fl"
+            ? "301-FL era: expected live 301-FL / China 301 / 232 headings missing from the filing."
+            : "Live rule pack expects Chapter 99 heading(s) that were not filed on this entry.";
+    } else if (status === "needs_inputs") {
+      guidance =
+        "Metals-family codes appear on a metals-triage HTS. ES-003 cannot confirm metal content / melt-pour — use Quick Check.";
     } else if (status === "extra") {
-      guidance = "Filed Chapter 99 code(s) not produced by the live pack for the Entry Date — confirm claims or remove.";
+      guidance = `Filed Chapter 99 code(s) not produced for ${eraLbl} — confirm claims or remove.`;
     } else if (status === "out_of_range") {
       guidance = "IEEPA codes appear outside the CAPE entry-date window.";
+    } else if (status === "clean") {
+      guidance = `Aligned for ${eraLbl} based on HTS + COO + Entry Date from ES-003. Sec 122 counts if filed on any ESL of the entry. Metals / 232 auto-part still need Quick Check when annex-gated.`;
     }
 
     return {
@@ -636,6 +667,8 @@ function buildEntryReviews(
       entry_type: first?.entry_type || null,
       importer: first?.importer || null,
       port: first?.port || null,
+      filing_era: era,
+      filing_era_label: eraLbl,
       countries: [...new Set(srcRows.map((r) => r.coo).filter(Boolean))],
       line_count: entryLines.length || srcRows.length,
       entered_value,

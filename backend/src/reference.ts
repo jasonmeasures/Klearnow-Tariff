@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { listCh99 } from "../../tariff-rules/src/tariffRules.ts";
 import { htsTableMeta, resolveCol1 } from "./htsLookup.ts";
+import { STACKING_CONTRACT } from "./rulesContract.ts";
 import { STATE } from "./state.ts";
 
 export const referenceRouter = Router();
@@ -110,6 +111,10 @@ referenceRouter.get("/reference/stacking-order", (_req, res) => {
       "CBP entry-summary reporting sequence: Ch.99 lines report before the Ch.1–97 line. Where legacy China 301 and 232 both apply, 301 reports first.",
     hts_table: htsTableMeta(),
   });
+});
+
+referenceRouter.get("/reference/program-eras", (_req, res) => {
+  res.json(STACKING_CONTRACT);
 });
 
 referenceRouter.post("/reference/hts", (_req, res) => {

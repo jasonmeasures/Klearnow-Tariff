@@ -128,7 +128,7 @@ app.post("/v1/hts:coverage", requireScope("calculate"), (req, res) => {
 });
 
 /** ACE ES-003 — Stage A parse only (rows / format / ready). */
-app.post("/v1/es003:ingest", requireScope("calculate"), (req, res) => {
+app.post(["/v1/es003/ingest", "/v1/es003-ingest"], requireScope("calculate"), (req, res) => {
   try {
     const body = req.body || {};
     if (!body.xlsx_base64) {
@@ -141,8 +141,11 @@ app.post("/v1/es003:ingest", requireScope("calculate"), (req, res) => {
   }
 });
 
-/** ACE ES-003 Entry Summary Line Tariff Details — audit filed Ch.99 by Entry Date. */
-app.post("/v1/es003:audit", requireScope("calculate"), (req, res) => {
+/** ACE ES-003 — Stage B audit filed Ch.99 by Entry Date.
+ * Note: do NOT use `/v1/es003:audit` — Express treats `:name` as a route param and
+ * would collide with ingest when both use the colon form.
+ */
+app.post(["/v1/es003/audit", "/v1/es003-audit"], requireScope("calculate"), (req, res) => {
   try {
     const body = req.body || {};
     if (!body.xlsx_base64 && !Array.isArray(body.lines)) {

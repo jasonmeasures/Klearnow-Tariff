@@ -77,7 +77,9 @@ describe("golden duty paths", () => {
     );
     assert.ok(L.metals?.metal === "steel");
     assert.ok(L.diagnostics.some((d) => d.code === "METAL_CONTENT_REQUIRED"));
-    assert.equal(L.blocked, true);
+    // Metals duty held back, but Sec 122 / 301-FL era layers can still resolve on entered value.
+    assert.ok(!L.ch99_sequence.includes("9903.82.02"));
+    assert.ok(L.ch99_sequence.includes("9903.05.77") || L.ch99_sequence.some((c) => c.startsWith("9903.05.")));
   });
 
   it("7307923030 TH + CN melt/pour → 9903.05.90 + 9903.82.02 @ 50%", () => {
@@ -298,5 +300,114 @@ describe("HTS column-1 table", () => {
     assert.equal(L.col1_rate_pct, 2.5);
     assert.ok(L.diagnostics.some((d) => d.code === "COL1_RESOLVED"));
     assert.equal(L.totals.effective_duty_rate_pct, 12.5);
+  });
+});
+
+describe("program era routing", () => {
+  it("Jul 10 expects Sec 122; Jul 25 expects 301-FL and flags late Sec 122", () => {
+    const a = auditEntry({
+      lines: [
+        {
+          line_id: "jul10",
+          hts: "6306120000",
+          coo: "CN",
+          entered_value: 10000,
+          entry_date: "2026-07-10",
+          release_date: "2026-07-10",
+          filed_ch99: ["9903.03.01"],
+        },
+        {
+          line_id: "jul25",
+          hts: "6306120000",
+          coo: "CN",
+          entered_value: 10000,
+          entry_date: "2026-07-25",
+          release_date: "2026-07-25",
+          filed_ch99: ["9903.03.01"],
+        },
+      ],
+    });
+    const jul10 = a.lines.find((l) => l.line_id === "jul10")!;
+    const jul25 = a.lines.find((l) => l.line_id === "jul25")!;
+    assert.ok(jul10.ch99_sequence.includes("9903.03.01"));
+    assert.ok(!jul10.ch99_sequence.some((c) => c.startsWith("9903.05.") && c !== "9903.05.90"));
+    assert.ok(jul25.ch99_sequence.some((c) => c.startsWith("9903.05.")));
+    assert.ok(!jul25.ch99_sequence.includes("9903.03.01"));
+    assert.equal(a.findings.filter((f) => f.line_id === "jul10").length, 0);
+    assert.ok(a.findings.some((f) => f.line_id === "jul25" && f.category === "WRONG_ERA"));
+    assert.ok(a.findings.some((f) => f.line_id === "jul25" && f.category === "MISSING_CH99"));
+  });
+
+  it("Sec 122 filed on one ESL satisfies other ESLs on the same entry", () => {
+    const a = auditEntry({
+      lines: [
+        {
+          line_id: "BII1:1",
+          hts: "6306120000",
+          coo: "CN",
+          entered_value: 10000,
+          entry_date: "2026-06-25",
+          release_date: "2026-06-25",
+          filed_ch99: ["9903.03.01"],
+        },
+        {
+          line_id: "BII1:2",
+          hts: "7321890050",
+          coo: "CN",
+          entered_value: 7000,
+          entry_date: "2026-06-25",
+          release_date: "2026-06-25",
+          filed_ch99: ["9903.88.15", "9903.82.09", "9903.03.06"],
+        },
+      ],
+    });
+    assert.ok(!a.findings.some((f) => f.category === "MISSING_CH99" && f.message.includes("9903.03.01")));
+    assert.ok(!a.findings.some((f) => f.category === "EXTRA_CH99" && f.message.includes("9903.88.15")));
+    assert.ok(!a.findings.some((f) => f.category === "EXTRA_CH99" && f.message.includes("9903.82.09")));
+    assert.ok(!a.findings.some((f) => f.category === "EXTRA_CH99" && f.message.includes("9903.03.06")));
+    const metals = a.lines.find((l) => l.line_id === "BII1:2")!;
+    assert.ok(metals.ch99_sequence.includes("9903.88.15"));
+    assert.ok(metals.ch99_sequence.includes("9903.03.06"));
+    assert.ok(metals.ch99_sequence.includes("9903.82.09"));
+    assert.ok(!metals.ch99_sequence.includes("9903.03.01"));
+  });
+
+  it("China List 4A stacks with Sec 122 on non-metals CN lines", () => {
+    const L = assessLine(
+      {
+        hts: "6306120000",
+        coo: "CN",
+        entered_value: 10000,
+        entry_date: "2026-06-25",
+        flags: { s301_list_4a: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.88.15"));
+    assert.ok(L.ch99_sequence.includes("9903.03.01"));
+  });
+
+  it("9903.82.09 + 9903.03.06 produce for derivative HTS (9406) — not EXTRA", () => {
+    const a = auditEntry({
+      lines: [
+        {
+          line_id: "prefab:1",
+          hts: "9406900190",
+          coo: "CN",
+          entered_value: 21560,
+          entry_date: "2026-07-07",
+          filed_ch99: ["9903.88.03", "9903.03.06", "9903.82.09"],
+        },
+      ],
+    });
+    const L = a.lines[0];
+    assert.ok(L.ch99_sequence.includes("9903.88.03"));
+    assert.ok(L.ch99_sequence.includes("9903.03.06"));
+    assert.ok(L.ch99_sequence.includes("9903.82.09"));
+    assert.ok(!L.ch99_sequence.includes("9903.03.01"));
+    assert.ok(!a.findings.some((f) => f.category === "EXTRA_CH99"));
+    assert.ok(!a.findings.some((f) => f.category === "MISSING_CH99"));
+    // 25% 301 List 3 + 25% 232.09 on entered = 50% → $10,780 (+ col1 if any)
+    assert.ok(L.totals.duty >= 10780);
   });
 });

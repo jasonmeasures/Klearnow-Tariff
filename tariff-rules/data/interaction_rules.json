@@ -11,8 +11,14 @@
     },
     {
       "id": "R2_CHINA_301_NOT_SUPPRESSED",
-      "rule": "Legacy China 301 (9903.88.xx) is NOT suppressed by 232. Both report; 301 first. Worked example: CN 8708 List 3 at 2.5% col-1 = 25% + 25% + 2.5% = 52.5%.",
+      "rule": "Legacy China 301 (9903.88.xx) is NOT suppressed by 232. Both report; 301 first. Worked example: CN 8708 List 3 at 2.5% col-1 = 25% + 25% + 2.5% = 52.5%. Also stacks with Sec 122 when the line is outside the 232 universe.",
       "status": "CONFIRMED"
+    },
+    {
+      "id": "R2b_SEC122_VS_232",
+      "rule": "Section 122 (9903.03.01) does NOT stack with Section 232 autos/parts or 232 metals. When 232 applies, report 9903.03.06 and suppress 9903.03.01. China 301 still reports (R2).",
+      "status": "CONFIRMED",
+      "source": "Sec 122 proclamation 232 carve-out; Cervó / TRE stack examples; CSMS metals guidance"
     },
     {
       "id": "R3_JP_232_TOPUP",
