@@ -18,9 +18,9 @@ describe("HTS coverage", () => {
   it("resolves 301-FL without entered value", () => {
     const r = coverRows({
       as_of: "2026-07-25",
-      assume_cn_list3: true,
+      assume_cn_list3: false,
       rows: [
-        { hts: "8708.10.3050", coo: "CN" },
+        { hts: "8708.10.3050", coo: "CN", s301_list_3: true },
         { hts: "6203.42.4010", coo: "VN" },
       ],
     });

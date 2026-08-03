@@ -160,19 +160,11 @@ export function coverOne(
   const flags = rowFlags(row);
   if (coo === "CN" && !flags.s301_list_3 && !flags.s301_list_4a && opts.assume_cn_list3) {
     flags.s301_list_3 = true;
-    notes.push("Assumed China 301 List 3 for coverage (toggle off if wrong list).");
+    notes.push("Assumed China 301 List 3 for coverage (API override only).");
   } else if (coo === "CN" && !flags.s301_list_3 && !flags.s301_list_4a) {
-    notes.push("China origin: set List 3 / 4A claim to resolve legacy 301 heading.");
-    rules.push({
-      program: "s301",
-      ch99: null,
-      label: "Section 301 (China) — claim needed",
-      rate: "—",
-      rate_pct: null,
-      reason: "Legacy China 301 is list-gated. Mark s301_list_3 or s301_list_4a on the row.",
-      source_ref: "Trade Act / USTR lists",
-      status: "needs_claim",
-    });
+    notes.push(
+      "China origin: legacy 301 applies only when this HTS is on a seeded USTR list (HTS membership), or an explicit list flag is set.",
+    );
   }
 
   // Full stack preview when we have COO (notional $10k — rates/sequence only)

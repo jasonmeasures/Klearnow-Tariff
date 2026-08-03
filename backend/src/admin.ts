@@ -182,6 +182,21 @@ function openApiDoc(serverUrl: string) {
           responses: { "200": { description: "Coverage rows" } },
         },
       },
+      "/v1/es003:ingest": {
+        post: {
+          summary: "Stage A — parse ACE ES-003 only",
+          description: "Returns row/entry counts and format. Does not run duty analysis.",
+          responses: { "200": { description: "Ingest meta" } },
+        },
+      },
+      "/v1/es003:audit": {
+        post: {
+          summary: "Stage B — audit ACE ES-003 by Entry Date",
+          description:
+            "Groups tariff ordinals per entry, returns CAPE-style entry reviews (status, observations, lines) plus live-stack findings.",
+          responses: { "200": { description: "Entry reviews + findings" } },
+        },
+      },
       "/v1/rules": {
         get: { summary: "Browse materialized rules", responses: { "200": { description: "Rules" } } },
       },

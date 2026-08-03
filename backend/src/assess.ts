@@ -6,7 +6,7 @@ import {
   jp232TopUp,
   normalizeCh99,
 } from "../../tariff-rules/src/tariffRules.ts";
-import { assessS301fl } from "../../tariff-rules/src/s301fl.ts";
+import { assessS301fl, s301flMeta } from "../../tariff-rules/src/s301fl.ts";
 import {
   ch99ForChinaList,
   chinaListIdFromFlags,
@@ -84,6 +84,14 @@ function pctLabel(decimalRate: number): string {
   const p = decimalRate * 100;
   const s = p.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
   return `${s}% ad valorem`;
+}
+
+/** 301-FL (CSMS #69326983) — pack effective date; not applied before that day. */
+export function s301flAppliesOn(rateDay: string): boolean {
+  const eff = String(s301flMeta().effective || "2026-07-24").slice(0, 10);
+  const day = String(rateDay || "").slice(0, 10);
+  if (!day || !eff) return false;
+  return day >= eff;
 }
 
 function rateDate(line: LineIn): { date: string; basis: string } {
@@ -578,9 +586,9 @@ export function assessLine(line: LineIn, index: number) {
             rate_pct: meta.rate,
           }),
         );
-        push301FlSuppression(coo, entered, col1, layers, suppressed);
+        push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
       } else {
-        add301Fl(coo, entered, col1, layers, suppressed, diagnostics);
+        add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
       }
 
       pushCommodity(false);
@@ -618,7 +626,7 @@ export function assessLine(line: LineIn, index: number) {
       rate_pct: top.ch99Line,
     });
     layers.push(L232);
-    push301FlSuppression(coo, entered, col1, layers, suppressed);
+    push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
     pushCommodity(top.ch1to97Line === 0);
   } else if (!blocked && is232) {
     // Non-JP 232 default 25% with TBC program label
@@ -643,7 +651,7 @@ export function assessLine(line: LineIn, index: number) {
           rate_pct: meta.rate,
         }),
       );
-      push301FlSuppression(coo, entered, col1, layers, suppressed);
+      push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
       pushCommodity(false);
     } catch (e) {
       diagnostics.push({
@@ -655,11 +663,11 @@ export function assessLine(line: LineIn, index: number) {
     }
   } else if (!blocked && applyMetals232 && metalsHit) {
     // 232 metals wins over 301-FL (US Note 52(f) / 9903.05.90) — Cervó parity
-    push301FlSuppression(coo, entered, col1, layers, suppressed);
+    push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
     pushCommodity(false);
   } else if (!blocked) {
     // Non-232 → country-specific 301-FL from s301fl pack
-    add301Fl(coo, entered, col1, layers, suppressed, diagnostics);
+    add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
     pushCommodity(false);
   }
 
@@ -774,7 +782,9 @@ function push301FlSuppression(
   col1: number,
   layers: DutyLayer[],
   suppressed: SuppressedLayer[],
+  rateDay?: string,
 ) {
+  if (rateDay && !s301flAppliesOn(rateDay)) return;
   layers.push(
     layer({
       slot: "3.2",
@@ -816,7 +826,16 @@ function add301Fl(
   layers: DutyLayer[],
   _suppressed: SuppressedLayer[],
   diagnostics: Diagnostic[],
+  rateDay?: string,
 ) {
+  if (rateDay && !s301flAppliesOn(rateDay)) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "S301FL_NOT_YET_EFFECTIVE",
+      message: `Section 301-FL (CSMS #69326983) is not applied on ${rateDay} — pack effective ${String(s301flMeta().effective || "").slice(0, 10)}.`,
+    });
+    return;
+  }
   const fl = assessS301fl(coo, col1);
   if (fl.kind === "out_of_scope") {
     diagnostics.push({
@@ -917,16 +936,55 @@ export function auditEntry(body: {
         });
       }
     }
+    // Prefer Entry Date (rate date) for IEEPA CAPE windowing — same dates as the IEEPA CAPE tool.
+    const rateDay = String(
+      (L as { rate_determination_date?: string }).rate_determination_date ||
+        raw.entry_date ||
+        raw.release_date ||
+        "",
+    ).slice(0, 10);
     for (const c of filed) {
-      if (c.startsWith("9903.01.")) {
-        findings.push({
-          severity: "ERROR",
-          category: "DEAD_PROGRAM",
-          line_id: L.line_id,
-          message: `Filed ${c} (IEEPA) is not a live program.`,
-          remediation: "Remove the IEEPA heading from the filing.",
-          duty_impact: 0,
-        });
+      if (c.startsWith("9903.01.") || c.startsWith("9903.02.")) {
+        const inWindow =
+          Boolean(rateDay) && rateDay >= "2025-02-04" && rateDay <= "2026-02-23";
+        if (inWindow) {
+          findings.push({
+            severity: "INFO",
+            category: "IEEPA_REFUND_CANDIDATE",
+            line_id: L.line_id,
+            message: `Filed ${c} (IEEPA) on ${rateDay} — within CAPE window (2025-02-04–2026-02-23). Not a live forward program; evaluate refund.`,
+            remediation:
+              "Review CAPE / PSC eligibility with the broker. Do not refile 9903.01.xx prospectively after 2026-02-23.",
+            duty_impact: 0,
+          });
+        } else if (rateDay && rateDay >= "2026-02-24") {
+          findings.push({
+            severity: "ERROR",
+            category: "DEAD_PROGRAM",
+            line_id: L.line_id,
+            message: `Filed ${c} (IEEPA) on ${rateDay} after the program ended — not a live filing.`,
+            remediation: "Remove the IEEPA heading; reassess under live programs (232 / 301 / 301-FL / Sec 122 as applicable).",
+            duty_impact: 0,
+          });
+        } else if (rateDay && rateDay < "2025-02-04") {
+          findings.push({
+            severity: "WARNING",
+            category: "EXTRA_CH99",
+            line_id: L.line_id,
+            message: `Filed ${c} (IEEPA) on ${rateDay} before the IEEPA program start (2025-02-04).`,
+            remediation: "Confirm with the broker whether this heading belongs on the entry.",
+            duty_impact: 0,
+          });
+        } else {
+          findings.push({
+            severity: "ERROR",
+            category: "DEAD_PROGRAM",
+            line_id: L.line_id,
+            message: `Filed ${c} (IEEPA) is not a live program.`,
+            remediation: "Remove the IEEPA heading from the filing.",
+            duty_impact: 0,
+          });
+        }
       } else if (!computed.has(c) && !L.suppressed.some((s) => s.ch99 === c)) {
         findings.push({
           severity: "WARNING",

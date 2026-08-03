@@ -6,6 +6,7 @@ import { authMiddleware, requireScope } from "./auth.ts";
 import { assessCh99Entry } from "./ch99Assess.ts";
 import { chatRouter } from "./chat.ts";
 import { coverRows, parseCoverageInput } from "./coverage.ts";
+import { auditEs003, ingestEs003 } from "./es003.ts";
 import { resolveCol1, htsTableMeta } from "./htsLookup.ts";
 import { insightsRouter } from "./insights.ts";
 import { referenceRouter } from "./reference.ts";
@@ -16,7 +17,7 @@ const app = express();
 const PORT = Number(process.env.PORT || 8080);
 
 app.use(cors());
-app.use(express.json({ limit: "4mb" }));
+app.use(express.json({ limit: "16mb" }));
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "klearnow-tariff", rulepack: rulepackPublic() });
@@ -117,8 +118,46 @@ app.post("/v1/hts:coverage", requireScope("calculate"), (req, res) => {
       coverRows({
         as_of: body.as_of,
         default_coo: body.default_coo,
-        assume_cn_list3: body.assume_cn_list3 !== false,
+        assume_cn_list3: body.assume_cn_list3 === true,
         rows,
+      }),
+    );
+  } catch (e) {
+    res.status(400).json({ detail: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/** ACE ES-003 — Stage A parse only (rows / format / ready). */
+app.post("/v1/es003:ingest", requireScope("calculate"), (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!body.xlsx_base64) {
+      res.status(400).json({ detail: "Provide xlsx_base64 from an ACE Reports ES-003 export." });
+      return;
+    }
+    res.json(ingestEs003({ xlsx_base64: body.xlsx_base64, filename: body.filename }));
+  } catch (e) {
+    res.status(400).json({ detail: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/** ACE ES-003 Entry Summary Line Tariff Details — audit filed Ch.99 by Entry Date. */
+app.post("/v1/es003:audit", requireScope("calculate"), (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!body.xlsx_base64 && !Array.isArray(body.lines)) {
+      res.status(400).json({
+        detail: "Provide xlsx_base64 from an ACE Reports ES-003 export.",
+      });
+      return;
+    }
+    res.json(
+      auditEs003({
+        xlsx_base64: body.xlsx_base64,
+        filename: body.filename,
+        knowledge_date: body.knowledge_date,
+        lines: body.lines,
+        meta: body.meta,
       }),
     );
   } catch (e) {

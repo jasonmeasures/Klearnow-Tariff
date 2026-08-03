@@ -265,6 +265,68 @@ button.linkish{
 }
 .lookup-summary .pill.warn{background:var(--color-orange-50);color:var(--color-orange-700)}
 .lookup-summary .pill.ok{background:var(--color-green-50);color:var(--color-green-700)}
+.pillrow{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center}
+.pillrow .pill{border:none;cursor:default}
+button.pill.filter-pill{cursor:pointer;font:inherit}
+button.pill.filter-pill.active{
+  background:var(--color-primary-600);color:#fff;
+  box-shadow:0 0 0 2px rgba(0,63,91,.15);
+}
+.sev{font-size:.786rem;font-weight:700;letter-spacing:.03em}
+.sev-error{color:var(--color-red-700)}
+.sev-warning{color:var(--color-orange-700)}
+.sev-info{color:var(--color-blue-700)}
+
+/* ES-003 audit review (CAPE-inspired Stage A/B) */
+.audit-stage-badge{
+  display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--color-primary-600);margin-bottom:var(--sp-2);
+}
+.audit-stage-title{margin:0 0 var(--sp-2);color:var(--color-primary-800);font-size:1.25rem}
+.audit-metrics{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr));gap:var(--sp-3);
+}
+.audit-metric{
+  background:var(--color-blue-gray-50);border:1px solid var(--color-blue-gray-200);
+  border-radius:var(--radius-md);padding:var(--sp-3);
+}
+.audit-metric .k{font-size:.75rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--color-blue-gray-500);margin-bottom:4px}
+.audit-metric .v{font-size:1.35rem;font-weight:700;color:var(--color-primary-800);font-variant-numeric:tabular-nums;
+  line-height:1.2}
+.audit-metric.accent{background:var(--color-primary-50);border-color:var(--color-primary-200)}
+.audit-metric.warn{background:var(--color-orange-50);border-color:var(--color-orange-200)}
+.audit-entry-list{display:flex;flex-direction:column;gap:var(--sp-2);max-height:36rem;overflow:auto}
+.audit-entry{border:1px solid var(--color-blue-gray-200);border-radius:var(--radius-md);background:#fff}
+.audit-entry.open{border-color:var(--color-primary-300);box-shadow:0 0 0 1px rgba(0,63,91,.08)}
+.audit-entry-head{
+  width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3);
+  padding:var(--sp-3);background:transparent;border:none;cursor:pointer;text-align:left;font:inherit;
+}
+.audit-entry-head:hover{background:var(--color-blue-gray-50)}
+.audit-entry-head .entry-id{font-weight:600;color:var(--color-primary-700)}
+.audit-entry-head .metric-inline{font-size:.85rem;color:var(--color-blue-gray-600)}
+.audit-entry-head .chev{margin-left:auto;color:var(--color-blue-gray-400)}
+.audit-entry-body{padding:0 var(--sp-3) var(--sp-3);border-top:1px solid var(--color-blue-gray-100)}
+.audit-entry-body .guidance{margin:var(--sp-3) 0 var(--sp-2);font-weight:500;color:var(--color-primary-800)}
+.st-badge{font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  padding:3px 8px;border-radius:99px;white-space:nowrap}
+.st-badge.st-el{background:#dcfce7;color:#166534}
+.st-badge.st-ar{background:var(--color-orange-50);color:var(--color-orange-700)}
+.st-badge.st-ex{background:var(--color-red-50);color:var(--color-red-700)}
+.st-badge.st-rv{background:var(--color-yellow-50);color:var(--color-yellow-700)}
+.st-badge.st-or{background:var(--color-blue-gray-100);color:var(--color-blue-gray-700)}
+.st-badge.st-ok{background:var(--color-blue-50);color:var(--color-blue-700)}
+.obs-list{display:flex;flex-direction:column;gap:var(--sp-2);margin:var(--sp-2) 0}
+.obs{border-left:3px solid var(--color-blue-gray-300);padding:var(--sp-2) var(--sp-3);
+  background:var(--color-blue-gray-50);border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.obs-error{border-left-color:var(--color-red-600);background:var(--color-red-50)}
+.obs-warning{border-left-color:var(--color-orange-600);background:var(--color-orange-50)}
+.obs-info{border-left-color:var(--color-primary-500);background:var(--color-primary-50)}
+.obs-lbl{font-size:.8rem;font-weight:700;margin-bottom:2px}
+.obs-det{font-size:.85rem;color:var(--color-blue-gray-700);line-height:1.4}
+.audit-lines th.r,.audit-lines td.r{text-align:right}
+.mono.wrap{word-break:break-word}
 table.cov{width:100%;border-collapse:collapse}
 table.cov th{font-size:.786rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
   color:var(--color-blue-gray-500);text-align:left;padding:8px var(--sp-3);

@@ -345,16 +345,12 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
             <div class="spacer"></div>
             <span class="cap" id="lookup-count">0 codes</span></header>
           <div class="body">
-            <div class="grid3" style="margin-bottom:var(--sp-3)">
+            <div class="grid2" style="margin-bottom:var(--sp-3)">
               <div class="field"><label class="label" for="lookup-date">Rate date</label>
                 <input type="date" id="lookup-date" /></div>
               <div class="field"><label class="label" for="lookup-coo">Default origin</label>
                 <input type="text" id="lookup-coo" class="country-field" data-country
                   title="Default origin — ISO-2 or country name" /></div>
-              <div class="field" style="display:flex;align-items:flex-end;padding-bottom:2px">
-                <label class="check"><input type="checkbox" id="lookup-cnlist3" checked />
-                  <span>Assume CN List&nbsp;3 when origin is China</span></label>
-              </div>
             </div>
 
             <div class="dropzone" id="lookup-drop" tabindex="0"
@@ -407,31 +403,57 @@ placeholder="hts,coo
     <!-- ============================ AUDIT ============================ -->
     <section class="view hide" id="view-audit">
       <div class="viewhead">
-        <h2>Audit an entry</h2>
-        <p class="cap">Compare what was filed against what the rules require.</p>
+        <h2>Audit from ACE</h2>
+        <p class="cap">Upload ES-003 Entry Summary Line Tariff Details — we audit filed Ch.99
+          against the live stack using each line’s Entry Date.</p>
       </div>
-      <div class="card"><div class="body">
-        <p style="margin:0 0 var(--sp-3)">The audit runs on the lines already in the calculator, so
-          there is one set of inputs rather than two. On each line, open <b>+</b> and enter the
-          Chapter&nbsp;99 codes as filed. Set <b>as known on</b> to the filing date so the entry is
-          judged against the rules in force then, not today's.</p>
-        <div class="actions">
-          <button class="btn-primary" id="gotoaudit">Open the calculator</button>
+      <div id="auditbanner"></div>
+      <div class="cols c2">
+        <div class="card">
+          <header><h5>ES-003 report</h5></header>
+          <div class="body">
+            <div class="dropzone" id="audit-drop" tabindex="0" role="button"
+              aria-label="Drop ES-003 Excel here">
+              <div class="drop-title">Drop ACE ES-003 Excel</div>
+              <p class="cap" style="margin:var(--sp-2) 0 0">Entry Summary Line Tariff Details
+                from ACE Reports. Or <button type="button" class="linkish" id="audit-browse">browse</button>.</p>
+              <input type="file" id="audit-file" accept=".xlsx,.xls" hidden />
+            </div>
+            <p class="cap" style="margin:var(--sp-3) 0 0">tip: Entry Date drives Col‑1 windows and IEEPA
+              CAPE eligibility (2025‑02‑04 through 2026‑02‑23). China 301 uses HTS list membership only
+              (no List 3 assume). Metals / 232 auto‑part claims are not on ES‑003 — those gaps need Quick Check.</p>
+            <div class="actions" style="margin-top:var(--sp-3)">
+              <button class="btn-primary" id="audit-run" disabled>RUN ES-003 AUDIT</button>
+              <button class="btn-ghost" id="audit-clear">Clear</button>
+              <button class="btn-ghost" id="gotoaudit" title="Manual filed_ch99 audit in the calculator">Manual line audit</button>
+            </div>
+          </div>
         </div>
-        <details class="help" open><summary>What the audit checks</summary><div>
-          <table>
-            <tr><td>Missing code</td><td>A heading the rules require that was not filed, with its
-              duty impact. Includes affirmative $0 reporting lines, which are commonly omitted and
-              cause a transmit rejection.</td></tr>
-            <tr><td>Over&#8209;application</td><td>A code that was filed but is suppressed by an
-              exemption — an overpayment.</td></tr>
-            <tr><td>List difference</td><td>A Section 301 list code that differs from the expected
-              one. Reported as information, not an error: the lists are mutually exclusive and
-              membership is HTS&#8209;specific, so it needs an annex check rather than a
-              correction.</td></tr>
-            <tr><td>Reconciliation</td><td>Filed duty total against computed, to the cent.</td></tr>
-          </table></div></details>
-      </div></div>
+        <div class="card">
+          <header><h5>What we check</h5></header>
+          <div class="body">
+            <table>
+              <tr><td>IEEPA / CAPE</td><td>Filed <span class="mono">9903.01</span> / <span class="mono">.02</span>
+                on Entry Dates in the CAPE window → refund candidates. After 2026‑02‑23 → dead program.</td></tr>
+              <tr><td>Missing Ch.99</td><td>Live stack (301‑FL, China 301, 232 when computable) not filed.</td></tr>
+              <tr><td>Extra Ch.99</td><td>Filed heading the current pack does not produce for that Entry Date.</td></tr>
+              <tr><td>Duty math</td><td>Computed stack vs filing using entered value from the commodity ordinal.</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:var(--sp-4)">
+        <header><h5>Results</h5>
+          <div class="spacer"></div>
+          <button class="btn-ghost btn-sm" id="audit-export" hidden>Export findings CSV</button>
+        </header>
+        <div class="body" id="audit-out">
+          <div class="empty"><h4>No ES-003 yet</h4>
+            <p class="cap" style="max-width:42ch;margin:0 auto">Drop an ACE ES-003 export.
+              Stage A confirms parse; Stage B reviews each entry (IEEPA CAPE + live stack).</p>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ============================ RULES ============================ -->

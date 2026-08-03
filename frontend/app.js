@@ -82,6 +82,7 @@ function show(view) {
   if (view === "reference") loadReference();
   if (view === "upload") renderUploadHelp();
   if (view === "lookup") initLookup();
+  if (view === "audit") initEs003Audit();
   if (view === "chat") initChat();
 }
 $$("nav.side button").forEach(b => b.onclick = () => show(b.dataset.view));
@@ -1842,7 +1843,7 @@ async function runLookup() {
     const body = {
       as_of: $("#lookup-date").value || undefined,
       default_coo: countryIsoFrom($("#lookup-coo")) || undefined,
-      assume_cn_list3: $("#lookup-cnlist3").checked,
+      assume_cn_list3: false,
     };
     if (Lookup.fileB64) {
       body.xlsx_base64 = Lookup.fileB64;
@@ -2116,6 +2117,293 @@ async function discardPending(id) {
   } catch { /* ignore */ }
   Chat.pending = (Chat.pending || []).filter(p => p.id !== id);
   renderChatPending();
+}
+
+/* ================================================================ ES-003 AUDIT */
+const Es003 = {
+  fileB64: null, fileName: null, ingest: null, last: null,
+  inited: false, filter: "all", open: null,
+};
+
+const AUDIT_STATUS = {
+  ieepa_cape: { lbl: "IEEPA CAPE", cls: "st-el" },
+  stack_gap: { lbl: "Missing Ch.99", cls: "st-ar" },
+  dead_program: { lbl: "Dead program", cls: "st-ex" },
+  extra: { lbl: "Extra / review", cls: "st-rv" },
+  out_of_range: { lbl: "Outside window", cls: "st-or" },
+  clean: { lbl: "Aligned", cls: "st-ok" },
+};
+
+function initEs003Audit() {
+  if (Es003.inited) return;
+  Es003.inited = true;
+  const drop = $("#audit-drop");
+  const file = $("#audit-file");
+  if (!drop || !file) return;
+  $("#audit-browse").onclick = (e) => { e.stopPropagation(); file.click(); };
+  drop.onclick = () => file.click();
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("drag"); };
+  drop.ondragleave = () => drop.classList.remove("drag");
+  drop.ondrop = (e) => {
+    e.preventDefault(); drop.classList.remove("drag");
+    const f = e.dataTransfer?.files?.[0];
+    if (f) ingestEs003File(f);
+  };
+  file.onchange = () => { const f = file.files?.[0]; if (f) ingestEs003File(f); };
+  $("#audit-run").onclick = () => runEs003Audit();
+  $("#audit-clear").onclick = () => clearEs003Audit();
+  $("#audit-export").onclick = () => exportEs003Findings();
+  const goto = $("#gotoaudit");
+  if (goto) goto.onclick = () => show("calc");
+}
+
+async function ingestEs003File(f) {
+  const name = f.name || "ES-003.xlsx";
+  if (!/\.(xlsx|xls)$/i.test(name)) {
+    banner("#auditbanner", "err", "Need an Excel file", "ACE ES-003 exports are .xlsx");
+    return;
+  }
+  const buf = await f.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  Es003.fileB64 = btoa(bin);
+  Es003.fileName = name;
+  Es003.last = null;
+  Es003.open = null;
+  Es003.filter = "all";
+  $("#audit-drop").querySelector(".drop-title").textContent = `Ready: ${name}`;
+  $("#audit-run").disabled = false;
+  $("#audit-export").hidden = true;
+  $("#audit-out").innerHTML = `<div class="empty"><h4>Parsing…</h4></div>`;
+  try {
+    Es003.ingest = await api("/v1/es003:ingest", {
+      method: "POST",
+      body: JSON.stringify({ xlsx_base64: Es003.fileB64, filename: name }),
+    });
+    renderEs003StageA(Es003.ingest);
+    banner("#auditbanner", "ok", "ES-003 loaded", Es003.ingest.message || name);
+  } catch (e) {
+    Es003.ingest = null;
+    $("#audit-out").innerHTML = `<div class="empty"><h4>Could not parse</h4>
+      <p class="cap">${esc(e.message)}</p></div>`;
+    banner("#auditbanner", "err", "ES-003 parse failed", e.message);
+  }
+}
+
+function renderEs003StageA(ing) {
+  const m = ing.meta || {};
+  $("#audit-out").innerHTML = `<div class="audit-stage-a">
+    <div class="audit-stage-badge">Stage A · file loaded</div>
+    <h4 class="audit-stage-title">${esc(ing.filename || "ES-003")}</h4>
+    <p class="cap" style="margin:0 0 var(--sp-3)">${esc(ing.message || "")}</p>
+    <div class="audit-metrics">
+      <div class="audit-metric"><div class="k">Tariff rows</div><div class="v">${m.tariff_rows ?? "—"}</div></div>
+      <div class="audit-metric"><div class="k">Entry lines</div><div class="v">${m.entry_lines ?? "—"}</div></div>
+      <div class="audit-metric"><div class="k">Entries</div><div class="v">${m.entries ?? "—"}</div></div>
+      <div class="audit-metric"><div class="k">Format</div><div class="v" style="font-size:1rem">${esc(m.format || "—")}</div></div>
+      <div class="audit-metric"><div class="k">Entry dates</div><div class="v" style="font-size:.95rem">${esc(m.date_min || "—")} → ${esc(m.date_max || "—")}</div></div>
+      <div class="audit-metric"><div class="k">IEEPA lines</div><div class="v">${m.ieepa_lines ?? "—"}</div></div>
+    </div>
+    <p class="cap" style="margin:var(--sp-3) 0 0">Analysis has <b>not</b> run yet — click <b>Run ES-003 audit</b> for Stage B
+      (live stack + IEEPA CAPE window review by Entry Date).</p>
+  </div>`;
+}
+
+function clearEs003Audit() {
+  Es003.fileB64 = Es003.fileName = Es003.ingest = Es003.last = Es003.open = null;
+  Es003.filter = "all";
+  const file = $("#audit-file");
+  if (file) file.value = "";
+  const drop = $("#audit-drop");
+  if (drop) drop.querySelector(".drop-title").textContent = "Drop ACE ES-003 Excel";
+  $("#audit-run").disabled = true;
+  $("#audit-export").hidden = true;
+  $("#audit-out").innerHTML = `<div class="empty"><h4>No ES-003 yet</h4>
+    <p class="cap" style="max-width:40ch;margin:0 auto">Drop an ACE ES-003 export — Stage A confirms parse, Stage B audits by Entry Date.</p></div>`;
+  banner("#auditbanner", null);
+}
+
+async function runEs003Audit() {
+  if (!Es003.fileB64) {
+    banner("#auditbanner", "err", "No file", "Drop an ES-003 Excel first.");
+    return;
+  }
+  const btn = $("#audit-run");
+  const was = btn.textContent;
+  btn.disabled = true; btn.innerHTML = '<span class="busy"></span>';
+  try {
+    Es003.last = await api("/v1/es003:audit", {
+      method: "POST",
+      body: JSON.stringify({
+        xlsx_base64: Es003.fileB64,
+        filename: Es003.fileName,
+      }),
+    });
+    Es003.filter = "all";
+    Es003.open = null;
+    renderEs003Audit(Es003.last);
+    const t = Es003.last.totals || {};
+    banner("#auditbanner", "ok", "Stage B · audit complete",
+      `${t.entries || 0} entries · ${t.finding_count || 0} findings` +
+      (t.ieepa_duty
+        ? ` · $${money(t.ieepa_duty)} IEEPA in CAPE window`
+        : ""));
+    $("#audit-export").hidden = !(Es003.last.findings || []).length;
+  } catch (e) {
+    banner("#auditbanner", "err", "ES-003 audit failed", e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = was;
+  }
+}
+
+function renderEs003Audit(R) {
+  const out = $("#audit-out");
+  if (!R) return;
+  const t = R.totals || {};
+  const byStatus = t.by_status || {};
+  const entries = R.entries || [];
+  const filtered = Es003.filter === "all"
+    ? entries
+    : entries.filter(e => e.status === Es003.filter);
+
+  const chips = [
+    ["all", "All", entries.length],
+    ["ieepa_cape", AUDIT_STATUS.ieepa_cape.lbl, byStatus.ieepa_cape || 0],
+    ["stack_gap", AUDIT_STATUS.stack_gap.lbl, byStatus.stack_gap || 0],
+    ["dead_program", AUDIT_STATUS.dead_program.lbl, byStatus.dead_program || 0],
+    ["extra", AUDIT_STATUS.extra.lbl, byStatus.extra || 0],
+    ["out_of_range", AUDIT_STATUS.out_of_range.lbl, byStatus.out_of_range || 0],
+    ["clean", AUDIT_STATUS.clean.lbl, byStatus.clean || 0],
+  ];
+
+  let html = `<div class="audit-review">
+    <div class="audit-stage-badge">Stage B · analysis</div>
+    <div class="audit-metrics">
+      <div class="audit-metric accent"><div class="k">IEEPA (CAPE window)</div>
+        <div class="v">$${money(t.ieepa_duty)}</div>
+        <div class="cap">${t.ieepa_entries || 0} entries</div></div>
+      <div class="audit-metric"><div class="k">Entries</div><div class="v">${t.entries || 0}</div>
+        <div class="cap">${t.entry_lines || 0} lines</div></div>
+      <div class="audit-metric warn"><div class="k">Stack gaps</div>
+        <div class="v">${t.stack_gap_entries || 0}</div>
+        <div class="cap">missing live Ch.99</div></div>
+      <div class="audit-metric"><div class="k">Findings</div>
+        <div class="v">${t.finding_count || 0}</div>
+        <div class="cap">duty impact $${money(t.net_duty_impact)}</div></div>
+      <div class="audit-metric"><div class="k">Entered value</div>
+        <div class="v" style="font-size:1.15rem">$${money(t.entered_value)}</div></div>
+      <div class="audit-metric"><div class="k">Aligned</div>
+        <div class="v">${t.clean_entries || 0}</div></div>
+    </div>
+    <div class="pillrow audit-filters" style="margin:var(--sp-3) 0">
+      ${chips.map(([k, label, n]) =>
+        `<button type="button" class="pill filter-pill ${Es003.filter === k ? "active" : ""}" data-audit-filter="${k}">${esc(label)} · ${n}</button>`
+      ).join("")}
+    </div>`;
+
+  if (!filtered.length) {
+    html += `<div class="empty" style="padding:var(--sp-5)"><h4>No entries in this filter</h4></div>`;
+  } else {
+    html += `<div class="audit-entry-list">`;
+    for (const e of filtered.slice(0, 200)) {
+      const st = AUDIT_STATUS[e.status] || { lbl: e.status_label || e.status, cls: "st-rv" };
+      const open = Es003.open === e.id;
+      html += `<article class="audit-entry ${open ? "open" : ""}" data-entry="${esc(e.id)}">
+        <button type="button" class="audit-entry-head" data-toggle-entry="${esc(e.id)}">
+          <span class="st-badge ${st.cls}">${esc(st.lbl)}</span>
+          <span class="mono entry-id">${esc(e.id)}</span>
+          <span class="cap">${esc(e.entry_date || "—")}</span>
+          <span class="cap">${esc((e.countries || []).join(", ") || "—")}</span>
+          <span class="metric-inline">IEEPA <b>$${money(e.ieepa_duty)}</b></span>
+          <span class="metric-inline">${e.line_count} lines · ${e.finding_count} findings</span>
+          <span class="chev" aria-hidden="true">${open ? "▾" : "▸"}</span>
+        </button>`;
+      if (open) {
+        html += `<div class="audit-entry-body">
+          <p class="guidance">${esc(e.guidance || "")}</p>
+          <div class="audit-entry-meta cap">
+            Port ${esc(e.port || "—")} · type ${esc(e.entry_type || "—")} ·
+            importer ${esc(e.importer || "—")} ·
+            entered $${money(e.entered_value)} ·
+            filed duty $${money(e.filed_duty_total)} ·
+            computed $${money(e.computed_duty)}
+          </div>
+          <div class="grid2" style="gap:var(--sp-3);margin:var(--sp-3) 0">
+            <div><div class="eyebrow">Filed Ch.99</div>
+              <div class="mono wrap">${esc((e.filed_ch99 || []).join(" ") || "—")}</div></div>
+            <div><div class="eyebrow">Computed Ch.99</div>
+              <div class="mono wrap">${esc((e.computed_ch99 || []).join(" ") || "—")}</div></div>
+          </div>`;
+        if ((e.observations || []).length) {
+          html += `<div class="obs-list">`;
+          for (const o of e.observations) {
+            html += `<div class="obs obs-${esc(o.sev)}">
+              <div class="obs-lbl">${esc(o.lbl)}</div>
+              <div class="obs-det">${esc(o.det)}</div>
+            </div>`;
+          }
+          html += `</div>`;
+        }
+        if ((e.lines || []).length) {
+          html += `<table class="data audit-lines"><thead><tr>
+            <th>#</th><th>HTS</th><th>COO</th><th class="r">Value</th><th class="r">IEEPA</th>
+            <th>Filed</th><th>Computed</th>
+          </tr></thead><tbody>`;
+          for (const L of e.lines) {
+            html += `<tr>
+              <td class="mono">${esc(L.line_number || "")}</td>
+              <td class="mono">${esc(L.hts || "")}</td>
+              <td>${esc(L.coo || "")}</td>
+              <td class="r">$${money(L.entered_value)}</td>
+              <td class="r">${L.ieepa_duty ? "$" + money(L.ieepa_duty) : "—"}</td>
+              <td class="mono cap">${esc((L.filed_ch99 || []).join(" ") || "—")}</td>
+              <td class="mono cap">${esc((L.computed_ch99 || []).join(" ") || "—")}</td>
+            </tr>`;
+          }
+          html += `</tbody></table>`;
+        }
+        html += `</div>`;
+      }
+      html += `</article>`;
+    }
+    html += `</div>`;
+    if (filtered.length > 200) {
+      html += `<p class="cap">Showing 200 of ${filtered.length} — narrow the filter or export CSV.</p>`;
+    }
+  }
+  html += `</div>`;
+  out.innerHTML = html;
+
+  out.querySelectorAll("[data-audit-filter]").forEach(btn => {
+    btn.onclick = () => {
+      Es003.filter = btn.dataset.auditFilter;
+      renderEs003Audit(Es003.last);
+    };
+  });
+  out.querySelectorAll("[data-toggle-entry]").forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.toggleEntry;
+      Es003.open = Es003.open === id ? null : id;
+      renderEs003Audit(Es003.last);
+    };
+  });
+}
+
+function exportEs003Findings() {
+  if (!Es003.last?.findings?.length) return;
+  const lines = [["severity", "category", "entry_number", "entry_date", "hts", "coo", "line_id", "message", "remediation", "duty_impact"]];
+  for (const f of Es003.last.findings) {
+    lines.push([
+      f.severity, f.category, f.entry_number, f.entry_date, f.hts, f.coo,
+      f.line_id, f.message, f.remediation || "", f.duty_impact ?? "",
+    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
+  }
+  const blob = new Blob([[lines[0].join(",")].concat(lines.slice(1)).join("\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `es003-audit-${(Es003.fileName || "export").replace(/\.[^.]+$/, "")}.csv`;
+  a.click();
 }
 
 const fabBoot = $("#chat-fab");
