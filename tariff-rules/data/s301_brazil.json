@@ -1,0 +1,75 @@
+{
+  "program": {
+    "id": "SEC_301_BRAZIL",
+    "name": "Section 301 — Brazil country action",
+    "source_csms": "CSMS #69302472",
+    "source_fr": "91 FR 45516",
+    "ustr_note": "U.S. note 50 to subchapter III",
+    "effective": "2026-07-22",
+    "rate_pct": 25,
+    "duty_heading": "9903.05.01",
+    "detail": "Additional 25% ad valorem on products of Brazil, except headings 9903.05.02–9903.05.09. Stacks with other Ch.99 additional duties in the same subchapter (including 301-FL 9903.05.27 from 2026-07-24)."
+  },
+  "exemptions": [
+    {
+      "heading": "9903.05.02",
+      "kind": "in_transit",
+      "rate_pct": 0,
+      "claim_flag": "brazil_301_in_transit",
+      "notes": "Loaded/in transit before 2026-07-22 and entered before 2026-07-29 (ocean)."
+    },
+    {
+      "heading": "9903.05.03",
+      "kind": "annex_hts",
+      "rate_pct": 0,
+      "claim_flag": "brazil_301_annex_excl",
+      "notes": "Annex HTS list under U.S. note 50(a)(ii) — claim-gated until annex stem pack is loaded."
+    },
+    {
+      "heading": "9903.05.04",
+      "kind": "product",
+      "rate_pct": 0,
+      "claim_flag": "brazil_301_product_excl",
+      "notes": "Specified products (etrogs, acai, religious goods, etc.) under note 50(a)(iii)."
+    },
+    {
+      "heading": "9903.05.05",
+      "kind": "aircraft",
+      "rate_pct": 0,
+      "claim_flag": "brazil_301_aircraft",
+      "notes": "Civil aircraft and related parts / simulators."
+    },
+    {
+      "heading": "9903.05.06",
+      "kind": "pharma",
+      "rate_pct": 0,
+      "claim_flag": "brazil_301_pharma",
+      "notes": "Articles for pharmaceutical applications."
+    },
+    {
+      "heading": "9903.05.07",
+      "kind": "section_232_universe",
+      "rate_pct": 0,
+      "auto_when": "in_232_universe",
+      "notes": "Aluminum, steel, copper/derivatives, passenger vehicles & parts, MHDV & parts, wood products, semiconductors — Section 232 universe."
+    },
+    {
+      "heading": "9903.05.08",
+      "kind": "donation",
+      "rate_pct": 0,
+      "claim_flag": "brazil_301_donation",
+      "notes": "Humanitarian donations."
+    },
+    {
+      "heading": "9903.05.09",
+      "kind": "informational",
+      "rate_pct": 0,
+      "claim_flag": "brazil_301_info",
+      "notes": "Informational materials."
+    }
+  ],
+  "sources": [
+    "CSMS #69302472 — GUIDANCE: Section 301 Duties on Certain Products from Brazil",
+    "91 FR 45516 (July 20, 2026)"
+  ]
+}

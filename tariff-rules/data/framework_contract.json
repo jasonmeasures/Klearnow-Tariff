@@ -1,0 +1,270 @@
+{
+  "id": "klearnow-tariff-rules-framework",
+  "version": "1.3.1",
+  "as_of": "2026-08-06",
+  "jurisdiction": "US",
+  "status": "SHAREABLE_PACK — interim until core engine is published as a shared API",
+  "owner": "KlearNow Tariff (tariff-rules/)",
+  "consumers_guidance": {
+    "do": [
+      "Treat this JSON + sibling data/*.json as the versioned contract other apps may copy or reference.",
+      "Prefer calling POST /v1/entries:assess when the engine is reachable (same process or future shared API).",
+      "Pin to framework version + rulepack hash when shipping Inditex / playground / ES-003 results."
+    ],
+    "dont": [
+      "Hardcode rates in application code.",
+      "Invent 232 annex membership from chapter triage alone.",
+      "Compute trade-deal totals until R6_MFN_CAP_RULE is resolved.",
+      "Apply IEEPA or Sec 122 outside their eras."
+    ]
+  },
+  "future_api": {
+    "intended_surface": "Shared KlearNow Tariff Rules API (playground / engine framework)",
+    "preview_endpoints": [
+      "GET /health",
+      "GET /v1/config",
+      "GET /v1/hts/{hts}?as_of=YYYY-MM-DD",
+      "POST /v1/entries:assess",
+      "POST /v1/entries:audit",
+      "GET /v1/rules",
+      "GET /v1/openapi.json"
+    ],
+    "auth": "Auth0 Bearer (playground) or X-API-Key (local / service)"
+  },
+  "engines": {
+    "auto": "Default Duty stack — eras + 232 annex/metals + China 301 + 301-FL + Sec 122 historical",
+    "ch99": "Chapter 99 reciprocal / IEEPA-era seed pack evaluator"
+  },
+  "eras": [
+    {
+      "id": "ieepa",
+      "from": "2025-02-04",
+      "to": "2026-02-23",
+      "primary": "IEEPA (CAPE / refund only — not live forward)",
+      "ch99": "9903.01.xx / 9903.02.xx",
+      "compute_forward": false
+    },
+    {
+      "id": "sec_122",
+      "from": "2026-02-24",
+      "to": "2026-07-23",
+      "primary": "Section 122 10% surcharge",
+      "ch99": "9903.03.01",
+      "compute_forward": false,
+      "compute_historical": true,
+      "entry_level": true
+    },
+    {
+      "id": "s301fl",
+      "from": "2026-07-24",
+      "to": null,
+      "primary": "Section 301 Forced Labor (CSMS #69326983)",
+      "ch99": "9903.05.xx",
+      "compute_forward": true
+    }
+  ],
+  "boundary_days": {
+    "last_ieepa": "2026-02-23",
+    "first_sec_122": "2026-02-24",
+    "last_sec_122": "2026-07-23",
+    "first_s301fl": "2026-07-24"
+  },
+  "stacking_rules": [
+    {
+      "id": "R1",
+      "text": "232 autos/parts/metals and 301-FL are mutually exclusive. 232 wins via 9903.05.90.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R2",
+      "text": "Legacy China 301 (9903.88.xx) is NOT suppressed by 232 or Sec 122. Reports first; stacks with both when applicable.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R2b",
+      "text": "Section 122 does NOT stack with Section 232. Report 9903.03.06; suppress 9903.03.01.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R2c",
+      "text": "Brazil Section 301 (9903.05.01 @ 25%, eff. 2026-07-22) stacks with 301-FL Brazil (9903.05.27 @ 12.5%). 232 universe uses exemption 9903.05.07 and still suppresses FL via 9903.05.90.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R3",
+      "text": "Japan 232 auto parts: top-up to 15% via 9903.94.43 when col-1 < 15%; Ch.1–97 line zeroed for that path.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R4a",
+      "text": "9903.82.02 — primary metal articles: +50% on metal-content value.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R4b",
+      "text": "9903.82.09 — copper / derivative alu+steel: +25% on entered value.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R4c",
+      "text": "Sec 122 is entry-level — 9903.03.01 on any ESL of an Entry Summary Number satisfies the entry.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R5",
+      "text": "232 metals vs 232 autos on Ch.73/74 — TBC.",
+      "status": "TBC"
+    },
+    {
+      "id": "R6",
+      "text": "Trade-deal MFN cap mechanic unresolved — block totals for 9903.94.43/.45/.55/.63 trade-deal paths.",
+      "status": "TBC_BLOCKING"
+    },
+    {
+      "id": "R8",
+      "text": "HTS authority: Item Master for parts; HA30 for vehicles with Item Master fallback.",
+      "status": "CONFIRMED"
+    }
+  ],
+  "s232_auto_parts": {
+    "source": "CBP Attachment 2 — Automobile Parts HTS List (U.S. note 33; Proclamation 10908)",
+    "data_file": "data/s232_auto_parts_annex.json",
+    "stem_count": 130,
+    "ch99_duty": "9903.94.05",
+    "behavior": "In-annex HTS auto-applies 232 (suppresses 301-FL via 9903.05.90). Off-list requires flags.s232_auto_part with evidence.",
+    "examples": {
+      "in_annex": ["8544.30.00", "8708.10.30", "8708.29"],
+      "not_in_annex": ["8544.42.90", "8544.49", "8310.00.00"]
+    }
+  },
+  "s301fl_decision_flow": {
+    "description": "Authoritative flowchart for 301-FL Chapter 99 selection once rate date ≥ 2026-07-24 (and 232 has not already won).",
+    "steps": [
+      {
+        "id": 1,
+        "type": "decision",
+        "if": "Sec 232 Ch.99 present or determined (9903.82 / .94 / .74 / .76 / .79 family, or metals/auto annex hit)",
+        "yes": 2,
+        "no": 3
+      },
+      {
+        "id": 2,
+        "type": "apply",
+        "action": "Apply 9903.05.90",
+        "stop": true,
+        "note": "Sec 232 wins — 301-FL suppressed"
+      },
+      {
+        "id": 3,
+        "type": "decision",
+        "if": "On 9903.05.86 exclusion list (US Note 52(b) annex economy/industry excl.)",
+        "yes": 4,
+        "no": 5
+      },
+      {
+        "id": 4,
+        "type": "apply",
+        "action": "Apply 9903.05.86",
+        "stop": true,
+        "note": "Excluded"
+      },
+      {
+        "id": 5,
+        "type": "process",
+        "action": "Determine COO; match against 301-FL countries pack",
+        "then": ["6a", "7a", "10a"]
+      },
+      {
+        "id": "6a",
+        "type": "decision",
+        "if": "1:1 country match (direct / flat list)",
+        "yes": "6b"
+      },
+      {
+        "id": "6b",
+        "type": "apply",
+        "action": "Apply country Ch.99 (flat 301-FL heading)",
+        "stop": true
+      },
+      {
+        "id": "7a",
+        "type": "decision",
+        "if": "Threshold country (EU, JP, KR, CH, TW)",
+        "yes": "7b"
+      },
+      {
+        "id": "7b",
+        "type": "decision",
+        "if": "Column-1 / applicable duty already ≥ threshold cap",
+        "yes": 8,
+        "no": 9
+      },
+      {
+        "id": 8,
+        "type": "apply",
+        "action": "Add Ch.99 at 0% (rate already satisfied)",
+        "stop": true
+      },
+      {
+        "id": 9,
+        "type": "apply",
+        "action": "Add override Ch.99 (top-up to cap)",
+        "stop": true
+      },
+      {
+        "id": "10a",
+        "type": "decision",
+        "if": "No COO match on either list",
+        "yes": "10b"
+      },
+      {
+        "id": "10b",
+        "type": "end",
+        "action": "Not subject — no 301-FL",
+        "stop": true
+      }
+    ],
+    "related_grace_exclusions": ["9903.05.85", "9903.05.87"]
+  },
+  "data_files": {
+    "program_status.json": "Live / sunset / struck program registry",
+    "interaction_rules.json": "R1–R9 stacking narrative + status",
+    "ch99_codes.json": "~120 Ch.99 code registry",
+    "s301fl_pack.json": "301-FL 60 economies + exemptions (CSMS #69326983)",
+    "s301_brazil.json": "Brazil country Section 301 9903.05.01–.09 (CSMS #69302472)",
+    "s232_auto_parts_annex.json": "Proclamation 10908 auto-parts HTS stems",
+    "s301_china_lists.json": "Legacy China 301 list membership",
+    "ch99_rules.json": "Ch99 reciprocal seed (~83 rules)",
+    "hts_rates.json": "Column-1 baseline table",
+    "framework_contract.json": "This shareable contract"
+  },
+  "minimal_assess_request": {
+    "engine": "auto",
+    "as_of": "2026-08-04",
+    "lines": [
+      {
+        "hts": "8708103050",
+        "coo": "DE",
+        "entered_value": 10000,
+        "flags": {}
+      }
+    ]
+  },
+  "open_blockers": [
+    {
+      "id": "R6_MFN_CAP_RULE",
+      "blocking": true,
+      "summary": "Trade-deal MFN zeroed vs conditional cap unresolved — totals blocked"
+    },
+    {
+      "id": "R5_METALS_VS_AUTOS",
+      "blocking": false,
+      "summary": "Ch.73/74 metals vs autos precedence TBC"
+    },
+    {
+      "id": "R7_9394_LABEL",
+      "blocking": false,
+      "summary": "9903.94.xx program labeling (232 vs trade-deal) TBC"
+    }
+  ]
+}

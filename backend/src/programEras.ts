@@ -14,6 +14,9 @@ export const SEC_122_END = "2026-07-23"; // sunset 12:01 a.m. 2026-07-24
 /** 301-FL effective (replaces Sec 122 at the same instant). */
 export const S301FL_START = "2026-07-24";
 
+/** Brazil Section 301 country action (9903.05.01) — before 301-FL. */
+export const BRAZIL_301_START = "2026-07-22";
+
 export const SEC_122_CH99 = "9903.03.01";
 
 export type FilingEra = "pre_ieepa" | "ieepa" | "sec_122" | "s301fl";
@@ -101,16 +104,25 @@ export function wrongEraFiledCode(
       };
     }
   }
-  // 301-FL headings before effective
+  // Brazil country 301 (9903.05.01–.09) — live from 2026-07-22; not 301-FL
+  if (/^9903\.05\.0[1-9]$/.test(c)) {
+    if (!rateDay || rateDay >= BRAZIL_301_START) return null;
+    return {
+      category: "WRONG_ERA",
+      severity: "WARNING",
+      message: `Filed ${c} (Brazil Section 301) on ${rateDay} before effective ${BRAZIL_301_START}.`,
+      remediation: "Confirm rate date; Brazil country 301 (CSMS #69302472) starts 2026-07-22.",
+    };
+  }
+  // 301-FL headings (.20+ / .90) before effective
   if (c.startsWith("9903.05.") && rateDay && rateDay < S301FL_START) {
-    // 9903.05.90 also used as 232 vs FL suppression after FL exists; before FL era it's odd
     return {
       category: "WRONG_ERA",
       severity: "WARNING",
       message: `Filed ${c} (301-FL family) on ${rateDay} before 301-FL effective ${S301FL_START}.`,
       remediation:
         rateDay <= SEC_122_END
-          ? "In Sec 122 era, expect 9903.03.01 (and China 301 / 232 as applicable), not 301-FL."
+          ? "In Sec 122 era, expect 9903.03.01 (and China 301 / 232 / Brazil 301 as applicable), not 301-FL."
           : "Confirm the rate date and live pack.",
     };
   }

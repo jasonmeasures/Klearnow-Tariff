@@ -54,6 +54,44 @@ Notes about yellow cells
     assert.equal(rows[1].coo, "CN");
   });
 
+  it("retains Part and SKU from Excel/CSV headers in coverage output", () => {
+    const rows = parseCoverageInput({
+      text: `Part Number,SKU,HTS,COO
+GO-1001,SKU-A,1704903590,BR
+GO-1002,SKU-B,1806329000,CN`,
+    });
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0].part, "GO-1001");
+    assert.equal(rows[0].sku, "SKU-A");
+    assert.equal(rows[1].part, "GO-1002");
+    assert.equal(rows[1].sku, "SKU-B");
+
+    const covered = coverRows({
+      as_of: "2026-08-06",
+      rows,
+      assume_cn_list3: false,
+    });
+    assert.equal(covered.rows[0].part, "GO-1001");
+    assert.equal(covered.rows[0].sku, "SKU-A");
+    assert.equal(covered.rows[1].part, "GO-1002");
+    assert.equal(covered.rows[1].sku, "SKU-B");
+  });
+
+  it("retains part/sku from xlsx Workbook sheets", () => {
+    const wb = XLSX.utils.book_new();
+    const sheet = [
+      ["Item Number", "Product Code", "Primary HTS", "Country"],
+      ["P-77", "PC-77", "8708407580", "BR"],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet), "Sheet1");
+    const b64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+    const rows = parseCoverageInput({ xlsx_base64: b64, filename: "parts.xlsx" });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].part, "P-77");
+    assert.equal(rows[0].sku, "PC-77");
+    assert.equal(rows[0].coo, "BR");
+  });
+
   it("rejects footnote cells that mention Ch.99 codes as HTS", () => {
     assert.equal(isPlausibleHtsCell("8708407580"), true);
     assert.equal(isPlausibleHtsCell("8708.40.7580"), true);

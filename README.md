@@ -20,10 +20,21 @@ Open http://localhost:3000. Default API key: `dev-internal` (admin). Guest/exter
 | Who | Sign-on | What they get |
 |-----|---------|---------------|
 | External (WordPress) | Auth0 optional · guest allowed | Duty stack / HTS list / Audit only · **5 stacks + 2 extracts / day** (50+10 when signed in) · **no admin** |
-| Playground internal | Auth0 | Full product for authors; Manage / Rule chat only if `admin` claim |
+| Playground internal | Auth0 | Full product for authors; Manage / Rule chat / **Users** when DB role is `admin` |
 | Engine framework | Auth0 | Same roles as playground (later) |
 
-Admin is never shown to guests or WordPress embeds. Admin claim: Auth0 `https://klearnow.com/roles` includes `admin`.
+Admin is never shown to guests or WordPress embeds.
+
+### Users & roles (optional PostgreSQL)
+
+When `DATABASE_URL` (or `PGHOST`) is set, Auth0 only proves identity. **Roles live in the app `users` table** — not the Auth0 dashboard. Unprovisioned or disabled accounts get **403**.
+
+- Bootstrap first admin(s): `ADMIN_BOOTSTRAP_EMAILS=you@klearnow.com`
+- Auto-provision: signed-in Auth0 users get an **active** `user` row when `USER_AUTO_PROVISION=true` (default on for `SURFACE=playground`). Admins promote via Manage → Users. Set `USER_AUTO_PROVISION=false` for invite-only.
+- Without a database, the app keeps the previous claims-based Auth0 roles (`https://klearnow.com/roles`)
+- API keys (`dev-internal`, etc.) never hit the DB
+
+Manage UI: **Manage → Users** (admin only). See [`DEPLOYMENT.md`](DEPLOYMENT.md) and [`docs/DB_USER_MANAGEMENT_PROMPT.md`](docs/DB_USER_MANAGEMENT_PROMPT.md).
 
 ## Product surface
 
@@ -42,7 +53,7 @@ Admin is never shown to guests or WordPress embeds. Admin claim: Auth0 `https://
 |---|---|
 | `backend/` | Express/TS API on `:8080` — assess, audit, rules, admin hot-reload, OpenAPI |
 | `frontend/` | Vite PWA — Quick Check lead; no rule logic in the browser |
-| `tariff-rules/` | Source of truth — codes, 301-FL pack, Ch99 reciprocal, HTS column-1 |
+| `tariff-rules/` | Source of truth — codes, 301-FL pack, Ch99 reciprocal, HTS column-1; **share [`docs/FRAMEWORK.md`](tariff-rules/docs/FRAMEWORK.md) + [`data/framework_contract.json`](tariff-rules/data/framework_contract.json)** with other apps until the shared Rules API lands |
 | `mcp/` | MCP stdio server for Claude Desktop / Cursor |
 
 ## Rule chat (CSMS / tariff changes)
@@ -88,7 +99,7 @@ Useful chat intents:
 
 Auth: header `X-API-Key: dev-internal`.
 
-Baseline HTS table: place the classification workbook at repo root, then `cd backend && npm run import:hts`.
+Baseline HTS table: **Manage → Upload** (admin) — drop the classification workbook (.xlsx) to replace Column-1 rates live, or paste CSV to merge rows. CLI still works: place the workbook at repo root, then `cd backend && npm run import:hts`.
 
 ## Packs in `tariff-rules/`
 

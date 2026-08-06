@@ -57,6 +57,7 @@
     <button data-view="rules" data-admin-only data-rules-browse>Rules <span class="badge" id="nav-rules">—</span></button>
     <button data-view="upload" data-admin-only>Upload</button>
     <button data-view="history" data-admin-only>Snapshots <span class="badge" id="nav-snaps">—</span></button>
+    <button data-view="users" data-admin-only>Users</button>
     <div class="navgroup eyebrow" data-rules-browse>Understand</div>
     <button data-view="insights" data-rules-browse>Insights</button>
     <button data-view="reference" data-rules-browse>API &amp; ref</button>
@@ -157,7 +158,7 @@
           </div>
           <div class="quick-flags">
             <label class="check"><input type="checkbox" id="qc-232" />
-              <span>232 auto part (claim)</span></label>
+              <span>232 auto part <span class="cap" id="qc-232-hint">(claim if off-list)</span></span></label>
             <details class="adv-override" id="qc-cn-adv">
               <summary class="cap">Advanced: override China 301 list</summary>
               <div class="field" style="margin:var(--sp-2) 0 0;min-width:200px">
@@ -550,21 +551,21 @@ placeholder="hts,coo
     <section class="view hide" id="view-upload">
       <div class="viewhead">
         <h2>Upload</h2>
-        <p class="cap">Load many HTSUS rates or tariff rules at once. Rules land as drafts and are
-          validated before they can affect a single assessment.</p>
+        <p class="cap">Replace the baseline Column-1 HTS table from a classification workbook,
+          or merge CSV rate rows. Changes reload live for assessments and HTS list.</p>
       </div>
       <div id="uploadbanner"></div>
       <div class="card">
         <header><h5>What are you loading?</h5><div class="spacer"></div>
           <select id="uploadkind" style="width:auto">
-            <option value="hts">HTSUS column-1 rates (CSV)</option>
+            <option value="hts">HTSUS Column-1 (xlsx workbook or CSV)</option>
             <option value="rules">Tariff rules (JSON)</option>
           </select></header>
         <div class="body">
           <div id="uploadhelp"></div>
           <div class="drop" id="dropzone">
             <p style="margin:0 0 var(--sp-2)"><b>Drop a file here</b> or choose one</p>
-            <input type="file" id="filepick" accept=".csv,.tsv,.txt,.json"
+            <input type="file" id="filepick" accept=".csv,.tsv,.txt,.json,.xlsx,.xls"
               style="width:auto;display:inline-block" />
           </div>
           <div class="field" style="margin-top:var(--sp-4)">
@@ -609,6 +610,50 @@ placeholder="hts,coo
               <button class="btn-secondary" id="dodiff">Compare</button></div>
           </div>
           <div id="diffout"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ USERS (admin) ============================ -->
+    <section class="view hide" id="view-users">
+      <div class="viewhead">
+        <h2>Users</h2>
+        <p class="cap">Provision who may use the app and with what role. Auth0 proves identity;
+          roles live in the app database (not the Auth0 dashboard).</p>
+      </div>
+      <div id="usersbanner"></div>
+      <div class="card">
+        <header><h5>Add user</h5></header>
+        <div class="body">
+          <div class="grid3">
+            <div class="field"><label class="label" for="user-email">Email</label>
+              <input type="email" id="user-email" autocomplete="off" placeholder="name@klearnow.com" /></div>
+            <div class="field"><label class="label" for="user-name">Name</label>
+              <input type="text" id="user-name" placeholder="Optional" /></div>
+            <div class="field"><label class="label" for="user-role">Role</label>
+              <select id="user-role">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select></div>
+          </div>
+          <button type="button" class="btn-primary" id="user-add">Add user</button>
+        </div>
+      </div>
+      <div class="card">
+        <header class="flex between">
+          <h5>Directory</h5>
+          <div class="flex gap">
+            <input type="search" id="user-q" placeholder="Search email or name" class="input-sm" />
+            <select id="user-status-filter">
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="disabled">Disabled</option>
+            </select>
+            <button type="button" class="btn-ghost btn-sm" id="user-refresh">Refresh</button>
+          </div>
+        </header>
+        <div class="body flush scrollbox">
+          <div id="usersout"><div class="empty cap">Open Users while signed in as Admin with DATABASE_URL configured.</div></div>
         </div>
       </div>
     </section>

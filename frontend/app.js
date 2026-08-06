@@ -112,6 +112,7 @@ function show(view) {
   if (view === "lookup") initLookup();
   if (view === "audit") initEs003Audit();
   if (view === "chat") initChat();
+  if (view === "users") loadUsers();
 }
 $$("nav.side button").forEach(b => b.onclick = () => show(b.dataset.view));
 $("#gotoaudit").onclick = () => show("calc");
@@ -358,17 +359,23 @@ function applyScopes() {
   if (canBrowseRules && !hideManage) {
     banner("#rulesbanner", "info", "Live pack + MCP",
       "Browse the seeded pack. Hot-update 301-FL via PUT /v1/admin/s301fl/countries/{iso2} or the MCP server (mcp/) — no rebuild. Full file edits still live in tariff-rules/data/.");
-    banner("#uploadbanner", "info", "Upload disabled in v1",
-      "Baseline HTS: re-import with npm run import:hts, or GET /v1/hts/{code}. Bulk upload UI lands later.");
+    banner("#uploadbanner", "info", "Update baseline HTS",
+      "Drop the classification workbook (.xlsx) to replace Column-1 rates (optional Replacement HTS / Successor columns merge into the successor map), or paste/CSV to merge rates and from→to replacements. Requires write_rules / admin. Live reload — no restart.");
     banner("#historybanner", "info", "Single seeded snapshot",
       "The active snapshot is the pack on disk (hash refreshes on admin reload). Activate/publish UI disabled in v1.");
   }
-  ["uploadcommit", "uploadpreview", "filepick", "uploadbox", "dopublish", "runvalidate"].forEach(id => {
+  // Snapshots publish stays off in v1; HTS Upload is live for admins with write_rules.
+  ["dopublish"].forEach(id => {
     const el = $("#" + id);
-    if (!el) return;
-    if (id === "runvalidate") return;
-    el.disabled = true;
+    if (el) el.disabled = true;
   });
+  const canUpload = Boolean(can.write_rules || can.admin);
+  ["uploadpreview", "filepick", "uploadbox", "uploadtemplate"].forEach(id => {
+    const el = $("#" + id);
+    if (el) el.disabled = !canUpload;
+  });
+  const commit = $("#uploadcommit");
+  if (commit) commit.disabled = true; // enabled after a successful preview / xlsx staged
   if (!can.write_rules) {
     const el = $("#runvalidate"); if (el) el.disabled = true;
   }
@@ -484,9 +491,26 @@ async function previewHtsMeta() {
   try {
     const r = await api(`/v1/hts/${encodeURIComponent(hts)}?as_of=${encodeURIComponent(asOf)}`);
     const bits = [];
-    bits.push(`Column 1 <b class="mono">${esc(r.rate_label || formatQuickCol1(r))}</b>`);
+    if (r.window_status === "ended") {
+      bits.push(
+        `<span class="pill pill-ended" title="No Column-1 rate window covers the as-of date">Ended${r.ended_on ? ` ${esc(r.ended_on)}` : ""}</span>`,
+      );
+    }
+    if (r.rate_label || r.col1_pct != null) {
+      bits.push(`Column 1 <b class="mono">${esc(r.rate_label || formatQuickCol1(r))}</b>`);
+    }
     if (r.desc) bits.push(esc(r.desc));
-    bits.push(`<span class="cap">(${esc(r.start)} → ${esc(r.end)})</span>`);
+    if (r.start && r.end) bits.push(`<span class="cap">(${esc(r.start)} → ${esc(r.end)})</span>`);
+    if (r.replacement_hts) {
+      const replLabel = r.replacement_hts_display || r.replacement_hts;
+      const replRate = r.replacement?.rate_label
+        ? ` · ${esc(r.replacement.rate_label)}`
+        : "";
+      bits.push(
+        `<span class="hts-repl">Suggested replacement <b class="mono">${esc(replLabel)}</b>${replRate}` +
+          ` <button type="button" class="btn-secondary btn-sm" data-use-hts="${esc(replLabel)}">Use replacement</button></span>`,
+      );
+    }
     const china = r.china_301;
     if (china?.list) {
       bits.push(
@@ -498,9 +522,45 @@ async function previewHtsMeta() {
         `<span class="pill pill-metals">232 ${esc(r.metals.metal)} → ${esc(r.metals.duty_ch99)} @ ${esc(String(r.metals.rate_pct))}%</span>`,
       );
     }
+    const annex = r.s232_auto_parts;
+    const box232 = $("#qc-232");
+    const hint232 = $("#qc-232-hint");
+    if (annex?.in_annex) {
+      bits.push(
+        `<span class="pill pill-232" title="${esc(annex.source || "Proclamation 10908")}">232 autos annex ${esc(annex.matched_stem)} → ${esc(annex.ch99 || "9903.94.05")}</span>`,
+      );
+      if (box232) {
+        box232.checked = true;
+        box232.dataset.autoAnnex = "1";
+      }
+      if (hint232) hint232.textContent = "(annex — auto-applied)";
+    } else {
+      const dig = String(hts).replace(/\D/g, "");
+      if (dig.startsWith("854442") || dig.startsWith("854449")) {
+        bits.push(
+          `<span class="pill pill-warn" title="CBP Auto Parts HTS list">Not 232 autos annex — list has 8544.30.00, not 8544.42/49</span>`,
+        );
+      }
+      if (box232 && box232.dataset.autoAnnex === "1") {
+        box232.checked = false;
+        delete box232.dataset.autoAnnex;
+      }
+      if (hint232) hint232.textContent = "(claim only if off-list evidence)";
+    }
     const url = r.usitc_url || `https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}`;
     bits.push(`<a class="usitc-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">USITC HTS</a>`);
     el.innerHTML = bits.join(" · ");
+    const useBtn = el.querySelector("[data-use-hts]");
+    if (useBtn) {
+      useBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const next = useBtn.getAttribute("data-use-hts");
+        if (!next) return;
+        const field = $("#qc-hts");
+        if (field) field.value = next;
+        previewHtsMeta();
+      });
+    }
 
     if (wrap) {
       const need = Boolean(r.needs_quantity);
@@ -558,9 +618,29 @@ async function previewHtsMeta() {
         updateMetalResolved();
       }
     }
-  } catch {
-    el.innerHTML = `No Column-1 row for this HTS in the baseline table. ` +
-      `<a class="usitc-link" href="https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">Look up on USITC</a>`;
+  } catch (err) {
+    const detail = err?.payload || null;
+    if (detail?.replacement_hts) {
+      const replLabel = detail.replacement_hts_display || detail.replacement_hts;
+      el.innerHTML =
+        `No Column-1 row for this HTS. Suggested replacement <b class="mono">${esc(replLabel)}</b> ` +
+        `<button type="button" class="btn-secondary btn-sm" data-use-hts="${esc(replLabel)}">Use replacement</button> · ` +
+        `<a class="usitc-link" href="https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">Look up on USITC</a>`;
+      const useBtn = el.querySelector("[data-use-hts]");
+      if (useBtn) {
+        useBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const next = useBtn.getAttribute("data-use-hts");
+          if (!next) return;
+          const field = $("#qc-hts");
+          if (field) field.value = next;
+          previewHtsMeta();
+        });
+      }
+    } else {
+      el.innerHTML = `No Column-1 row for this HTS in the baseline table. ` +
+        `<a class="usitc-link" href="https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">Look up on USITC</a>`;
+    }
     if (wrap) wrap.hidden = true;
     if (metalWrap) metalWrap.hidden = true;
   }
@@ -947,7 +1027,19 @@ async function run(mode) {
     updateScenarioActions();
     void refreshMeQuota();
   } catch (e) {
-    banner("#calcbanner", "err", mode === "audit" ? "Audit failed" : "Assessment failed", e.message);
+    const msg = String(e.message || e);
+    const unreachable =
+      e.status === 502 || e.status === 503 || e.status === 504 ||
+      /ECONNREFUSED|Failed to fetch|NetworkError|502|503|504/i.test(msg) ||
+      (e.status === 500 && /Internal Server Error/i.test(msg) && !e.payload?.detail);
+    banner(
+      "#calcbanner",
+      "err",
+      mode === "audit" ? "Audit failed" : "Assessment failed",
+      unreachable
+        ? "Engine is unreachable — restart backend (cd backend && npm run dev), then retry. " + msg
+        : msg,
+    );
     if (e.status === 429) void refreshMeQuota();
   } finally { btn.disabled = false; btn.textContent = was; renderLines(); syncEngineChrome(); }
 }
@@ -1489,12 +1581,12 @@ const TEMPLATES = {
 function renderUploadHelp() {
   const kind = $("#uploadkind").value;
   $("#uploadhelp").innerHTML = kind === "hts"
-    ? `<div class="banner info"><b>HTSUS column-1 rates</b>
-        CSV with <span class="mono">hts, effective_start</span> required, plus any of
-        <span class="mono">col1_rate_pct, col1_specific_amount, col1_specific_uom,
-        unit_of_quantity, description, effective_end, source_ref</span>.
-        These feed the threshold-economy branch, so loading the real table is what stops
-        <span class="mono">MISSING_COL1_FOR_THRESHOLD</span> errors.</div>`
+    ? `<div class="banner info"><b>HTSUS Column-1 rates</b>
+        Preferred: drop the full <b>classification workbook</b> (.xlsx) — same format as
+        <span class="mono">npm run import:hts</span> — to <b>replace</b> the live table.
+        Or paste / CSV with <span class="mono">hts, effective_start</span> plus
+        <span class="mono">col1_rate_pct</span> (and optional specific/UOM/description) to
+        <b>merge</b> rows. Reloads in-process; no server restart.</div>`
     : `<div class="banner info"><b>Tariff rules</b>
         JSON with a <span class="mono">rules</span> array, matching the schema shown in the
         template. Everything loads as <b>DRAFT</b> — invisible to the engine until you validate
@@ -1504,7 +1596,13 @@ function renderUploadHelp() {
   $("#previewcard").hidden = true;
   $("#uploadcommit").disabled = true;
   S.parsed = null;
+  S.parsedKind = null;
+  UploadXlsx.b64 = null;
+  UploadXlsx.name = null;
 }
+
+const UploadXlsx = { b64: null, name: null };
+
 $("#uploadkind").onchange = renderUploadHelp;
 $("#uploadtemplate").onclick = () => {
   $("#uploadbox").value = TEMPLATES[$("#uploadkind").value];
@@ -1522,14 +1620,46 @@ dz.addEventListener("drop", e => {
   const f = e.dataTransfer.files?.[0]; if (f) readFile(f);
 });
 $("#filepick").onchange = e => { const f = e.target.files?.[0]; if (f) readFile(f); };
+
 function readFile(f) {
+  const name = f.name || "upload";
+  if (/\.(xlsx|xls)$/i.test(name)) {
+    const r = new FileReader();
+    r.onload = () => {
+      const buf = new Uint8Array(r.result);
+      let bin = "";
+      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+      UploadXlsx.b64 = btoa(bin);
+      UploadXlsx.name = name;
+      S.parsed = { xlsx: true, filename: name, bytes: f.size };
+      S.parsedKind = "hts_xlsx";
+      $("#uploadkind").value = "hts";
+      $("#uploadbox").value = "";
+      $("#previewcard").hidden = false;
+      $("#previewcount").textContent = "classification workbook";
+      $("#previewout").innerHTML = `<div class="body"><div class="banner info">
+        <b>${esc(name)}</b> · ${(f.size / 1024 / 1024).toFixed(2)} MB<br>
+        Click <b>Load</b> to replace the live Column-1 table (same as
+        <span class="mono">npm run import:hts</span>). Hot-reloads — no restart.</div></div>`;
+      $("#uploadcommit").disabled = !S.me?.can?.write_rules;
+      $("#uploadcommit").textContent = "Replace HTS table from workbook";
+      banner("#uploadbanner", "ok", `Workbook staged: ${esc(name)}`,
+        "Preview looks good — Load to replace baseline rates.");
+    };
+    r.onerror = () => banner("#uploadbanner", "err", "Could not read the workbook", "");
+    r.readAsArrayBuffer(f);
+    return;
+  }
+
+  UploadXlsx.b64 = null;
+  UploadXlsx.name = null;
   const r = new FileReader();
   r.onload = () => {
     $("#uploadbox").value = r.result;
-    if (f.name.endsWith(".json")) $("#uploadkind").value = "rules";
-    else if (/\.(csv|tsv|txt)$/.test(f.name)) $("#uploadkind").value = "hts";
+    if (/\.json$/i.test(name)) $("#uploadkind").value = "rules";
+    else if (/\.(csv|tsv|txt)$/i.test(name)) $("#uploadkind").value = "hts";
     renderUploadHelp();
-    banner("#uploadbanner", "ok", `Loaded ${esc(f.name)}`,
+    banner("#uploadbanner", "ok", `Loaded ${esc(name)}`,
       `${(f.size / 1024).toFixed(1)} KB read. Preview it before committing.`);
   };
   r.onerror = () => banner("#uploadbanner", "err", "Could not read the file", "");
@@ -1537,6 +1667,17 @@ function readFile(f) {
 }
 
 $("#uploadpreview").onclick = () => {
+  if (UploadXlsx.b64) {
+    S.parsed = { xlsx: true, filename: UploadXlsx.name, bytes: 0 };
+    S.parsedKind = "hts_xlsx";
+    $("#previewcard").hidden = false;
+    $("#previewcount").textContent = "classification workbook";
+    $("#previewout").innerHTML = `<div class="body"><div class="banner info">
+      <b>${esc(UploadXlsx.name || "workbook")}</b> staged — Load to replace the HTS table.</div></div>`;
+    $("#uploadcommit").disabled = !S.me?.can?.write_rules;
+    $("#uploadcommit").textContent = "Replace HTS table from workbook";
+    return;
+  }
   const raw = $("#uploadbox").value.trim();
   const kind = $("#uploadkind").value;
   if (!raw) { banner("#uploadbanner", "err", "Nothing to preview", "Paste or drop content first."); return; }
@@ -1647,6 +1788,22 @@ $("#uploadcommit").onclick = async () => {
         (r.blocked_pending_review?.length
           ? `${r.blocked_pending_review.length} need a named reviewer before they can publish. `
           : "") + "Go to Rules to validate and publish a snapshot.");
+    } else if (S.parsedKind === "hts_xlsx") {
+      if (!UploadXlsx.b64) throw new Error("Workbook not staged — drop the .xlsx again.");
+      const r = await api("/v1/admin/hts:import", {
+        method: "POST",
+        body: JSON.stringify({
+          xlsx_base64: UploadXlsx.b64,
+          filename: UploadXlsx.name || "hts-upload.xlsx",
+          as_of: new Date().toISOString().slice(0, 10),
+        }),
+      });
+      banner("#uploadbanner", "ok",
+        `HTS table replaced · ${r.row_count?.toLocaleString?.() || r.row_count} rate windows`,
+        `${esc(r.source || UploadXlsx.name)} · hash ${esc(r.hash || "—")} · ` +
+        `${r.with_specific || 0} with specific rates. Live for Duty stack / HTS list now.`);
+      UploadXlsx.b64 = null;
+      UploadXlsx.name = null;
     } else {
       const rows = S.parsed.map(o => ({
         hts: o.hts, effective_start: o.effective_start,
@@ -1657,17 +1814,137 @@ $("#uploadcommit").onclick = async () => {
         description: o.description ?? "", effective_end: o.effective_end ?? null,
         source_ref: o.source_ref ?? "HTSUS upload",
       }));
-      const r = await api("/v1/reference/hts", { method: "POST", body: JSON.stringify(rows) });
-      banner("#uploadbanner", "ok", `${r.loaded} rate row(s) loaded`,
-        `Reference epoch is now ${r.reference_epoch}. Column-1 rates resolve automatically on the
-         next assessment.`);
+      const r = await api("/v1/reference/hts", {
+        method: "POST",
+        body: JSON.stringify({
+          rows,
+          source_ref: "HTSUS CSV upload",
+          as_of: new Date().toISOString().slice(0, 10),
+        }),
+      });
+      banner("#uploadbanner", "ok", `${r.loaded} rate row(s) merged`,
+        `Table now has ${r.row_count?.toLocaleString?.() || r.row_count} windows · hash ${esc(r.hash || r.reference_epoch || "—")}.`);
     }
-    $("#previewcard").hidden = true; $("#uploadbox").value = ""; S.parsed = null;
+    $("#previewcard").hidden = true; $("#uploadbox").value = ""; S.parsed = null; S.parsedKind = null;
     await boot();
   } catch (e) {
     banner("#uploadbanner", "err", "Load failed", e.message);
   } finally { b.disabled = false; b.textContent = was; }
 };
+
+/* ================================================================ USERS (admin) */
+async function loadUsers() {
+  const out = $("#usersout");
+  if (!out) return;
+  if (!S.me?.can?.admin) {
+    out.innerHTML = `<div class="body"><div class="banner warn"><b>Admin only</b>Sign in as an admin to manage users.</div></div>`;
+    return;
+  }
+  const q = ($("#user-q")?.value || "").trim();
+  const status = ($("#user-status-filter")?.value || "").trim();
+  const qs = new URLSearchParams();
+  if (q) qs.set("q", q);
+  if (status) qs.set("status", status);
+  try {
+    const r = await api("/v1/admin/users" + (qs.toString() ? `?${qs}` : ""));
+    const users = r.users || [];
+    if (!users.length) {
+      out.innerHTML = `<div class="empty cap">No users yet. Add the first admin via Add user or ADMIN_BOOTSTRAP_EMAILS.</div>`;
+      return;
+    }
+    out.innerHTML = `<table class="data"><thead><tr>
+      <th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Last login</th><th></th>
+      </tr></thead><tbody>` + users.map((u) => `<tr data-uid="${esc(u.id)}">
+        <td class="mono">${esc(u.email)}</td>
+        <td>${esc(u.name || "—")}</td>
+        <td>
+          <select data-user-role="${esc(u.id)}" ${u.email === S.me?.email ? "disabled" : ""}>
+            <option value="user"${u.role === "user" ? " selected" : ""}>user</option>
+            <option value="admin"${u.role === "admin" ? " selected" : ""}>admin</option>
+          </select>
+        </td>
+        <td>
+          <select data-user-status="${esc(u.id)}" ${u.email === S.me?.email ? "disabled" : ""}>
+            <option value="active"${u.status === "active" ? " selected" : ""}>active</option>
+            <option value="disabled"${u.status === "disabled" ? " selected" : ""}>disabled</option>
+          </select>
+        </td>
+        <td class="cap mono">${u.last_login_at ? dshort(u.last_login_at) : "—"}</td>
+        <td>${u.email === S.me?.email
+          ? `<span class="cap">you</span>`
+          : `<button type="button" class="btn-ghost btn-sm" data-user-del="${esc(u.id)}">Delete</button>`}</td>
+      </tr>`).join("") + `</tbody></table>`;
+    banner("#usersbanner", "ok", `${users.length} user(s)`,
+      S.me?.users_db === false ? "DB flag missing on /v1/me — refresh after enabling DATABASE_URL." : "");
+  } catch (e) {
+    out.innerHTML = "";
+    banner("#usersbanner", "err", "Could not load users", e.message);
+  }
+}
+
+async function patchUser(id, body) {
+  try {
+    await api(`/v1/admin/users/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    banner("#usersbanner", "ok", "Updated", "");
+    await loadUsers();
+  } catch (e) {
+    banner("#usersbanner", "err", "Update failed", e.message);
+  }
+}
+
+$("#user-add")?.addEventListener("click", async () => {
+  const email = ($("#user-email")?.value || "").trim();
+  const name = ($("#user-name")?.value || "").trim();
+  const role = $("#user-role")?.value || "user";
+  if (!email) {
+    banner("#usersbanner", "err", "Email required", "");
+    return;
+  }
+  try {
+    await api("/v1/admin/users", {
+      method: "POST",
+      body: JSON.stringify({ email, name: name || null, role }),
+    });
+    if ($("#user-email")) $("#user-email").value = "";
+    if ($("#user-name")) $("#user-name").value = "";
+    banner("#usersbanner", "ok", "User added", email);
+    await loadUsers();
+  } catch (e) {
+    banner("#usersbanner", "err", "Add failed", e.message);
+  }
+});
+
+$("#user-refresh")?.addEventListener("click", () => loadUsers());
+$("#user-q")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") loadUsers();
+});
+$("#user-status-filter")?.addEventListener("change", () => loadUsers());
+
+$("#usersout")?.addEventListener("change", async (e) => {
+  const t = e.target;
+  if (!(t instanceof HTMLSelectElement)) return;
+  const id = t.getAttribute("data-user-role") || t.getAttribute("data-user-status");
+  if (!id) return;
+  if (t.hasAttribute("data-user-role")) await patchUser(id, { role: t.value });
+  if (t.hasAttribute("data-user-status")) await patchUser(id, { status: t.value });
+});
+
+$("#usersout")?.addEventListener("click", async (e) => {
+  const btn = e.target?.closest?.("[data-user-del]");
+  if (!btn) return;
+  const id = btn.getAttribute("data-user-del");
+  if (!id || !confirm("Delete this user permanently?")) return;
+  try {
+    await api(`/v1/admin/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+    banner("#usersbanner", "ok", "Deleted", "");
+    await loadUsers();
+  } catch (err) {
+    banner("#usersbanner", "err", "Delete failed", err.message);
+  }
+});
 
 /* ================================================================ SNAPSHOTS */
 async function loadSnapshots() {
@@ -2031,6 +2308,10 @@ async function runLookup() {
       banner("#lookupbanner", "warn", "None in baseline table",
         "HTS codes were read, but none match tariff-rules/data/hts_rates.json. " +
         "Re-import the classification workbook: cd backend && npm run import:hts");
+    } else if (s.ended) {
+      banner("#lookupbanner", "warn", "Coverage ready",
+        `${s.in_table}/${s.rows} in HTS table · ${s.ended} ended` +
+        `${s.with_replacement ? ` · ${s.with_replacement} with replacement` : ""} · ${s.with_ch99} with Chapter 99.`);
     } else if (s.missing_coo) {
       banner("#lookupbanner", "ok", "Coverage ready",
         `${s.in_table}/${s.rows} in HTS table · ${s.missing_coo} missing origin — set Default origin or a COO column.`);
@@ -2053,15 +2334,22 @@ function renderLookup(R) {
       <p class="cap">Check that the file has an <b>hts</b> column (or one code per line).</p></div>`;
     return;
   }
+  const showPart = rows.some(r => r.part);
+  const showSku = rows.some(r => r.sku);
+  const colCount = 6 + (showPart ? 1 : 0) + (showSku ? 1 : 0);
   let html = `<div class="lookup-summary">
     <span class="pill">${s.rows ?? rows.length} codes</span>
     <span class="pill ok">${s.in_table ?? 0} in HTS table</span>
     <span class="pill">${s.with_ch99 ?? 0} with Ch.99</span>
+    ${s.ended ? `<span class="pill warn">${s.ended} ended</span>` : ""}
+    ${s.with_replacement ? `<span class="pill">${s.with_replacement} with replacement</span>` : ""}
     ${s.missing_coo ? `<span class="pill warn">${s.missing_coo} missing origin</span>` : ""}
     <span class="cap">as of ${esc(R.as_of)}</span>
   </div>`;
-  html += `<table class="cov"><thead><tr>
-    <th>HTS</th><th>Origin</th><th class="r">Col-1</th><th>Rules that apply</th><th>Ch.99</th>
+  html += `<table class="cov"><thead><tr>`;
+  if (showPart) html += `<th>Part</th>`;
+  if (showSku) html += `<th>SKU</th>`;
+  html += `<th>HTS</th><th>Origin</th><th class="r">Col-1</th><th>Replacement</th><th>Rules that apply</th><th>Ch.99</th>
   </tr></thead><tbody>`;
   rows.forEach((row, i) => {
     const chips = (row.rules || [])
@@ -2070,17 +2358,41 @@ function renderLookup(R) {
       .join("") || `<span class="cap">${row.coo ? "none beyond Col-1" : "add origin"}</span>`;
     const seq = (row.ch99_sequence || []).join(" · ") || "—";
     const miss = !row.in_table || row.error;
-    html += `<tr class="${miss ? "miss" : ""} ${Lookup.open.has(i) ? "open" : ""}" data-cov="${i}">
-      <td><b class="mono">${esc(row.hts || "—")}</b>
+    const ended = row.window_status === "ended";
+    html += `<tr class="${miss ? "miss" : ""} ${ended ? "ended" : ""} ${Lookup.open.has(i) ? "open" : ""}" data-cov="${i}">`;
+    if (showPart) html += `<td class="mono">${esc(row.part || "—")}</td>`;
+    if (showSku) html += `<td class="mono">${esc(row.sku || "—")}</td>`;
+    html += `<td><b class="mono">${esc(row.hts || "—")}</b>
         ${row.desc ? `<div class="cap">${esc(row.desc)}</div>` : ""}
+        ${ended ? `<div class="cap" style="color:var(--color-orange-700)">Ended${row.ended_on ? ` ${esc(row.ended_on)}` : ""}</div>` : ""}
         ${!row.in_table ? `<div class="cap" style="color:var(--color-orange-700)">Not in baseline table</div>` : ""}</td>
       <td class="mono">${esc(row.coo || "—")}</td>
       <td class="r mono">${row.col1_pct == null ? "—" : esc(String(row.col1_pct)) + "%"}</td>
+      <td class="mono">${row.replacement_hts_display || row.replacement_hts
+        ? `<b>${esc(row.replacement_hts_display || row.replacement_hts)}</b>${
+            row.replacement_col1_pct != null
+              ? `<div class="cap">${esc(String(row.replacement_col1_pct))}%</div>`
+              : ""
+          }`
+        : `<span class="cap">—</span>`}</td>
       <td><div class="rule-chips">${chips}</div></td>
       <td class="mono cap">${esc(seq)}</td>
     </tr>`;
     if (Lookup.open.has(i)) {
-      html += `<tr class="open"><td colspan="5"><div class="cov-detail">`;
+      html += `<tr class="open"><td colspan="${colCount}"><div class="cov-detail">`;
+      if (row.part || row.sku) {
+        html += `<p class="cap" style="margin:0 0 var(--sp-2)">`;
+        if (row.part) html += `Part <b class="mono">${esc(row.part)}</b>`;
+        if (row.part && row.sku) html += " · ";
+        if (row.sku) html += `SKU <b class="mono">${esc(row.sku)}</b>`;
+        html += `</p>`;
+      }
+      if (row.replacement_hts) {
+        html += `<p class="cap" style="margin:0 0 var(--sp-2)">Suggested replacement
+          <b class="mono">${esc(row.replacement_hts_display || row.replacement_hts)}</b>
+          <button type="button" class="btn-secondary btn-sm" data-use-cov-hts="${i}">Use in Quick check</button>
+        </p>`;
+      }
       html += (row.rules || []).map(r => `<div class="rule-row">
         <div><span class="rule-chip ${esc(r.program)}">${esc(r.program)}</span>
           <b class="mono">${esc(r.ch99 || "commodity")}</b> · ${esc(r.rate)}
@@ -2116,8 +2428,23 @@ function renderLookup(R) {
       $("#qc-value").value = $("#qc-value").value || "10000";
       $("#qc-date").value = row.as_of || $("#lookup-date").value;
       show("calc");
+      const idBits = [row.part && `part ${row.part}`, row.sku && `SKU ${row.sku}`].filter(Boolean).join(" · ");
       banner("#calcbanner", "info", "From HTS list",
-        `${row.hts} loaded into Duty stack — add value if needed, then Run the stack.`);
+        `${row.hts}${idBits ? ` (${idBits})` : ""} loaded into Duty stack — add value if needed, then Run the stack.`);
+    };
+  });
+  $$("#lookup-out [data-use-cov-hts]").forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const row = Lookup.last.rows[Number(btn.dataset.useCovHts)];
+      if (!row?.replacement_hts) return;
+      $("#qc-hts").value = row.replacement_hts_display || row.replacement_hts;
+      $("#qc-coo").value = row.coo || $("#lookup-coo").value || "";
+      $("#qc-date").value = row.as_of || $("#lookup-date").value;
+      show("calc");
+      previewHtsMeta();
+      banner("#calcbanner", "info", "Replacement loaded",
+        `${row.hts} → ${row.replacement_hts_display || row.replacement_hts} — confirm and run the stack.`);
     };
   });
 }
@@ -2125,13 +2452,29 @@ function renderLookup(R) {
 function exportLookupCsv() {
   if (!Lookup.last) return;
   const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const lines = [["hts", "coo", "as_of", "in_table", "col1_pct", "desc", "ch99_sequence", "rules", "notes"].join(",")];
-  (Lookup.last.rows || []).forEach(r => lines.push([
-    r.hts, r.coo, r.as_of, r.in_table, r.col1_pct, r.desc,
-    (r.ch99_sequence || []).join(" "),
-    (r.rules || []).map(x => `${x.program}:${x.ch99 || "base"}@${x.rate}`).join(" | "),
-    (r.notes || []).join(" · "),
-  ].map(q).join(",")));
+  const rows = Lookup.last.rows || [];
+  const showPart = rows.some(r => r.part);
+  const showSku = rows.some(r => r.sku);
+  const headers = [
+    ...(showPart ? ["part"] : []),
+    ...(showSku ? ["sku"] : []),
+    "hts", "coo", "as_of", "in_table", "window_status", "ended_on", "col1_pct", "desc",
+    "replacement_hts", "replacement_col1_pct", "ch99_sequence", "rules", "notes",
+  ];
+  const lines = [headers.join(",")];
+  rows.forEach(r => {
+    const cols = [];
+    if (showPart) cols.push(r.part);
+    if (showSku) cols.push(r.sku);
+    cols.push(
+      r.hts, r.coo, r.as_of, r.in_table, r.window_status, r.ended_on, r.col1_pct, r.desc,
+      r.replacement_hts_display || r.replacement_hts, r.replacement_col1_pct,
+      (r.ch99_sequence || []).join(" "),
+      (r.rules || []).map(x => `${x.program}:${x.ch99 || "base"}@${x.rate}`).join(" | "),
+      (r.notes || []).join(" · "),
+    );
+    lines.push(cols.map(q).join(","));
+  });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
   a.download = `hts-coverage-${Lookup.last.as_of || "export"}.csv`;

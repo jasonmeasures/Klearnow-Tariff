@@ -11,8 +11,14 @@
     },
     {
       "id": "R2_CHINA_301_NOT_SUPPRESSED",
-      "rule": "Legacy China 301 (9903.88.xx) is NOT suppressed by 232. Both report; 301 first. Worked example: CN 8708 List 3 at 2.5% col-1 = 25% + 25% + 2.5% = 52.5%. Also stacks with Sec 122 when the line is outside the 232 universe.",
+      "rule": "Legacy China 301 (9903.88.xx) is NOT suppressed by 232. Both report; 301 first. Worked example: CN 8708 List 3 at 2.5% col-1 = 25% + 25% + 2.5% = 52.5%. Also stacks with Sec 122 when the line is outside the 232 universe. Continues alongside 301-FL (9903.05.31) in the FL era.",
       "status": "CONFIRMED"
+    },
+    {
+      "id": "R2c_BRAZIL_301_STACKS_FL",
+      "rule": "Brazil Section 301 country action (9903.05.01 @ 25%, eff. 2026-07-22) is distinct from 301-FL Brazil (9903.05.27 @ 12.5%, eff. 2026-07-24). Both stack when neither is exempt (91 FR 45516 note — additional duties in the subchapter still apply). 232 universe uses Brazil 301 exemption 9903.05.07 and still suppresses 301-FL via 9903.05.90 (R1).",
+      "status": "CONFIRMED",
+      "source": "CSMS #69302472; 91 FR 45516; CSMS #69326983"
     },
     {
       "id": "R2b_SEC122_VS_232",

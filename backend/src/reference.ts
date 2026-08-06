@@ -1,8 +1,14 @@
 import { Router } from "express";
 import { listCh99 } from "../../tariff-rules/src/tariffRules.ts";
-import { htsTableMeta, resolveCol1 } from "./htsLookup.ts";
+import { requireAdmin, requireScope } from "./auth.ts";
+import { htsTableMeta, lookupHts, reloadHtsTable, resolveCol1 } from "./htsLookup.ts";
+import {
+  mergeHtsRateRows,
+  mergeHtsReplacements,
+  normalizeCsvHtsRows,
+} from "./import_hts.ts";
 import { STACKING_CONTRACT } from "./rulesContract.ts";
-import { STATE } from "./state.ts";
+import { refreshRulepackState, STATE } from "./state.ts";
 
 export const referenceRouter = Router();
 
@@ -117,19 +123,89 @@ referenceRouter.get("/reference/program-eras", (_req, res) => {
   res.json(STACKING_CONTRACT);
 });
 
-referenceRouter.post("/reference/hts", (_req, res) => {
-  res.status(403).json({
-    detail:
-      "HTS rate upload is disabled in v1. Re-import with: cd backend && npm run import:hts",
-  });
-});
+referenceRouter.post(
+  "/reference/hts",
+  requireScope("write_rules"),
+  requireAdmin,
+  (req, res) => {
+    try {
+      const body = req.body;
+      const rowsIn = Array.isArray(body) ? body : body?.rows;
+      if (!Array.isArray(rowsIn) || !rowsIn.length) {
+        res.status(400).json({ detail: "Body must be a non-empty array of HTS rate rows." });
+        return;
+      }
+      const { rates, replacements, problems } = normalizeCsvHtsRows(rowsIn);
+      if (problems.length && !rates.length && !replacements.length) {
+        res.status(400).json({ detail: "No valid rows", problems: problems.slice(0, 40) });
+        return;
+      }
+      const replace = Boolean(body?.replace);
+      const source =
+        String(body?.source_ref || body?.source || "HTSUS CSV upload").slice(0, 200) ||
+        "HTSUS CSV upload";
+      const asOf = body?.as_of ? String(body.as_of).slice(0, 10) : undefined;
+      let result: ReturnType<typeof mergeHtsRateRows> | null = null;
+      if (rates.length) {
+        result = mergeHtsRateRows(rates, {
+          source,
+          as_of: asOf,
+          replace,
+        });
+      }
+      let replResult: ReturnType<typeof mergeHtsReplacements> | null = null;
+      if (replacements.length) {
+        replResult = mergeHtsReplacements(replacements, {
+          source,
+          as_of: asOf,
+          replace: Boolean(body?.replace_replacements),
+        });
+      }
+      const hts = reloadHtsTable();
+      refreshRulepackState();
+      res.json({
+        ok: true,
+        loaded: result?.upserted ?? 0,
+        row_count: result?.row_count ?? hts.row_count,
+        with_specific: result?.with_specific ?? null,
+        replacements_upserted: replResult?.upserted ?? 0,
+        replacements_total: replResult?.row_count ?? hts.replacements ?? 0,
+        replace,
+        source: result?.source || source,
+        as_of: result?.as_of || asOf || null,
+        hash: result?.hash || null,
+        problems: problems.slice(0, 40),
+        hts,
+        reference_epoch: result?.hash || null,
+      });
+    } catch (e) {
+      res.status(400).json({ detail: e instanceof Error ? e.message : String(e) });
+    }
+  },
+);
 
 referenceRouter.get("/reference/hts/:hts", (req, res) => {
   const asOf = String(req.query.as_of || new Date().toISOString().slice(0, 10));
-  const hit = resolveCol1(String(req.params.hts), asOf);
-  if (!hit) {
-    res.status(404).json({ detail: `No column-1 rate for ${req.params.hts} on ${asOf}` });
+  const look = lookupHts(String(req.params.hts), asOf);
+  if (look.window_status === "unknown" && !look.replacement_hts) {
+    res.status(404).json({
+      detail: `No column-1 rate for ${req.params.hts} on ${asOf}`,
+      window_status: look.window_status,
+      as_of: asOf,
+    });
     return;
   }
-  res.json({ ...hit, as_of: asOf, table: htsTableMeta() });
+  const hit = look.hit || resolveCol1(String(req.params.hts), asOf);
+  res.json({
+    ...(hit || {}),
+    as_of: asOf,
+    table: htsTableMeta(),
+    window_status: look.window_status,
+    ended_on: look.ended_on,
+    replacement_hts: look.replacement_hts,
+    replacement_hts_display: look.replacement_hts_display,
+    replacement_note: look.replacement_note,
+    replacement_effective: look.replacement_effective,
+    replacement: look.replacement,
+  });
 });

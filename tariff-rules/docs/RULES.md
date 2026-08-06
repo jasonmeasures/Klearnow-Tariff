@@ -2,6 +2,8 @@
 
 Version 1.0.0 · as of 2026-07-31 · machine tables live in `../data/`
 
+> **Inditex / integration hand-off:** see [`RULES_ENGINE.md`](./RULES_ENGINE.md) (eras, stacking contract, inventory, API map, open items).
+
 ## 1. Legal landscape (what's alive, what's dead)
 
 | Program | Ch.99 family | Status |
@@ -12,7 +14,7 @@ Version 1.0.0 · as of 2026-07-31 · machine tables live in `../data/`
 | 232 autos/parts | Procl. 10908 | **Live.** Master switch for the whole stack. |
 | 232 metals | 9903.03.xx / .85.xx | **Live.** Separate entry line, metal-content value. |
 | Legacy China 301 | 9903.88.xx | **Live.** Not suppressed by 232. |
-| Brazil 301 | TBC | +25% effective 2026-07-22; heading unconfirmed. |
+| Brazil 301 | 9903.05.01 | **Live** from 2026-07-22 @ 25% (CSMS #69302472). Exemptions `.02`–`.09`. Stacks with 301-FL `.27`. |
 
 ## 2. Core interactions
 

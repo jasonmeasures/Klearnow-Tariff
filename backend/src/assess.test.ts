@@ -176,9 +176,10 @@ describe("golden duty paths", () => {
   });
 
   it("JP non-232 → 12.5% (301-FL combined-to-cap via 9903.05.49)", () => {
+    // Off Proclamation 10908 annex (8544.42 ≠ 8544.30) so 232 does not auto-apply
     const L = assessLine(
       {
-        hts: "8708.29.5160",
+        hts: "8544429090",
         coo: "JP",
         entered_value: 10000,
         col1_rate_pct: 2.5,
@@ -192,10 +193,10 @@ describe("golden duty paths", () => {
     assert.ok(L.ch99_sequence.includes("9903.05.49"));
   });
 
-  it("BR flat 301-FL 12.5% via 9903.05.27", () => {
+  it("BR stacks Brazil 301 9903.05.01 @ 25% + 301-FL 9903.05.27 @ 12.5%", () => {
     const L = assessLine(
       {
-        hts: "8708.10.3050",
+        hts: "8544429090",
         coo: "BR",
         entered_value: 10000,
         col1_rate_pct: 2.5,
@@ -204,14 +205,116 @@ describe("golden duty paths", () => {
       },
       0,
     );
+    assert.ok(L.ch99_sequence.includes("9903.05.01"));
     assert.ok(L.ch99_sequence.includes("9903.05.27"));
-    assert.equal(L.totals.effective_duty_rate_pct, 15); // 12.5 + 2.5
+    assert.equal(L.ch99_sequence.indexOf("9903.05.01") < L.ch99_sequence.indexOf("9903.05.27"), true);
+    assert.equal(L.totals.effective_duty_rate_pct, 40); // 25 + 12.5 + 2.5
+    assert.equal(L.totals.duty, 4000);
+  });
+
+  it("BR plastic 3926909989 → Brazil 301 + 301-FL + col-1 (screenshot path)", () => {
+    const L = assessLine(
+      {
+        hts: "3926909989",
+        coo: "BR",
+        entered_value: 10000,
+        col1_rate_pct: 5.29,
+        entry_date: "2026-08-06",
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.05.01"));
+    assert.ok(L.ch99_sequence.includes("9903.05.27"));
+    assert.equal(L.totals.effective_duty_rate_pct, 42.79); // 25 + 12.5 + 5.29
+    assert.equal(L.totals.duty, 4279);
+  });
+
+  it("BR + 232 → Brazil 301 exempt 9903.05.07 and FL suppressed via 9903.05.90", () => {
+    const L = assessLine(
+      {
+        hts: "8708103050",
+        coo: "BR",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: "2026-08-06",
+        flags: { s232_auto_part: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.05.07"));
+    assert.ok(L.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!L.ch99_sequence.includes("9903.05.01"));
+    assert.ok(!L.ch99_sequence.includes("9903.05.27"));
+    // 232 25% + col-1 2.5% (Brazil 301 @ 0)
+    assert.equal(L.totals.effective_duty_rate_pct, 27.5);
+  });
+
+  it("BR before 2026-07-22 → no Brazil 301; Sec 122 only if in window", () => {
+    const L = assessLine(
+      {
+        hts: "3926909989",
+        coo: "BR",
+        entered_value: 10000,
+        col1_rate_pct: 5.29,
+        entry_date: "2026-07-21",
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(!L.ch99_sequence.includes("9903.05.01"));
+    assert.ok(!L.ch99_sequence.includes("9903.05.27"));
+    assert.ok(L.ch99_sequence.includes("9903.03.01"));
+  });
+
+  it("CN plastic 3926909989 → List 4A 9903.88.15 @ 7.5% + 301-FL 12.5% + col-1", () => {
+    const L = assessLine(
+      {
+        hts: "3926909989",
+        coo: "CN",
+        entered_value: 10000,
+        col1_rate_pct: 5.29,
+        entry_date: "2026-08-06",
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.88.15"));
+    assert.ok(L.ch99_sequence.includes("9903.05.31"));
+    assert.equal(
+      L.ch99_sequence.indexOf("9903.88.15") < L.ch99_sequence.indexOf("9903.05.31"),
+      true,
+    );
+    assert.equal(L.totals.effective_duty_rate_pct, 25.29); // 7.5 + 12.5 + 5.29
+    assert.equal(L.totals.duty, 2529);
+    assert.ok(L.diagnostics.some((d) => d.code === "S301_LIST_RESOLVED"));
+  });
+
+  it("CN HTS with no seeded list membership warns and does not invent China 301", () => {
+    const L = assessLine(
+      {
+        hts: "0101210010",
+        coo: "CN",
+        entered_value: 10000,
+        col1_rate_pct: 0,
+        entry_date: "2026-08-06",
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(!L.ch99_sequence.some((c) => String(c).startsWith("9903.88")));
+    assert.ok(L.ch99_sequence.includes("9903.05.31"));
+    assert.ok(
+      L.diagnostics.some(
+        (d) => d.severity === "WARNING" && d.code === "S301_LIST_UNKNOWN",
+      ),
+    );
   });
 
   it("DE maps to EU threshold (cap 10%)", () => {
     const L = assessLine(
       {
-        hts: "8708.10.3050",
+        hts: "8544429090",
         coo: "DE",
         entered_value: 10000,
         col1_rate_pct: 2.5,
@@ -288,7 +391,7 @@ describe("HTS column-1 table", () => {
   it("auto-fills col1 when omitted on assess", () => {
     const L = assessLine(
       {
-        hts: "8708.10.3050",
+        hts: "8544429090",
         coo: "JP",
         entered_value: 10000,
         entry_date: "2026-07-25",
@@ -297,8 +400,9 @@ describe("HTS column-1 table", () => {
       0,
     );
     assert.equal(L.col1_source, "hts_table");
-    assert.equal(L.col1_rate_pct, 2.5);
+    assert.equal(L.col1_rate_pct, 2.6);
     assert.ok(L.diagnostics.some((d) => d.code === "COL1_RESOLVED"));
+    // Off-annex JP → 301-FL combined to 12.5% (2.6 + 9.9)
     assert.equal(L.totals.effective_duty_rate_pct, 12.5);
   });
 });
@@ -409,5 +513,50 @@ describe("program era routing", () => {
     assert.ok(!a.findings.some((f) => f.category === "MISSING_CH99"));
     // 25% 301 List 3 + 25% 232.09 on entered = 50% → $10,780 (+ col1 if any)
     assert.ok(L.totals.duty >= 10780);
+  });
+
+  it("8544.30.00 annex → auto 232 for DE; suppresses 301-FL", () => {
+    const L = assessLine(
+      {
+        hts: "8544.30.0000",
+        coo: "DE",
+        entered_value: 566,
+        entry_date: "2026-08-04",
+      },
+      0,
+    );
+    assert.ok(L.diagnostics.some((d) => d.code === "S232_ANNEX_HIT"));
+    assert.ok(L.ch99_sequence.includes("9903.94.05"));
+    assert.ok(L.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!L.ch99_sequence.includes("9903.05.39"));
+  });
+
+  it("8544.42.9090 is NOT on annex → 301-FL for DE unless claimed", () => {
+    const plain = assessLine(
+      {
+        hts: "8544429090",
+        coo: "DE",
+        entered_value: 566,
+        entry_date: "2026-08-04",
+      },
+      0,
+    );
+    assert.ok(plain.diagnostics.some((d) => d.code === "S232_ANNEX_MISS"));
+    assert.ok(plain.ch99_sequence.includes("9903.05.39"));
+    assert.ok(!plain.ch99_sequence.includes("9903.94.05"));
+
+    const claimed = assessLine(
+      {
+        hts: "8544429090",
+        coo: "DE",
+        entered_value: 566,
+        entry_date: "2026-08-04",
+        flags: { s232_auto_part: true },
+      },
+      0,
+    );
+    assert.ok(claimed.diagnostics.some((d) => d.code === "S232_ANNEX_CLAIM_GATED"));
+    assert.ok(claimed.ch99_sequence.includes("9903.94.05"));
+    assert.ok(claimed.ch99_sequence.includes("9903.05.90"));
   });
 });

@@ -3,16 +3,19 @@ import express from "express";
 import { adminRouter } from "./admin.ts";
 import { assessEntry, auditEntry } from "./assess.ts";
 import { authMiddleware, publicAuthConfig, requireScope } from "./auth.ts";
+import { initDb, isDbEnabled } from "./db.ts";
 import { assessCh99Entry } from "./ch99Assess.ts";
 import { chatRouter } from "./chat.ts";
 import { coverRows, parseCoverageInput } from "./coverage.ts";
 import { auditEs003, ingestEs003 } from "./es003.ts";
-import { resolveCol1, htsTableMeta } from "./htsLookup.ts";
+import { htsTableMeta, lookupHts } from "./htsLookup.ts";
+import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
 import { insightsRouter } from "./insights.ts";
 import { quotaStatus, requireQuota } from "./quota.ts";
 import { referenceRouter } from "./reference.ts";
 import { rulesRouter } from "./rules.ts";
 import { rulepackPublic, STATE } from "./state.ts";
+import { usersRouter } from "./users.ts";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -27,7 +30,7 @@ app.use(
     exposedHeaders: ["X-Quota-Remaining"],
   }),
 );
-app.use(express.json({ limit: "16mb" }));
+app.use(express.json({ limit: "64mb" }));
 
 app.use((_req, res, next) => {
   // Allow WordPress (and other approved parents) to iframe the SPA / API docs pages.
@@ -59,8 +62,7 @@ app.get("/v1/config", (_req, res) => {
   });
 });
 
-app.use("/v1", authMiddleware);
-
+/** Liveness + pack meta — public (must not require a provisioned user). */
 app.get("/v1/health", (_req, res) => {
   res.json({
     ok: true,
@@ -71,15 +73,18 @@ app.get("/v1/health", (_req, res) => {
   });
 });
 
+app.use("/v1", authMiddleware);
 app.get("/v1/me", (req, res) => {
   const p = req.principal!;
   res.json({
     tenant_id: p.tenant_id,
     key_id: p.key_id,
     subject: p.subject,
+    email: p.email || null,
     role: p.role,
     surface: p.surface,
     auth: p.auth,
+    users_db: isDbEnabled(),
     can: {
       calculate: p.can.calculate,
       read_rules: p.can.read_rules,
@@ -154,12 +159,36 @@ app.post(
 
 app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
   const asOf = String(req.query.as_of || new Date().toISOString().slice(0, 10));
-  const hit = resolveCol1(String(req.params.hts), asOf);
-  if (!hit) {
-    res.status(404).json({ detail: `No column-1 rate for ${req.params.hts} on ${asOf}` });
+  const raw = String(req.params.hts);
+  const look = lookupHts(raw, asOf);
+  const annex = match232AutoPartsAnnex(raw);
+  const s232_auto_parts = annex
+    ? { in_annex: true, matched_stem: annex.matched_stem, ch99: annex.ch99_duty, source: annex.source }
+    : { in_annex: false, matched_stem: null, ch99: null, note: "Not on Proclamation 10908 / U.S. note 33 auto-parts list" };
+  if (look.window_status === "unknown" && !look.replacement_hts) {
+    res.status(404).json({
+      detail: `No column-1 rate for ${raw} on ${asOf}`,
+      hts: raw,
+      as_of: asOf,
+      window_status: look.window_status,
+      s232_auto_parts,
+    });
     return;
   }
-  res.json({ ...hit, as_of: asOf, table: htsTableMeta() });
+  const hit = look.hit;
+  res.json({
+    ...(hit || { hts: look.hts_key, as_of: asOf }),
+    as_of: asOf,
+    table: htsTableMeta(),
+    s232_auto_parts,
+    window_status: look.window_status,
+    ended_on: look.ended_on,
+    replacement_hts: look.replacement_hts,
+    replacement_hts_display: look.replacement_hts_display,
+    replacement_note: look.replacement_note,
+    replacement_effective: look.replacement_effective,
+    replacement: look.replacement,
+  });
 });
 
 /** Which rules apply to an HTS list — counts as an extract. */
@@ -249,6 +278,7 @@ app.use("/v1", rulesRouter);
 app.use("/v1", insightsRouter);
 app.use("/v1", referenceRouter);
 app.use("/v1", adminRouter);
+app.use("/v1", usersRouter);
 app.use("/v1", chatRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -256,9 +286,17 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ detail: err instanceof Error ? err.message : "Internal error" });
 });
 
-app.listen(PORT, () => {
-  const cfg = publicAuthConfig();
-  console.log(
-    `KlearNow Tariff API on :${PORT} — surface=${cfg.surface} guest=${cfg.allow_guest} auth0=${cfg.auth0} pack ${STATE.pack.version}`,
-  );
+async function main() {
+  await initDb();
+  app.listen(PORT, () => {
+    const cfg = publicAuthConfig();
+    console.log(
+      `KlearNow Tariff API on :${PORT} — surface=${cfg.surface} guest=${cfg.allow_guest} auth0=${cfg.auth0} users_db=${cfg.users_db} pack ${STATE.pack.version}`,
+    );
+  });
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
 });

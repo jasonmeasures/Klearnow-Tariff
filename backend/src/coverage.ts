@@ -5,7 +5,7 @@
 import * as XLSX from "xlsx";
 import { assessS301fl, lookupS301fl } from "../../tariff-rules/src/s301fl.ts";
 import { assessLine, type LineIn } from "./assess.ts";
-import { normalizeHtsDigits, resolveCol1 } from "./htsLookup.ts";
+import { formatHtsDisplay, lookupHts, normalizeHtsDigits, resolveCol1 } from "./htsLookup.ts";
 import { rulepackPublic } from "./state.ts";
 
 export type CoverageRowIn = {
@@ -13,6 +13,10 @@ export type CoverageRowIn = {
   coo?: string;
   origin?: string;
   country?: string;
+  /** Part number / item id from source sheet — retained in coverage output. */
+  part?: string;
+  /** SKU / product code from source sheet — retained in coverage output. */
+  sku?: string;
   as_of?: string;
   entry_date?: string;
   flags?: Record<string, boolean>;
@@ -79,6 +83,8 @@ export function coverOne(
   if (!htsRaw) {
     return {
       hts: "",
+      part: row.part || null,
+      sku: row.sku || null,
       coo: coo || null,
       as_of: asOf,
       in_table: false,
@@ -89,12 +95,24 @@ export function coverOne(
     };
   }
 
-  const hit = resolveCol1(htsRaw, asOf);
+  const look = lookupHts(htsRaw, asOf);
+  const hit = look.window_status === "active" ? look.hit : resolveCol1(htsRaw, asOf);
   const col1Pts = hit ? pctPoints(hit.col1_pct) : null;
   const col1Dec = col1Pts == null ? 0 : col1Pts / 100;
 
-  if (!hit) {
+  if (look.window_status === "unknown") {
     notes.push("HTS not found in the baseline Column-1 table — Col-1 unknown until imported.");
+  } else if (look.window_status === "ended") {
+    notes.push(
+      `HTS rate window ended${look.ended_on ? ` on ${look.ended_on}` : ""} — last published Col-1 shown; confirm the current statistical reporting number.`,
+    );
+  }
+  if (look.replacement_hts) {
+    notes.push(
+      `Suggested replacement ${formatHtsDisplay(look.replacement_hts)}${
+        look.replacement_note ? ` (${look.replacement_note})` : ""
+      }.`,
+    );
   }
 
   // Column 1 always listed when known
@@ -102,12 +120,12 @@ export function coverOne(
     rules.push({
       program: "base",
       ch99: null,
-      label: "Column 1 general",
+      label: look.window_status === "ended" ? "Column 1 general (ended window)" : "Column 1 general",
       rate: rateLabel(col1Pts!),
       rate_pct: col1Dec,
       reason: hit.desc || "HTS Column 1 rate window",
       source_ref: `HTS table ${hit.start} → ${hit.end}`,
-      status: "applies",
+      status: look.window_status === "ended" ? "info" : "applies",
     });
   }
 
@@ -229,9 +247,20 @@ export function coverOne(
   return {
     hts: htsRaw,
     hts_key: htsKey,
+    part: row.part ? String(row.part).trim() || null : null,
+    sku: row.sku ? String(row.sku).trim() || null : null,
     coo: coo || null,
     as_of: asOf,
-    in_table: Boolean(hit),
+    in_table: Boolean(hit) || look.window_status === "ended",
+    window_status: look.window_status,
+    ended_on: look.ended_on,
+    replacement_hts: look.replacement_hts,
+    replacement_hts_display: look.replacement_hts_display,
+    replacement_note: look.replacement_note,
+    replacement_col1_pct: look.replacement
+      ? pctPoints(look.replacement.col1_pct)
+      : null,
+    replacement_desc: look.replacement?.desc || null,
     col1_pct: col1Pts,
     desc: hit?.desc || null,
     rules,
@@ -272,6 +301,8 @@ export function coverRows(body: {
       missing_hts: rows.filter((r) => !r.hts).length,
       missing_coo: rows.filter((r) => !r.coo).length,
       with_ch99: rows.filter((r) => (r.ch99_sequence as string[])?.length > 0).length,
+      ended: rows.filter((r) => r.window_status === "ended").length,
+      with_replacement: rows.filter((r) => Boolean(r.replacement_hts)).length,
     },
     rows,
   };
@@ -281,6 +312,10 @@ const HTS_HEADER_RE =
   /^(primary[_\s-]?hts|hts([_\s-]?(code|formatted|number|us))?|tariff([_\s-]?code)?|htsus)$/i;
 const COO_HEADER_RE =
   /^(coo|origin|country([_\s-]?(of[_\s-]?origin|code|bloc))?|iso2)$/i;
+const PART_HEADER_RE =
+  /^(part([_\s-]?(number|no|num|id))?|part_number|part_no|item([_\s-]?(number|no|num|id))?|item_number|material([_\s-]?(number|no|num))?|mpn|pn)$/i;
+const SKU_HEADER_RE =
+  /^(sku|skus|product([_\s-]?(code|id|number|no))?|article([_\s-]?(number|no|num))?)$/i;
 
 function normHeaderCell(v: unknown): string {
   return String(v ?? "")
@@ -298,6 +333,24 @@ function isHtsHeader(h: string): boolean {
 
 function isCooHeader(h: string): boolean {
   return COO_HEADER_RE.test(h);
+}
+
+function isPartHeader(h: string): boolean {
+  return PART_HEADER_RE.test(h);
+}
+
+function isSkuHeader(h: string): boolean {
+  return SKU_HEADER_RE.test(h);
+}
+
+function pickIdentityField(
+  obj: Record<string, unknown>,
+  headers: string[],
+  test: (h: string) => boolean,
+): string {
+  const key = headers.find(test);
+  if (!key) return "";
+  return String(obj[key] ?? "").trim();
 }
 
 function rowLooksLikeHeader(cells: unknown[]): boolean {
@@ -372,6 +425,10 @@ function sheetToCoverageRows(sheet: XLSX.WorkSheet): CoverageRowIn[] {
     const hts = pickHtsFromMappedCells(obj, headers);
     if (hts) obj.hts = hts;
     if (cooKey && obj[cooKey]) obj.coo = obj[cooKey];
+    const part = pickIdentityField(obj, headers, isPartHeader);
+    if (part) obj.part = part;
+    const sku = pickIdentityField(obj, headers, isSkuHeader);
+    if (sku) obj.sku = sku;
 
     const s232Key = headers.find((h) => h.includes("232") && h.includes("auto"));
     if (s232Key) {
@@ -543,9 +600,39 @@ function normalizeParsedRow(raw: Record<string, unknown> | CoverageRowIn): Cover
   const listRaw = get("s301_list_3", "list_3", "list3", "legacy_china_301_list_input");
   const s232Raw = get("s232_auto_part", "s232", "auto_part", "232_auto_part_input_y_n_review");
 
+  let part = String(
+    get(
+      "part",
+      "part_number",
+      "part_no",
+      "part_num",
+      "item",
+      "item_number",
+      "item_no",
+      "material",
+      "material_number",
+      "mpn",
+      "pn",
+    ) ?? "",
+  ).trim();
+  if (!part) {
+    const pk = Object.keys(r).find((k) => isPartHeader(normHeaderCell(k)));
+    if (pk) part = String(r[pk] ?? "").trim();
+  }
+
+  let sku = String(
+    get("sku", "skus", "product_code", "product_id", "article", "article_number") ?? "",
+  ).trim();
+  if (!sku) {
+    const sk = Object.keys(r).find((k) => isSkuHeader(normHeaderCell(k)));
+    if (sk) sku = String(r[sk] ?? "").trim();
+  }
+
   return {
     hts,
     coo,
+    part: part || undefined,
+    sku: sku || undefined,
     as_of: String(get("as_of", "entry_date", "date", "rate_date", "entry_date_input") ?? "").trim() ||
       undefined,
     s301_list_3: truthy(listRaw) || undefined,

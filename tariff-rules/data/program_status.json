@@ -21,7 +21,7 @@
       "id": "SEC_301_FL",
       "ch99_family": "9903.05.xx",
       "status": "ACTIVE",
-      "detail": "Section 301 Forced Labor, CSMS #69326983, effective 2026-07-24. No sunset. Mutually exclusive with Section 232 autos/parts — 232 wins via 9903.05.90 suppression.",
+      "detail": "Section 301 Forced Labor, CSMS #69326983, effective 2026-07-24 (headings mainly 9903.05.20+). No sunset. Mutually exclusive with Section 232 autos/parts — 232 wins via 9903.05.90 suppression. Brazil country 301 (9903.05.01–.09) is a separate program that can stack with FL (e.g. BR → .01 + .27).",
       "compute": true
     },
     {
@@ -48,10 +48,10 @@
     },
     {
       "id": "SEC_301_BRAZIL",
-      "ch99_family": "TBC",
-      "status": "ACTIVE_HEADING_TBC",
-      "detail": "Additional 25% effective 2026-07-22 following Section 301 investigation. Ch.99 heading and product scope not confirmed.",
-      "compute": false
+      "ch99_family": "9903.05.01 (duty) / 9903.05.02–.09 (exemptions)",
+      "status": "ACTIVE",
+      "detail": "CSMS #69302472 / 91 FR 45516. Additional 25% on products of Brazil from 2026-07-22. Exempt headings 9903.05.02–.09 (232 universe → .07). Distinct from 301-FL Brazil flat 9903.05.27 (12.5% from 2026-07-24); both stack when applicable (FR note 50).",
+      "compute": true
     },
     {
       "id": "TRADE_DEALS",

@@ -8,11 +8,18 @@ import {
 } from "../../tariff-rules/src/tariffRules.ts";
 import { assessS301fl, s301flMeta } from "../../tariff-rules/src/s301fl.ts";
 import {
+  assessBrazil301,
+  brazil301AppliesOn,
+  isBrazil301Heading,
+  s301BrazilMeta,
+} from "../../tariff-rules/src/s301Brazil.ts";
+import {
   ch99ForChinaList,
   chinaListIdFromFlags,
   lookupChina301List,
 } from "../../tariff-rules/src/s301China.ts";
 import { classify232Metals, resolve232Metals } from "../../tariff-rules/src/s232Metals.ts";
+import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
 import { resolveCol1 } from "./htsLookup.ts";
 import { computeEntryFees } from "./fees.ts";
 import { rulepackPublic } from "./state.ts";
@@ -126,6 +133,7 @@ function uiProgram(id: string): string {
   const map: Record<string, string> = {
     SEC_301_CHINA_LEGACY: "s301",
     SEC_301: "s301",
+    SEC_301_BRAZIL: "s301br",
     SEC_301_FL: "s301fl",
     SEC_232_AUTOS: "s232",
     SEC_232_METALS: "s232",
@@ -236,6 +244,15 @@ function chinaListCode(
     });
     return code;
   }
+
+  diagnostics.push({
+    severity: "WARNING",
+    code: "S301_LIST_UNKNOWN",
+    message:
+      "Country of origin is China, but this HTS is not in the seeded USTR List 1/2/3/4A pack and no China 301 list was claimed or filed. Legacy China 301 (9903.88.xx) was not assessed — only other live layers (e.g. 301-FL) apply.",
+    remediation:
+      "Confirm U.S. note 20 list membership, use Advanced → override China 301 list, or file the correct 9903.88.xx heading. List 4A → 9903.88.15 @ 7.5%; Lists 1–3 → 9903.88.01/.02/.03 @ 25%.",
+  });
   return null;
 }
 
@@ -483,24 +500,45 @@ export function assessLine(line: LineIn, index: number) {
     metalParts.map((p) => p.melt_pour).filter(Boolean)[0] || legacyMelt;
 
   const claimedAuto232 = Boolean(flags.s232_auto_part || flags.s232_auto || flags.s232);
+  const annex232 = match232AutoPartsAnnex(hts);
   // Pure metal articles (Ch.72–74/76): metals path wins over an accidental autos claim (R5).
   const chapterMetals = classify232Metals(hts);
-  if (metalsHit && claimedAuto232 && chapterMetals) {
+  if (metalsHit && (claimedAuto232 || annex232) && chapterMetals) {
     diagnostics.push({
       severity: "WARNING",
       code: "R5_METALS_OVER_AUTOS",
       message: `HTS chapter ${metalsHit.chapter} (${metalsHit.metal}) is treated as Section 232 metals (${metalsHit.duty_ch99}), not 232 auto-parts. Clear the auto-part claim unless annex evidence says otherwise.`,
     });
   }
-  const is232 = claimedAuto232 && !metalsHit;
-  if (is232) {
+  // Annex membership auto-applies 232. Off-list needs an explicit claim (evidence required).
+  const is232 = Boolean((claimedAuto232 || annex232) && !metalsHit);
+  if (annex232 && is232) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "S232_ANNEX_HIT",
+      message: `HTS matches Proclamation 10908 auto-parts annex stem ${annex232.matched_stem} → ${annex232.ch99_duty} (232 supersedes 301-FL via 9903.05.90).`,
+      remediation: annex232.source,
+    });
+  } else if (claimedAuto232 && !annex232 && is232) {
     diagnostics.push({
       severity: "WARNING",
       code: "S232_ANNEX_CLAIM_GATED",
       message:
-        "Section 232 auto-part status is claim-gated. Chapter membership is triage only — confirm the 10-digit HTS against Proclamation 10908 annex before filing.",
-      remediation: "Attach annex evidence or clear the 232 claim if the part is out of scope.",
+        "Section 232 auto-part claim asserted, but this HTS is NOT on the published Proclamation 10908 / U.S. note 33 auto-parts list (e.g. 8544.42.xx ≠ 8544.30.00). Confirm annex evidence before filing.",
+      remediation: "Attach Commerce/CBP annex evidence, reclassify to an in-annex HTS if applicable, or clear the 232 claim.",
     });
+  } else if (!claimedAuto232 && !annex232 && !metalsHit) {
+    // Helpful only for Ch.85 / common miss when filer expected wiring-set 232
+    const d = String(hts).replace(/\D/g, "");
+    if (d.startsWith("854442") || d.startsWith("854449")) {
+      diagnostics.push({
+        severity: "INFO",
+        code: "S232_ANNEX_MISS",
+        message:
+          "8544.42 / 8544.49 fitted conductors are not on the CBP Automobile Parts HTS list. In-annex wiring sets are 8544.30.00. Without an annex hit or 232 claim, 301-FL (or Sec 122 historically) applies for this origin/date.",
+        remediation: "If the goods are vehicle ignition/wiring sets, confirm HTS 8544.30.00. Otherwise leave 232 unchecked.",
+      });
+    }
   }
 
   if (metalsHit) {
@@ -694,13 +732,18 @@ export function assessLine(line: LineIn, index: number) {
       rate_pct: top.ch99Line,
     });
     layers.push(L232);
+    addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+      in232Universe: true,
+      flags,
+    });
     push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
     applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
     pushCommodity(top.ch1to97Line === 0);
   } else if (!blocked && is232) {
-    // Non-JP 232 default 25% with TBC program label
+    // Non-JP 232 — annex heading 9903.94.05 (25%) unless pack overrides
     try {
-      const meta = assertRateKnown("9903.94.05");
+      const dutyCode = annex232?.ch99_duty || "9903.94.05";
+      const meta = assertRateKnown(dutyCode);
       if (meta.status !== "CONFIRMED") {
         diagnostics.push({
           severity: "WARNING",
@@ -714,12 +757,18 @@ export function assessLine(line: LineIn, index: number) {
           program: "SEC_232_AUTOS",
           ch99: meta.code,
           label: "Section 232 — auto parts",
-          reason: "Default 232 auto-parts duty while annex claim is asserted.",
-          source_ref: meta.notes,
+          reason: annex232
+            ? `Proclamation 10908 annex stem ${annex232.matched_stem} → ${meta.code} @ ${(meta.rate * 100).toFixed(0)}%.`
+            : "Default 232 auto-parts duty while off-list claim is asserted.",
+          source_ref: annex232?.source || meta.notes,
           basis_amount: entered,
           rate_pct: meta.rate,
         }),
       );
+      addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+        in232Universe: true,
+        flags,
+      });
       push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
       applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
       pushCommodity(false);
@@ -733,16 +782,28 @@ export function assessLine(line: LineIn, index: number) {
     }
   } else if (!blocked && applyMetals232 && metalsHit) {
     // 232 metals wins over 301-FL (US Note 52(f) / 9903.05.90) — Cervó parity
+    addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+      in232Universe: true,
+      flags,
+    });
     push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
     applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
     pushCommodity(false);
   } else if (!blocked && metalsHit) {
     // Metals triage without content yet: still carve Sec 122 out of the 232 universe
+    addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+      in232Universe: true,
+      flags,
+    });
     applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
     add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
     pushCommodity(false);
   } else if (!blocked) {
-    // Non-232 → Sec 122 (historical window) or 301-FL (from 2026-07-24)
+    // Non-232 → Brazil 301 (from 2026-07-22) + Sec 122 (historical) or 301-FL (from 2026-07-24)
+    addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+      in232Universe: false,
+      flags,
+    });
     applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
     add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
     pushCommodity(false);
@@ -805,12 +866,16 @@ export function assessLine(line: LineIn, index: number) {
   const effective = entered > 0 ? money2((totalDuty / entered) * 100) : 0;
 
   const seq = layers.filter((l) => l.ch99).map((l) => l.ch99 as string);
+  const brazil301 = (c: string) => isBrazil301Heading(c);
   const ordered = [
     ...seq.filter((c) => c.startsWith("9903.88")),
+    ...seq.filter(brazil301), // Brazil country 301 before other 9903.05 / FL
     ...seq.filter((c) => c === "9903.05.90" || c === "9903.03.06" || c === "9903.03.03"),
     ...seq.filter((c) => c.startsWith("9903.82")),
     ...seq.filter((c) => c.startsWith("9903.94") || c.startsWith("9903.74")),
-    ...seq.filter((c) => c.startsWith("9903.05") && c !== "9903.05.90"),
+    ...seq.filter(
+      (c) => c.startsWith("9903.05") && c !== "9903.05.90" && !brazil301(c),
+    ),
     ...seq.filter((c) => c.startsWith("9903.03") && c !== "9903.03.06" && c !== "9903.03.03"),
   ];
   const ch99_sequence_unique = [...new Set(ordered.length ? ordered : seq)];
@@ -997,6 +1062,60 @@ function applySec122Or232Exclusion(
     });
   } catch {
     /* registry gap — still reported 9903.03.06 above */
+  }
+}
+
+function addBrazil301(
+  coo: string,
+  entered: number,
+  layers: DutyLayer[],
+  diagnostics: Diagnostic[],
+  rateDay: string | undefined,
+  opts: { in232Universe: boolean; flags?: Record<string, boolean> },
+) {
+  if (coo !== "BR") return;
+  if (rateDay && !brazil301AppliesOn(rateDay)) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "BRAZIL_301_NOT_YET_EFFECTIVE",
+      message: `Brazil Section 301 (CSMS #69302472) is not applied on ${rateDay} — effective ${String(s301BrazilMeta().effective || "").slice(0, 10)}.`,
+    });
+    return;
+  }
+  if (layers.some((l) => l.ch99 && isBrazil301Heading(l.ch99))) return;
+
+  const br = assessBrazil301({
+    coo,
+    in232Universe: opts.in232Universe,
+    flags: opts.flags,
+  });
+  if (!br) return;
+
+  try {
+    const meta = assertComputable(br.heading);
+    layers.push(
+      layer({
+        slot: "3.1",
+        program: "SEC_301_BRAZIL",
+        ch99: br.heading,
+        label: br.label,
+        reason: br.reason,
+        source_ref: meta.notes,
+        basis_amount: entered,
+        rate_pct: br.rate_pct_decimal,
+      }),
+    );
+    diagnostics.push({
+      severity: "INFO",
+      code: br.exempt ? "BRAZIL_301_EXEMPT" : "BRAZIL_301_APPLIED",
+      message: br.reason,
+    });
+  } catch (e) {
+    diagnostics.push({
+      severity: "ERROR",
+      code: "REVIEW_REQUIRED",
+      message: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 

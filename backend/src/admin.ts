@@ -12,6 +12,7 @@ import {
 } from "../../tariff-rules/src/s301fl.ts";
 import { requireAdmin, requireScope } from "./auth.ts";
 import { htsTableMeta, reloadHtsTable } from "./htsLookup.ts";
+import { importHtsFromBuffer } from "./import_hts.ts";
 import { refreshRulepackState, rulepackPublic } from "./state.ts";
 
 export const adminRouter = Router();
@@ -27,6 +28,45 @@ adminRouter.post("/admin/reload", requireScope("write_rules"), requireAdmin, (_r
     hts: htsTableMeta(),
     note: "Ch99 reciprocal engine constants are loaded at process start — restart backend after editing ch99_rules.json.",
   });
+});
+
+/** Full HTS classification workbook import (xlsx / xls) — replaces hts_rates.json. */
+adminRouter.post("/admin/hts:import", requireScope("write_rules"), requireAdmin, (req, res) => {
+  try {
+    const b64 = String(req.body?.xlsx_base64 || req.body?.file_base64 || "").replace(
+      /^data:.*base64,/,
+      "",
+    );
+    if (!b64) {
+      res.status(400).json({
+        detail: "xlsx_base64 required (classification workbook or HTS rate export).",
+      });
+      return;
+    }
+    const filename = String(req.body?.filename || "hts-upload.xlsx").slice(0, 200);
+    const asOf = req.body?.as_of ? String(req.body.as_of).slice(0, 10) : undefined;
+    const buf = Buffer.from(b64, "base64");
+    if (buf.length < 64) {
+      res.status(400).json({ detail: "File too small to be a workbook." });
+      return;
+    }
+    if (buf.length > 80 * 1024 * 1024) {
+      res.status(413).json({ detail: "Workbook exceeds 80 MB limit." });
+      return;
+    }
+    const result = importHtsFromBuffer(buf, filename, asOf);
+    const hts = reloadHtsTable();
+    refreshRulepackState();
+    res.json({
+      ok: true,
+      ...result,
+      hts,
+      rulepack: rulepackPublic(),
+      note: "Baseline Column-1 table replaced and reloaded in-process — no server restart needed.",
+    });
+  } catch (e) {
+    res.status(400).json({ detail: e instanceof Error ? e.message : String(e) });
+  }
 });
 
 adminRouter.get("/admin/s301fl", requireScope("read_rules"), (_req, res) => {
@@ -214,6 +254,18 @@ function openApiDoc(serverUrl: string) {
       },
       "/v1/admin/reload": {
         post: { summary: "Hot-reload pack caches (no rebuild)", responses: { "200": { description: "Reloaded" } } },
+      },
+      "/v1/admin/hts:import": {
+        post: {
+          summary: "Replace baseline HTS Column-1 table from classification workbook (xlsx)",
+          responses: { "200": { description: "Imported" }, "400": { description: "Bad workbook" } },
+        },
+      },
+      "/v1/reference/hts": {
+        post: {
+          summary: "Merge CSV-style HTS rate rows into the baseline table (admin)",
+          responses: { "200": { description: "Merged" } },
+        },
       },
       "/v1/admin/s301fl/countries/{iso2}": {
         put: {

@@ -24,8 +24,8 @@ export {
 
 /** Machine-readable stacking contract — asserted by rulesMatrix.test.ts */
 export const STACKING_CONTRACT = {
-  version: "1.2.0",
-  as_of: "2026-08-03",
+  version: "1.3.0",
+  as_of: "2026-08-05",
   eras: [
     {
       id: "ieepa",

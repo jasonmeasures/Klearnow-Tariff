@@ -17,6 +17,13 @@ export type HtsRate = {
   desc?: string;
 };
 
+export type HtsReplacement = {
+  from: string;
+  to: string;
+  effective?: string;
+  note?: string;
+};
+
 type Pack = {
   version: string;
   as_of: string;
@@ -25,10 +32,24 @@ type Pack = {
   rates: HtsRate[];
 };
 
+type ReplacementPack = {
+  version: string;
+  as_of: string;
+  source: string;
+  row_count: number;
+  replacements: HtsReplacement[];
+};
+
 const DATA = join(dirname(fileURLToPath(import.meta.url)), "../../tariff-rules/data/hts_rates.json");
+export const HTS_REPLACEMENTS_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../tariff-rules/data/hts_replacements.json",
+);
 
 let pack: Pack | null = null;
 let byHts: Map<string, HtsRate[]> | null = null;
+let replPack: ReplacementPack | null = null;
+let byFrom: Map<string, HtsReplacement> | null = null;
 
 function load(): Pack {
   if (pack) return pack;
@@ -47,11 +68,32 @@ function load(): Pack {
   return pack;
 }
 
+function loadReplacements(): ReplacementPack {
+  if (replPack) return replPack;
+  if (!existsSync(HTS_REPLACEMENTS_PATH)) {
+    replPack = { version: "0", as_of: "", source: "", row_count: 0, replacements: [] };
+    byFrom = new Map();
+    return replPack;
+  }
+  replPack = JSON.parse(readFileSync(HTS_REPLACEMENTS_PATH, "utf8")) as ReplacementPack;
+  byFrom = new Map();
+  for (const r of replPack.replacements || []) {
+    const from = normalizeHtsDigits(r.from);
+    const to = normalizeHtsDigits(r.to);
+    if (!from || !to || from === to) continue;
+    byFrom.set(from, { ...r, from, to });
+  }
+  return replPack;
+}
+
 /** Drop cache after re-import or external HTS table update. */
 export function reloadHtsTable(): ReturnType<typeof htsTableMeta> {
   pack = null;
   byHts = null;
+  replPack = null;
+  byFrom = null;
   load();
+  loadReplacements();
   return htsTableMeta();
 }
 
@@ -62,14 +104,24 @@ export function normalizeHtsDigits(hts: string): string {
   return d.padEnd(10, "0").slice(0, 10);
 }
 
+/** Display form XXXX.XX.XXXX */
+export function formatHtsDisplay(hts: string): string {
+  const ten = normalizeHtsDigits(hts);
+  if (!ten) return String(hts || "");
+  return `${ten.slice(0, 4)}.${ten.slice(4, 6)}.${ten.slice(6)}`;
+}
+
 export function htsTableMeta() {
   const p = load();
+  const rp = loadReplacements();
   return {
     loaded: p.row_count > 0,
     version: p.version,
     as_of: p.as_of,
     source: p.source,
     row_count: p.row_count,
+    replacements: rp.row_count,
+    replacements_source: rp.source || null,
   };
 }
 
@@ -106,8 +158,58 @@ export type ResolvedCol1 = HtsRate & {
   usitc_url: string;
 };
 
+export type WindowStatus = "active" | "ended" | "unknown";
+
+export type HtsLookupResult = {
+  hts: string;
+  hts_key: string;
+  hts_display: string;
+  as_of: string;
+  window_status: WindowStatus;
+  /** Present when status is active (in-window) or ended (last known window). */
+  hit: ResolvedCol1 | null;
+  ended_on: string | null;
+  replacement_hts: string | null;
+  replacement_hts_display: string | null;
+  replacement_note: string | null;
+  replacement_effective: string | null;
+  /** Col-1 resolution for the replacement on the same as-of date, when known. */
+  replacement: ResolvedCol1 | null;
+};
+
+function enrich(pick: HtsRate, day: string): ResolvedCol1 {
+  const needs_quantity = Boolean(pick.col1_specific_usd && pick.col1_specific_usd > 0);
+  const metals = classify232Metals(pick.hts);
+  return {
+    ...pick,
+    as_of: day,
+    rate_label: formatCol1Rate(pick),
+    needs_quantity,
+    china_301: lookupChina301List(pick.hts),
+    metals,
+    needs_metal_content: Boolean(metals),
+    usitc_url: usitcSearchUrl(pick.hts),
+  };
+}
+
+function sortWindowsNewestFirst(list: HtsRate[]): HtsRate[] {
+  return list
+    .slice()
+    .sort((a, b) => b.start.localeCompare(a.start) || b.end.localeCompare(a.end));
+}
+
+/** Lookup a mapped successor for an ended / retired HTS. */
+export function findReplacement(hts: string): HtsReplacement | null {
+  loadReplacements();
+  const key = normalizeHtsDigits(hts);
+  if (!key || !byFrom) return null;
+  return byFrom.get(key) || null;
+}
+
 /**
  * Resolve column-1 rate(s) for an HTS on a rate-determination date (ISO yyyy-mm-dd).
+ * Prefers an in-window row; if none match, falls back to the newest window (legacy behaviour
+ * for assess). Prefer {@link lookupHts} when you need ended / replacement semantics.
  */
 export function resolveCol1(hts: string, asOf: string): ResolvedCol1 | null {
   load();
@@ -117,20 +219,59 @@ export function resolveCol1(hts: string, asOf: string): ResolvedCol1 | null {
   if (!list?.length) return null;
   const day = (asOf || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
   const inWindow = list.filter((r) => r.start <= day && day <= r.end);
-  const pick = (inWindow.length ? inWindow : list)
-    .slice()
-    .sort((a, b) => b.start.localeCompare(a.start) || b.end.localeCompare(a.end))[0];
+  const pick = sortWindowsNewestFirst(inWindow.length ? inWindow : list)[0];
   if (!pick) return null;
-  const needs_quantity = Boolean(pick.col1_specific_usd && pick.col1_specific_usd > 0);
-  const metals = classify232Metals(key);
-  return {
-    ...pick,
+  return enrich(pick, day);
+}
+
+/**
+ * Full HTS preview: active vs ended window + optional mapped replacement.
+ */
+export function lookupHts(hts: string, asOf: string): HtsLookupResult {
+  load();
+  loadReplacements();
+  const key = normalizeHtsDigits(hts);
+  const day = (asOf || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const repl = key ? findReplacement(key) : null;
+  const replacementHit = repl ? resolveCol1(repl.to, day) : null;
+
+  const base = {
+    hts: String(hts || ""),
+    hts_key: key,
+    hts_display: key ? formatHtsDisplay(key) : String(hts || ""),
     as_of: day,
-    rate_label: formatCol1Rate(pick),
-    needs_quantity,
-    china_301: lookupChina301List(key),
-    metals,
-    needs_metal_content: Boolean(metals),
-    usitc_url: usitcSearchUrl(key),
+    replacement_hts: repl?.to || null,
+    replacement_hts_display: repl?.to ? formatHtsDisplay(repl.to) : null,
+    replacement_note: repl?.note || null,
+    replacement_effective: repl?.effective || null,
+    replacement: replacementHit,
+  };
+
+  if (!key || !byHts) {
+    return { ...base, window_status: "unknown", hit: null, ended_on: null };
+  }
+
+  const list = byHts.get(key);
+  if (!list?.length) {
+    return { ...base, window_status: "unknown", hit: null, ended_on: null };
+  }
+
+  const inWindow = list.filter((r) => r.start <= day && day <= r.end);
+  if (inWindow.length) {
+    const pick = sortWindowsNewestFirst(inWindow)[0];
+    return {
+      ...base,
+      window_status: "active",
+      hit: enrich(pick, day),
+      ended_on: null,
+    };
+  }
+
+  const last = sortWindowsNewestFirst(list)[0];
+  return {
+    ...base,
+    window_status: "ended",
+    hit: last ? enrich(last, day) : null,
+    ended_on: last?.end || null,
   };
 }
