@@ -9,7 +9,7 @@ describe("HTS coverage", () => {
     const rows = parseCoverageInput({
       text: `hts,coo
 8708.10.3050,CN
-6203.42.4010,VN`,
+6203.42.0711,VN`,
     });
     assert.equal(rows.length, 2);
     assert.equal(rows[0].coo, "CN");
@@ -21,11 +21,12 @@ describe("HTS coverage", () => {
       assume_cn_list3: false,
       rows: [
         { hts: "8708.10.3050", coo: "CN", s301_list_3: true },
-        { hts: "6203.42.4010", coo: "VN" },
+        { hts: "6203.42.0711", coo: "VN" },
       ],
     });
     assert.equal(r.summary.rows, 2);
     const vn = r.rows.find((x) => String(x.coo) === "VN")!;
+    assert.equal(vn.in_table, true);
     assert.ok((vn.rules as unknown[]).some((rule: { program?: string }) => rule.program === "s301fl"));
     const cn = r.rows.find((x) => String(x.coo) === "CN")!;
     assert.ok((cn.ch99_sequence as string[]).length >= 1);

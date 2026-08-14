@@ -50,6 +50,12 @@
       "blocking": "Total-duty computation for all trade-deal lines"
     },
     {
+      "id": "R10_SPI_FTA_COL1_MPF",
+      "rule": "USMCA (SPI S/S+) and CAFTA-DR preferential claims suppress Column-1 (Chapters 1–97) duty and the Merchandise Processing Fee (MPF). Declaring S/S+ does NOT automatically suppress any other tariff program (301-FL, Section 232, China 301, Brazil 301, Sec 122, etc.). Those programs are cleared only when their own USMCA / FTA / Note 52 Chapter 99 exception heading is applicable and claimed (e.g. 301-FL Note 52(g)/(h) via 9903.05.93 CA / 9903.05.94 MX).",
+      "status": "CONFIRMED",
+      "source": "Jason Measures — USMCA / SPI claim scope; CSMS #69326983 Note 52"
+    },
+    {
       "id": "R7_9394_PROGRAM_LABEL",
       "rule": "9903.94.xx family program labeling: 2026-07-27 session = Section 232 autos family; 2026-07-30 corrections = IEEPA/trade-deal. IEEPA was struck down 2026-02-20, so the label carries legal-basis and refund/drawback implications.",
       "status": "TBC",

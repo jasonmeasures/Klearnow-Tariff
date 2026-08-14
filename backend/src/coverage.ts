@@ -5,7 +5,14 @@
 import * as XLSX from "xlsx";
 import { assessS301fl, lookupS301fl } from "../../tariff-rules/src/s301fl.ts";
 import { assessLine, type LineIn } from "./assess.ts";
-import { formatHtsDisplay, lookupHts, normalizeHtsDigits, resolveCol1 } from "./htsLookup.ts";
+import {
+  formatHtsDisplay,
+  lookupHts,
+  normalizeHtsDigits,
+  resolveCol1,
+  suggestRelatedHts,
+  usitcSearchUrl,
+} from "./htsLookup.ts";
 import { rulepackPublic } from "./state.ts";
 
 export type CoverageRowIn = {
@@ -96,15 +103,88 @@ export function coverOne(
   }
 
   const look = lookupHts(htsRaw, asOf);
+  const related = look.window_status === "unknown" ? suggestRelatedHts(htsRaw, asOf, 8) : [];
   const hit = look.window_status === "active" ? look.hit : resolveCol1(htsRaw, asOf);
   const col1Pts = hit ? pctPoints(hit.col1_pct) : null;
   const col1Dec = col1Pts == null ? 0 : col1Pts / 100;
+  const usitc_url = usitcSearchUrl(htsRaw);
 
+  // Unknown HTS: do not invent Col-1 Free or Chapter 99 stacks (same contract as Duty stack).
   if (look.window_status === "unknown") {
-    notes.push("HTS not found in the baseline Column-1 table — Col-1 unknown until imported.");
-  } else if (look.window_status === "ended") {
+    const help_steps: string[] = [];
+    if (look.replacement_hts) {
+      help_steps.push(
+        `Use mapped replacement ${formatHtsDisplay(look.replacement_hts)} if this line was retired.`,
+      );
+    }
+    if (related.length) {
+      help_steps.push(
+        `Same 8-digit heading has ${related.length} active statistical line(s) in the table (e.g. ${related
+          .slice(0, 2)
+          .map((r) => r.hts_display)
+          .join(", ")}). Pick the suffix that matches the product.`,
+      );
+    } else {
+      help_steps.push("Confirm the full 10-digit statistical reporting number on USITC.");
+    }
+    if (!coo) {
+      help_steps.push("Add an origin (COO column or Default origin) once the HTS is valid.");
+    }
+    help_steps.push("Re-run Find applicable rules after correcting the HTS.");
+
     notes.push(
-      `HTS rate window ended${look.ended_on ? ` on ${look.ended_on}` : ""} — last published Col-1 shown; confirm the current statistical reporting number.`,
+      "HTS not found in the baseline Column-1 table - no duty rate until you use a valid 10-digit code.",
+    );
+    if (!coo) {
+      notes.push("No origin - set Default origin or a COO column for country stacks.");
+    }
+
+    return {
+      hts: htsRaw,
+      hts_key: htsKey,
+      part: row.part ? String(row.part).trim() || null : null,
+      sku: row.sku ? String(row.sku).trim() || null : null,
+      coo: coo || null,
+      as_of: asOf,
+      in_table: false,
+      blocked: true,
+      window_status: "unknown",
+      ended_on: null,
+      replacement_hts: look.replacement_hts,
+      replacement_hts_display: look.replacement_hts_display,
+      replacement_note: look.replacement_note,
+      replacement_col1_pct: look.replacement
+        ? pctPoints(look.replacement.col1_pct)
+        : null,
+      replacement_desc: look.replacement?.desc || null,
+      related_hts: related,
+      usitc_url,
+      help: {
+        title: "This HTS is not in the Column-1 table",
+        summary:
+          "Duty and Chapter 99 rules cannot be calculated for an unknown statistical line. Non-experts should confirm the 10-digit code (not padded zeros).",
+        steps: help_steps,
+      },
+      col1_pct: null,
+      desc: null,
+      rules: [],
+      ch99_sequence: [],
+      stack_preview: [],
+      diagnostics: [
+        {
+          severity: "ERROR",
+          code: "UNKNOWN_HTS",
+          message:
+            "HTS not found in the baseline Column-1 table - no duty rate can be calculated.",
+        },
+      ],
+      notes,
+    };
+  }
+
+  if (look.window_status === "ended") {
+    notes.push(
+      `HTS rate window ended${look.ended_on ? ` on ${look.ended_on}` : ""} - last published Col-1 shown; confirm the current statistical reporting number.`,
     );
   }
   if (look.replacement_hts) {
@@ -124,13 +204,13 @@ export function coverOne(
       rate: rateLabel(col1Pts!),
       rate_pct: col1Dec,
       reason: hit.desc || "HTS Column 1 rate window",
-      source_ref: `HTS table ${hit.start} → ${hit.end}`,
+      source_ref: `HTS table ${hit.start} -> ${hit.end}`,
       status: look.window_status === "ended" ? "info" : "applies",
     });
   }
 
   if (!coo) {
-    notes.push("No origin — 301-FL and country stacks need a COO (set a default origin or a coo column).");
+    notes.push("No origin - 301-FL and country stacks need a COO (set a Default origin or a coo column).");
   } else {
     const flRow = lookupS301fl(coo);
     const fl = assessS301fl(coo, col1Dec);
@@ -144,7 +224,7 @@ export function coverOne(
         rate: rateLabel(fl.rate_pct_decimal * 100),
         rate_pct: fl.rate_pct_decimal,
         reason: fl.reason,
-        source_ref: "CSMS #69326983 — Section 301 Forced Labor",
+        source_ref: "CSMS #69326983 - Section 301 Forced Labor",
         status: "applies",
       });
     } else if (fl.kind === "threshold_topup") {
@@ -155,7 +235,7 @@ export function coverOne(
         rate: rateLabel(fl.rate_pct_decimal * 100),
         rate_pct: fl.rate_pct_decimal,
         reason: fl.reason,
-        source_ref: "CSMS #69326983 — Section 301 Forced Labor",
+        source_ref: "CSMS #69326983 - Section 301 Forced Labor",
         status: "applies",
       });
     } else if (fl.kind === "threshold_no_add") {
@@ -166,7 +246,7 @@ export function coverOne(
         rate: "0% (report heading)",
         rate_pct: 0,
         reason: fl.reason,
-        source_ref: "CSMS #69326983 — Section 301 Forced Labor",
+        source_ref: "CSMS #69326983 - Section 301 Forced Labor",
         status: "reporting",
       });
     }
@@ -185,7 +265,7 @@ export function coverOne(
     );
   }
 
-  // Full stack preview when we have COO (notional $10k — rates/sequence only)
+  // Full stack preview when we have COO (notional $10k - rates/sequence only)
   let ch99_sequence: string[] = [];
   let stack_preview: Array<Record<string, unknown>> = [];
   let diagnostics: unknown[] = [];
@@ -239,6 +319,9 @@ export function coverOne(
           status: Number(x.duty_amount) === 0 && x.ch99 ? "reporting" : "applies",
         });
       }
+      if (L.blocked) {
+        notes.push("Stack blocked - see diagnostics (HTS problem or missing metal content).");
+      }
     } catch (e) {
       notes.push(e instanceof Error ? e.message : String(e));
     }
@@ -252,6 +335,7 @@ export function coverOne(
     coo: coo || null,
     as_of: asOf,
     in_table: Boolean(hit) || look.window_status === "ended",
+    blocked: false,
     window_status: look.window_status,
     ended_on: look.ended_on,
     replacement_hts: look.replacement_hts,
@@ -261,6 +345,9 @@ export function coverOne(
       ? pctPoints(look.replacement.col1_pct)
       : null,
     replacement_desc: look.replacement?.desc || null,
+    related_hts: [],
+    usitc_url,
+    help: null,
     col1_pct: col1Pts,
     desc: hit?.desc || null,
     rules,
@@ -303,6 +390,10 @@ export function coverRows(body: {
       with_ch99: rows.filter((r) => (r.ch99_sequence as string[])?.length > 0).length,
       ended: rows.filter((r) => r.window_status === "ended").length,
       with_replacement: rows.filter((r) => Boolean(r.replacement_hts)).length,
+      blocked: rows.filter((r) => Boolean(r.blocked)).length,
+      with_related: rows.filter(
+        (r) => Array.isArray(r.related_hts) && (r.related_hts as unknown[]).length > 0,
+      ).length,
     },
     rows,
   };

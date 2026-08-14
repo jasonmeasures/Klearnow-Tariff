@@ -31,6 +31,96 @@
       "notes": "Section 122 10% global surcharge (19 U.S.C. §2132). In force 2026-02-24 through 2026-07-23; sunset 12:01 a.m. 2026-07-24 when 301-FL replaced it. Not IEEPA. Suppressed by 9903.03.06 when 232 applies."
     },
     {
+      "code": "9903.04.60",
+      "program": "SEC_232_PHARMA",
+      "kind": "DUTY",
+      "rate": 1.0,
+      "mfn_interaction": "COMBINED_TBC",
+      "status": "CONFIRMED",
+      "notes": "Proclamation 11020 patented pharma default (Annex III) — 100% combined Col-1 + 232 (CSMS #69395344)."
+    },
+    {
+      "code": "9903.04.61",
+      "program": "SEC_232_PHARMA",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Proclamation 11020 — non-Annex III interim 0% additional through 2026-09-28 (CSMS #69395344)."
+    },
+    {
+      "code": "9903.04.62",
+      "program": "SEC_232_PHARMA",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "COMBINED_TBC",
+      "status": "CONFIRMED",
+      "notes": "Proclamation 11020 — JP/EU/KR/CH/LI patented pharma 15% combined (CSMS #69395344)."
+    },
+    {
+      "code": "9903.04.63",
+      "program": "SEC_232_PHARMA",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Proclamation 11020 — United Kingdom patented pharma/ingredients. Additional rate reduced from 10% to 0% effective 2026-07-31 (CSMS #69415934). Column-1 stacks."
+    },
+    {
+      "code": "9903.04.64",
+      "program": "SEC_232_PHARMA",
+      "kind": "DUTY",
+      "rate": 0.2,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Proclamation 11020 — qualifying onshoring plan 20% additional (rises to 100% 2030-04-02)."
+    },
+    {
+      "code": "9903.04.65",
+      "program": "SEC_232_PHARMA",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Proclamation 11020 — Annex II onshoring + MFN pricing 0% (expires 2029-01-20)."
+    },
+    {
+      "code": "9903.04.66",
+      "program": "SEC_232_PHARMA",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Proclamation 11020 — specific-use carve-out 0% additional."
+    },
+    {
+      "code": "9903.04.67",
+      "program": "SEC_232_PHARMA",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Proclamation 11020 — generic pharmaceutical articles 0% additional (CSMS #69395344)."
+    },
+    {
+      "code": "9903.04.68",
+      "program": "SEC_232_PHARMA",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Proclamation 11020 — U.S.-origin API packaged in dosage form 0%."
+    },
+    {
+      "code": "9903.04.69",
+      "program": "SEC_232_PHARMA",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Proclamation 11020 — Ch.29/30 goods that are not pharmaceutical articles 0%."
+    },
+    {
       "code": "9903.74.11",
       "program": "SEC_232_AUTOS",
       "kind": "EXCLUSION",
@@ -892,7 +982,7 @@
       "rate": 0.0,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "301-FL exemption — Section 232 universe — US Note 52(f). steel/aluminum/copper+derivatives; autos+parts; MHDV+parts; wood; semiconductors"
+      "notes": "301-FL exemption — Section 232 universe — US Note 52(f). steel/aluminum/copper+derivatives; autos+parts; MHDV+parts; wood; semiconductors; patented pharmaceuticals (Proclamation 11020 / 9903.04.60–.66)."
     },
     {
       "code": "9903.05.91",

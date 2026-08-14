@@ -492,13 +492,15 @@
       "heading": "9903.05.89",
       "applies_to": "all_origins",
       "basis": "pharmaceutical applications — US Note 52(e)",
-      "hts_listed": 700
+      "hts_listed": 700,
+      "claim_flag": "s301fl_pharma",
+      "hts_list_file": "s301fl_pharma_hts.json"
     },
     {
       "heading": "9903.05.90",
       "applies_to": "all_origins",
       "basis": "Section 232 universe — US Note 52(f)",
-      "scope": "steel/aluminum/copper+derivatives; autos+parts; MHDV+parts; wood; semiconductors",
+      "scope": "steel/aluminum/copper+derivatives; autos+parts; MHDV+parts; wood; semiconductors; patented pharmaceuticals (9903.04.60–.66 / Proclamation 11020)",
       "warn": "suppress FL; do NOT emit this 0% heading on a dutiable 232 line"
     },
     {

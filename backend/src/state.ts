@@ -36,6 +36,8 @@ function fileHash(): string {
     "interaction_rules.json",
     "hts_rates.json",
     "s301fl_pack.json",
+    "s301fl_pharma_hts.json",
+    "s232_pharma.json",
     "ch99_rules.json",
     "s301_china_lists.json",
   ];

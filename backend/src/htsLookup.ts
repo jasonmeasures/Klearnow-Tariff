@@ -48,6 +48,8 @@ export const HTS_REPLACEMENTS_PATH = join(
 
 let pack: Pack | null = null;
 let byHts: Map<string, HtsRate[]> | null = null;
+/** 8-digit legal-line index → 10-digit HTS keys (for sibling suggestions). */
+let byStem8: Map<string, string[]> | null = null;
 let replPack: ReplacementPack | null = null;
 let byFrom: Map<string, HtsReplacement> | null = null;
 
@@ -56,14 +58,22 @@ function load(): Pack {
   if (!existsSync(DATA)) {
     pack = { version: "0", as_of: "", source: "", row_count: 0, rates: [] };
     byHts = new Map();
+    byStem8 = new Map();
     return pack;
   }
   pack = JSON.parse(readFileSync(DATA, "utf8")) as Pack;
   byHts = new Map();
+  byStem8 = new Map();
   for (const r of pack.rates) {
     const list = byHts.get(r.hts) || [];
     list.push(r);
     byHts.set(r.hts, list);
+  }
+  for (const hts of byHts.keys()) {
+    const stem = hts.slice(0, 8);
+    const sibs = byStem8.get(stem) || [];
+    sibs.push(hts);
+    byStem8.set(stem, sibs);
   }
   return pack;
 }
@@ -90,6 +100,7 @@ function loadReplacements(): ReplacementPack {
 export function reloadHtsTable(): ReturnType<typeof htsTableMeta> {
   pack = null;
   byHts = null;
+  byStem8 = null;
   replPack = null;
   byFrom = null;
   load();
@@ -204,6 +215,45 @@ export function findReplacement(hts: string): HtsReplacement | null {
   const key = normalizeHtsDigits(hts);
   if (!key || !byFrom) return null;
   return byFrom.get(key) || null;
+}
+
+export type RelatedHts = {
+  hts: string;
+  hts_display: string;
+  desc: string | null;
+  col1_pct: number;
+  rate_label: string;
+};
+
+/**
+ * Active statistical lines under the same 8-digit legal tariff line.
+ * Used when a padded/invalid 10-digit code is not in the table (e.g. 1805.00.0000 → .0010 / .0090).
+ */
+export function suggestRelatedHts(hts: string, asOf: string, limit = 8): RelatedHts[] {
+  load();
+  const key = normalizeHtsDigits(hts);
+  if (!key || !byHts || !byStem8) return [];
+  const day = (asOf || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const stem8 = key.slice(0, 8);
+  const candidates = byStem8.get(stem8) || [];
+  const out: RelatedHts[] = [];
+  for (const code of candidates) {
+    if (code === key) continue;
+    const list = byHts.get(code);
+    if (!list?.length) continue;
+    const inWindow = list.filter((r) => r.start <= day && day <= r.end);
+    if (!inWindow.length) continue;
+    const pick = sortWindowsNewestFirst(inWindow)[0];
+    out.push({
+      hts: code,
+      hts_display: formatHtsDisplay(code),
+      desc: pick.desc || null,
+      col1_pct: pick.col1_pct,
+      rate_label: formatCol1Rate(pick),
+    });
+    if (out.length >= limit) break;
+  }
+  return out.sort((a, b) => a.hts.localeCompare(b.hts));
 }
 
 /**

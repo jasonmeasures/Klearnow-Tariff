@@ -9,6 +9,7 @@ import {
 } from "./import_hts.ts";
 import { STACKING_CONTRACT } from "./rulesContract.ts";
 import { refreshRulepackState, STATE } from "./state.ts";
+import { lookupFlClaimExemption, matchFlPharmaHts } from "../../tariff-rules/src/s301fl.ts";
 
 export const referenceRouter = Router();
 
@@ -25,6 +26,54 @@ referenceRouter.get("/reference/claim-flags", (_req, res) => {
         kind: "annex_membership",
         programs: ["s232", "s301fl"],
         headings: headings((c) => c.program.includes("232") || c.code === "9903.05.90"),
+        rule_count: 1,
+      },
+      {
+        flag: "s232_pharma_patented",
+        label: "Section 232 patented pharma (Proclamation 11020 / 9903.04.60–.66) — UK → 9903.04.63 @ 0%",
+        kind: "claim",
+        programs: ["s232", "s301fl"],
+        headings: ["9903.04.60", "9903.04.61", "9903.04.62", "9903.04.63", "9903.04.64", "9903.04.65", "9903.04.66", "9903.05.90"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_pharma_generic",
+        label: "Section 232 generic pharma reporting (9903.04.67 @ 0%)",
+        kind: "claim",
+        programs: ["s232"],
+        headings: ["9903.04.67"],
+        rule_count: 1,
+      },
+      {
+        flag: "s301fl_pharma",
+        label: "Pharmaceutical use — 301-FL Note 52(e) via 9903.05.89 (does not zero Col-1 / MPF)",
+        kind: "exclusion",
+        programs: ["s301fl"],
+        headings: ["9903.05.89"],
+        rule_count: 1,
+      },
+      {
+        flag: "fta_usmca",
+        label: "USMCA preference — SPI S/S+ zeros Col-1 + MPF; 301-FL via 9903.05.93/.94",
+        kind: "fta",
+        programs: ["s301fl"],
+        headings: ["9903.05.93", "9903.05.94"],
+        rule_count: 1,
+      },
+      {
+        flag: "fta_cafta_dr",
+        label: "CAFTA-DR preference — SPI zeros Col-1 + MPF; textiles/apparel 301-FL via 9903.05.95",
+        kind: "fta",
+        programs: ["s301fl"],
+        headings: ["9903.05.95"],
+        rule_count: 1,
+      },
+      {
+        flag: "fta_note_52",
+        label: "Note 52 preference (301-FL exemption only — does not zero Col-1 / MPF)",
+        kind: "fta",
+        programs: ["s301fl"],
+        headings: [],
         rule_count: 1,
       },
       {
@@ -76,6 +125,46 @@ referenceRouter.get("/reference/claim-flags", (_req, res) => {
         rule_count: 1,
       },
     ],
+  });
+});
+
+referenceRouter.get("/reference/fl-pharma/:hts", (req, res) => {
+  const hts = String(req.params.hts || "").trim();
+  const hit = matchFlPharmaHts(hts);
+  if (!hit) {
+    res.json({ available: false, hts, heading: "9903.05.89" });
+    return;
+  }
+  res.json({
+    available: true,
+    hts,
+    matched_stem: hit.matched_stem,
+    heading: hit.heading,
+    basis: hit.basis,
+    claim_flag: "s301fl_pharma",
+    hint: `If actual use is pharmaceutical, claim Pharma use to report ${hit.heading} @ 0% (301-FL only). Does not zero Column-1 or MPF — prefer USMCA when it applies.`,
+  });
+});
+
+referenceRouter.get("/reference/fta-claim/:coo", (req, res) => {
+  const coo = String(req.params.coo || "").trim().toUpperCase();
+  const ex = lookupFlClaimExemption(coo);
+  if (!ex) {
+    res.json({ available: false, coo });
+    return;
+  }
+  res.json({
+    available: true,
+    coo,
+    claim_id: ex.claim_id,
+    label: ex.label,
+    heading: ex.heading,
+    basis: ex.basis,
+    zeros_col1_and_mpf: ex.claim_id === "USMCA" || ex.claim_id === "CAFTA_DR",
+    hint:
+      ex.claim_id === "USMCA" || ex.claim_id === "CAFTA_DR"
+        ? `Claim ${ex.label}: Free Column-1 + MPF exempt. Also reports ${ex.heading} @ 0% for 301-FL when that program applies. Other programs need their own ${ex.label} Chapter 99 exception.`
+        : `Claim ${ex.label} if goods qualify — reports ${ex.heading} @ 0% for 301-FL only. Does not zero Column-1 or MPF.`,
   });
 });
 

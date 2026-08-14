@@ -29,14 +29,18 @@ export function computeEntryFees(opts: {
   entered_value_total: number;
   formal_entry?: boolean;
   mode_of_transport?: string | null;
+  /** Entered value of USMCA / CAFTA-DR (etc.) SPI Free goods — excluded from MPF basis. */
+  mpf_exempt_value?: number;
 }): { fees: EntryFee[]; total: number } {
   const entered = Math.max(0, Number(opts.entered_value_total) || 0);
+  const exempt = Math.max(0, Math.min(entered, Number(opts.mpf_exempt_value) || 0));
+  const mpfBasis = money2(entered - exempt);
   const fees: EntryFee[] = [];
   const mode = String(opts.mode_of_transport || "").toUpperCase();
   const formal = opts.formal_entry !== false; // default formal when unspecified for UI parity
 
-  if (formal && entered > 0) {
-    let mpf = money2(entered * MPF_RATE);
+  if (formal && mpfBasis > 0) {
+    let mpf = money2(mpfBasis * MPF_RATE);
     let floored = false;
     let capped = false;
     if (mpf < MPF_MIN) {
@@ -51,9 +55,18 @@ export function computeEntryFees(opts: {
       code: "MPF",
       label: "Merchandise Processing Fee (MPF)",
       amount: Math.round(mpf),
-      rate_note: `${(MPF_RATE * 100).toFixed(4)}% formal (min $${MPF_MIN} / max $${MPF_MAX})`,
+      rate_note: `${(MPF_RATE * 100).toFixed(4)}% formal (min $${MPF_MIN} / max $${MPF_MAX})${
+        exempt > 0 ? `; basis $${mpfBasis.toFixed(2)} after $${exempt.toFixed(2)} SPI/FTA exemption` : ""
+      }`,
       floored,
       capped,
+    });
+  } else if (formal && entered > 0 && mpfBasis <= 0) {
+    fees.push({
+      code: "MPF",
+      label: "Merchandise Processing Fee (MPF)",
+      amount: 0,
+      rate_note: `Exempt — entire entered value ($${entered.toFixed(2)}) covered by USMCA / CAFTA-DR SPI preference`,
     });
   }
 

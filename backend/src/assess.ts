@@ -6,7 +6,16 @@ import {
   jp232TopUp,
   normalizeCh99,
 } from "../../tariff-rules/src/tariffRules.ts";
-import { assessS301fl, s301flMeta } from "../../tariff-rules/src/s301fl.ts";
+import {
+  assessS301fl,
+  flClaimMatches,
+  flPharmaClaimed,
+  flPharmaMeta,
+  lookupFlClaimExemption,
+  matchFlPharmaHts,
+  s301flMeta,
+  type FlEconomyExemption,
+} from "../../tariff-rules/src/s301fl.ts";
 import {
   assessBrazil301,
   brazil301AppliesOn,
@@ -20,7 +29,11 @@ import {
 } from "../../tariff-rules/src/s301China.ts";
 import { classify232Metals, resolve232Metals } from "../../tariff-rules/src/s232Metals.ts";
 import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
-import { resolveCol1 } from "./htsLookup.ts";
+import {
+  assessS232Pharma,
+  s232PharmaClaimed,
+} from "../../tariff-rules/src/s232Pharma.ts";
+import { formatHtsDisplay, lookupHts, resolveCol1 } from "./htsLookup.ts";
 import { computeEntryFees } from "./fees.ts";
 import { rulepackPublic } from "./state.ts";
 import {
@@ -83,6 +96,12 @@ export type LineIn = {
   filed_ch99?: string[];
   filed_duty_total?: number | string;
   flags?: Record<string, boolean>;
+  /**
+   * Preferential claim that unlocks a 301-FL economy exemption (Note 52).
+   * Values: USMCA | CAFTA_DR | NOTE_52 | exemption heading (e.g. 9903.05.94).
+   * Also accepted via flags.fta_usmca / fta_cafta_dr / fta_note_52.
+   */
+  fta_claim?: string;
 };
 
 function money2(n: number): number {
@@ -99,6 +118,71 @@ function pctLabel(decimalRate: number): string {
   const p = decimalRate * 100;
   const s = p.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
   return `${s}% ad valorem`;
+}
+
+/** Resolve FTA / Note 52 claim from line field or boolean flags. */
+export function resolveFtaClaim(line: LineIn): string | null {
+  const raw = String(line.fta_claim || "").trim();
+  if (raw) return raw;
+  const flags = line.flags || {};
+  if (flags.fta_usmca || flags.usmca) return "USMCA";
+  if (flags.fta_cafta_dr || flags.cafta_dr || flags.cafta) return "CAFTA_DR";
+  if (flags.fta_note_52 || flags.note_52) return "NOTE_52";
+  return null;
+}
+
+const CAFTA_DR_ORIGINS = new Set(["CR", "DO", "SV", "GT", "HN", "NI"]);
+const USMCA_ORIGINS = new Set(["CA", "MX"]);
+
+export type SpiPreference = {
+  claim_id: "USMCA" | "CAFTA_DR";
+  label: string;
+  /** SPI claim letter(s) typically filed with the preference. */
+  spi: string;
+};
+
+/**
+ * USMCA / CAFTA-DR preferential claim: zeros Column-1 (Ch.1–97) and MPF.
+ * Does NOT alone suppress 301-FL, 232, China 301, etc. — those need their own Ch.99 exemptions.
+ */
+export function resolveSpiPreference(
+  line: LineIn,
+  coo: string,
+  diagnostics?: Diagnostic[],
+): SpiPreference | null {
+  const claim = resolveFtaClaim(line);
+  if (!claim) return null;
+  const c = claim.trim().toUpperCase().replace(/-/g, "_");
+  const iso = String(coo || "").trim().toUpperCase();
+
+  const wantsUsmca =
+    c === "USMCA" || c === "S" || c === "S+" || c === "S/S+";
+  const wantsCafta =
+    c === "CAFTA_DR" || c === "CAFTA" || c === "CAFTA_DR_R" || c === "R";
+
+  if (wantsUsmca) {
+    if (!USMCA_ORIGINS.has(iso)) {
+      diagnostics?.push({
+        severity: "WARNING",
+        code: "USMCA_COO_MISMATCH",
+        message: `USMCA (SPI S/S+) claimed but origin is ${iso || "(blank)"} — expected CA or MX. Column-1 / MPF not suppressed.`,
+      });
+      return null;
+    }
+    return { claim_id: "USMCA", label: "USMCA", spi: "S/S+" };
+  }
+  if (wantsCafta) {
+    if (!CAFTA_DR_ORIGINS.has(iso)) {
+      diagnostics?.push({
+        severity: "WARNING",
+        code: "CAFTA_COO_MISMATCH",
+        message: `CAFTA-DR preferential claim but origin is ${iso || "(blank)"} — expected CR/DO/SV/GT/HN/NI. Column-1 / MPF not suppressed.`,
+      });
+      return null;
+    }
+    return { claim_id: "CAFTA_DR", label: "CAFTA-DR", spi: "R" };
+  }
+  return null;
 }
 
 /** 301-FL (CSMS #69326983) — pack effective date; not applied before that day. */
@@ -137,6 +221,7 @@ function uiProgram(id: string): string {
     SEC_301_FL: "s301fl",
     SEC_232_AUTOS: "s232",
     SEC_232_METALS: "s232",
+    SEC_232_PHARMA: "s232",
     SEC_122: "s122",
     TRADE_DEAL_JP: "s232",
     TRADE_DEAL_EU: "s232",
@@ -285,8 +370,64 @@ export function assessLine(line: LineIn, index: number) {
   let col1SpecificUsd = 0;
   let col1Uom = String(line.quantity_uom || "").trim().toUpperCase();
   let rateLabel = "";
-  const resolved = resolveCol1(hts, rd.date);
-  if (!Number.isFinite(col1Pct)) {
+  const look = lookupHts(hts, rd.date);
+  const resolved = look.window_status === "active" ? look.hit : resolveCol1(hts, rd.date);
+  const unknownHts = look.window_status === "unknown";
+  const suppliedCol1 = Number.isFinite(col1Pct);
+
+  // Unknown HTS with no manual Col-1 override: do not invent Free / Ch.99 stacks.
+  if (unknownHts && !suppliedCol1) {
+    const repl = look.replacement_hts
+      ? ` Suggested replacement: ${formatHtsDisplay(look.replacement_hts)} — accept it in Quick check, then re-run.`
+      : "";
+    diagnostics.push({
+      severity: "ERROR",
+      code: "UNKNOWN_HTS",
+      message:
+        `HTS ${hts || "(blank)"} is not in the baseline Column-1 table — no duty rate can be calculated.${repl}`,
+      remediation: look.replacement_hts
+        ? `Use replacement ${formatHtsDisplay(look.replacement_hts)}, or confirm the 10-digit HTS on USITC and re-import the classification table.`
+        : "Confirm the 10-digit statistical reporting number on USITC (e.g. cocoa powder is 1805.00.0010 / .0090, not .0000). Do not run duty until the HTS is valid.",
+    });
+    return {
+      line_id,
+      hts,
+      coo,
+      entered_value: entered,
+      col1_rate_pct: null,
+      col1_source: "missing",
+      col1_rate_label: null,
+      col1_specific_usd: null,
+      quantity: null,
+      quantity_uom: null,
+      needs_quantity: false,
+      metals: null,
+      china_301: look.hit?.china_301 || null,
+      usitc_url:
+        look.hit?.usitc_url ||
+        `https://hts.usitc.gov/search?query=${encodeURIComponent(hts.replace(/\D/g, "") || hts)}`,
+      rate_determination_date: rd.date,
+      rate_date_basis: rd.basis,
+      layers: [],
+      suppressed: [],
+      diagnostics,
+      ch99_sequence: [],
+      totals: {
+        duty: 0,
+        parts_duty: 0,
+        metals_duty: 0,
+        specific_duty: 0,
+        ad_valorem_commodity_duty: 0,
+        effective_duty_rate_pct: null,
+      },
+      blocked: true,
+      replacement_hts: look.replacement_hts,
+      replacement_hts_display: look.replacement_hts_display,
+      window_status: look.window_status,
+    };
+  }
+
+  if (!suppliedCol1) {
     if (resolved) {
       col1Pct = resolved.col1_pct;
       col1Source = "hts_table";
@@ -295,16 +436,65 @@ export function assessLine(line: LineIn, index: number) {
         code: "COL1_RESOLVED",
         message: `Column-1 ${resolved.rate_label} resolved from HTS table for ${resolved.hts} (window ${resolved.start} → ${resolved.end}).`,
       });
+      if (look.window_status === "ended") {
+        diagnostics.push({
+          severity: "WARNING",
+          code: "HTS_ENDED",
+          message: `HTS rate window ended${look.ended_on ? ` on ${look.ended_on}` : ""} — using last published Column-1. Confirm the current statistical reporting number.`,
+          remediation: look.replacement_hts
+            ? `Suggested replacement ${formatHtsDisplay(look.replacement_hts)}.`
+            : "Look up the current HTS on USITC.",
+        });
+      }
     } else {
-      col1Pct = 0;
-      col1Source = "missing";
+      // Should be unreachable after UNKNOWN_HTS gate; keep as hard stop.
       diagnostics.push({
-        severity: "WARNING",
+        severity: "ERROR",
         code: "MISSING_COL1",
         message: "No column-1 rate supplied and HTS was not found in the classification table.",
-        remediation: "Enter col1_rate_pct on the line, or confirm the 10-digit HTS.",
+        remediation: "Confirm the 10-digit HTS, or enter an explicit col1_rate_pct override in Advanced.",
       });
+      return {
+        line_id,
+        hts,
+        coo,
+        entered_value: entered,
+        col1_rate_pct: null,
+        col1_source: "missing",
+        col1_rate_label: null,
+        col1_specific_usd: null,
+        quantity: null,
+        quantity_uom: null,
+        needs_quantity: false,
+        metals: null,
+        china_301: null,
+        usitc_url: `https://hts.usitc.gov/search?query=${encodeURIComponent(hts.replace(/\D/g, "") || hts)}`,
+        rate_determination_date: rd.date,
+        rate_date_basis: rd.basis,
+        layers: [],
+        suppressed: [],
+        diagnostics,
+        ch99_sequence: [],
+        totals: {
+          duty: 0,
+          parts_duty: 0,
+          metals_duty: 0,
+          specific_duty: 0,
+          ad_valorem_commodity_duty: 0,
+          effective_duty_rate_pct: null,
+        },
+        blocked: true,
+        window_status: "unknown",
+      };
     }
+  } else if (unknownHts) {
+    diagnostics.push({
+      severity: "WARNING",
+      code: "UNKNOWN_HTS_OVERRIDE",
+      message:
+        "HTS is not in the baseline Column-1 table; using the manual Col-1 override you entered. Chapter 99 still stacks on that override.",
+      remediation: "Confirm the 10-digit HTS on USITC when you can — override rates are not validated against the classification table.",
+    });
   }
   if (resolved) {
     col1SpecificUsd = resolved.col1_specific_usd || 0;
@@ -329,7 +519,46 @@ export function assessLine(line: LineIn, index: number) {
   const filed = (line.filed_ch99 || []).map(normalizeCh99);
   const flags = inferChinaFlagsFromFiled(filed, line.flags || {});
 
+  /** Set before any pushCommodity() call when USMCA / CAFTA-DR SPI Free applies. */
+  let spiPref: SpiPreference | null = null;
+
   const pushCommodity = (zeroCommodity = false) => {
+    if (spiPref) {
+      const wouldAdValorem = money2(entered * col1);
+      const wouldSpecific = specificDuty > 0 ? specificDuty : 0;
+      const wouldTotal = money2(wouldAdValorem + wouldSpecific);
+      layers.push(
+        layer({
+          slot: "6.0",
+          program: "base",
+          ch99: null,
+          label: `Column-1 Free — ${spiPref.label} (SPI ${spiPref.spi})`,
+          reason: `${spiPref.label} preferential claim (SPI ${spiPref.spi}) suppresses Chapters 1–97 / Column-1 duty and MPF. Other programs (301-FL, 232, China 301, etc.) are NOT auto-suppressed — each needs its own ${spiPref.label} / Note 52 Chapter 99 exemption when applicable.`,
+          source_ref: "R10_SPI_FTA_COL1_MPF",
+          basis_amount: entered,
+          rate_pct: 0,
+          rate_label: "Free",
+        }),
+      );
+      if (wouldTotal > 0) {
+        suppressed.push({
+          ...layer({
+            slot: "6.0",
+            program: "base",
+            ch99: null,
+            label: "Column-1 (suppressed by preference)",
+            reason: `Suppressed by ${spiPref.label} SPI ${spiPref.spi}. Would otherwise assess $${wouldTotal.toFixed(2)}.`,
+            source_ref: "R10_SPI_FTA_COL1_MPF",
+            basis_amount: entered,
+            rate_pct: col1,
+            rate_label: rateLabel || pctLabel(col1),
+            duty_amount: wouldTotal,
+          }),
+          reason: `Suppressed by ${spiPref.label}. Would otherwise assess $${wouldTotal.toFixed(2)}.`,
+        });
+      }
+      return;
+    }
     if (zeroCommodity) {
       layers.push(
         layer({
@@ -393,6 +622,15 @@ export function assessLine(line: LineIn, index: number) {
   };
   function trimDisp(n: number) {
     return String(Number(n.toFixed(4))).replace(/0+$/, "").replace(/\.$/, "");
+  }
+
+  spiPref = resolveSpiPreference(line, coo, diagnostics);
+  if (spiPref) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "SPI_PREFERENCE_APPLIED",
+      message: `${spiPref.label} (SPI ${spiPref.spi}): Column-1 duty and MPF suppressed. Other tariff programs need their own ${spiPref.label} Chapter 99 exception (e.g. 301-FL Note 52 headings) — SPI alone does not clear them.`,
+    });
   }
 
   if (!hts) {
@@ -501,6 +739,22 @@ export function assessLine(line: LineIn, index: number) {
 
   const claimedAuto232 = Boolean(flags.s232_auto_part || flags.s232_auto || flags.s232);
   const annex232 = match232AutoPartsAnnex(hts);
+  const pharma232 = assessS232Pharma({
+    hts,
+    coo,
+    rateDay: rd.date,
+    flags,
+  });
+  const pharmaClaim = s232PharmaClaimed(flags);
+  if ((pharmaClaim.patented || pharmaClaim.generic) && pharma232 && !pharma232.applies) {
+    diagnostics.push({
+      severity: "WARNING",
+      code: "S232_PHARMA_SCOPE",
+      message: pharma232.reason,
+      remediation:
+        "Proclamation 11020 covers subject Chapter 29/30 classifications (U.S. note 40(c)). Plastics such as 3907.69 use Note 52(e) pharmaceutical-use 9903.05.89 under 301-FL — not 9903.04.63.",
+    });
+  }
   // Pure metal articles (Ch.72–74/76): metals path wins over an accidental autos claim (R5).
   const chapterMetals = classify232Metals(hts);
   if (metalsHit && (claimedAuto232 || annex232) && chapterMetals) {
@@ -616,6 +870,25 @@ export function assessLine(line: LineIn, index: number) {
   let partsDuty = 0;
   let metalsDuty = 0;
 
+  /** Filled by add301Fl when a Note 52 economy exemption is available / claimed. */
+  const ftaTrack: {
+    available: FlEconomyExemption | null;
+    claimed: FlEconomyExemption | null;
+    without_fl_heading: string | null;
+    without_fl_rate_pct: number;
+    without_fl_duty: number;
+    col1_without_spi_duty: number;
+    spi_applied: boolean;
+  } = {
+    available: lookupFlClaimExemption(coo),
+    claimed: null,
+    without_fl_heading: null,
+    without_fl_rate_pct: 0,
+    without_fl_duty: 0,
+    col1_without_spi_duty: money2(entered * col1 + (specificDuty > 0 ? specificDuty : 0)),
+    spi_applied: Boolean(spiPref),
+  };
+
   // Trade-deal total path (non JP top-up) is blocked by R6
   const tradeDealAttempt =
     Boolean(flags.trade_deal_eu || flags.trade_deal_kr || flags.trade_deal_tw) ||
@@ -690,11 +963,11 @@ export function assessLine(line: LineIn, index: number) {
         if (applyMetals232) {
           push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
         } else {
-          add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
+          add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
         }
       } else {
         applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
-        add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
+        add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
       }
 
       pushCommodity(false);
@@ -796,8 +1069,57 @@ export function assessLine(line: LineIn, index: number) {
       flags,
     });
     applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
-    add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
+    add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
     pushCommodity(false);
+  } else if (!blocked && pharma232?.applies) {
+    // Section 232 patented / generic pharma — Proclamation 11020 (CSMS #69395344 / #69415934)
+    try {
+      const meta = assertComputable(pharma232.heading);
+      layers.push(
+        layer({
+          slot: "3.3",
+          program: "SEC_232_PHARMA",
+          ch99: meta.code,
+          label: pharma232.label,
+          reason: pharma232.reason,
+          source_ref: meta.notes,
+          basis_amount: entered,
+          rate_pct: pharma232.rate_pct_decimal,
+        }),
+      );
+      if (pharma232.combined_rate_tbc) {
+        diagnostics.push({
+          severity: "WARNING",
+          code: "S232_PHARMA_COMBINED_TBC",
+          message: `${pharma232.heading} is a combined Column-1 + 232 rate (${(pharma232.rate_pct_decimal * 100).toFixed(0)}%). Confirm whether Ch.1–97 should report zero on this path.`,
+          remediation: "CSMS #69395344 describes combined rates for 9903.04.60 / .62. Review filing practice before relying on the stacked Col-1 line.",
+        });
+      }
+      diagnostics.push({
+        severity: "INFO",
+        code: "S232_PHARMA_APPLIED",
+        message: pharma232.reason,
+      });
+      addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+        in232Universe: pharma232.suppresses_301fl,
+        flags,
+      });
+      if (pharma232.suppresses_301fl) {
+        push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+      } else {
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
+        add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
+      }
+      pushCommodity(pharma232.rate_kind === "combined_col1_and_232");
+    } catch (e) {
+      diagnostics.push({
+        severity: "ERROR",
+        code: "REVIEW_REQUIRED",
+        message: e instanceof Error ? e.message : String(e),
+      });
+      blocked = true;
+    }
   } else if (!blocked) {
     // Non-232 → Brazil 301 (from 2026-07-22) + Sec 122 (historical) or 301-FL (from 2026-07-24)
     addBrazil301(coo, entered, layers, diagnostics, rd.date, {
@@ -805,7 +1127,7 @@ export function assessLine(line: LineIn, index: number) {
       flags,
     });
     applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
-    add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date);
+    add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
     pushCommodity(false);
   }
 
@@ -872,6 +1194,7 @@ export function assessLine(line: LineIn, index: number) {
     ...seq.filter(brazil301), // Brazil country 301 before other 9903.05 / FL
     ...seq.filter((c) => c === "9903.05.90" || c === "9903.03.06" || c === "9903.03.03"),
     ...seq.filter((c) => c.startsWith("9903.82")),
+    ...seq.filter((c) => c.startsWith("9903.04")), // Proclamation 11020 pharma
     ...seq.filter((c) => c.startsWith("9903.94") || c.startsWith("9903.74")),
     ...seq.filter(
       (c) => c.startsWith("9903.05") && c !== "9903.05.90" && !brazil301(c),
@@ -880,6 +1203,66 @@ export function assessLine(line: LineIn, index: number) {
   ];
   const ch99_sequence_unique = [...new Set(ordered.length ? ordered : seq)];
 
+  let fta_compare: Record<string, unknown> | null = null;
+  const hasFtaStory =
+    Boolean(ftaTrack.available && ftaTrack.without_fl_heading) || ftaTrack.spi_applied;
+  if (hasFtaStory) {
+    const flClaimed = Boolean(ftaTrack.claimed);
+    const spiOn = ftaTrack.spi_applied;
+    const flDuty = ftaTrack.without_fl_heading ? ftaTrack.without_fl_duty : 0;
+    const col1Duty = ftaTrack.col1_without_spi_duty;
+    // SPI Free (Col-1 + MPF) only for USMCA / CAFTA-DR — not bare Note 52(j) claims.
+    const spiEligible =
+      spiOn ||
+      ftaTrack.available?.claim_id === "USMCA" ||
+      ftaTrack.available?.claim_id === "CAFTA_DR";
+    const withoutDuty = money2(
+      totalDuty + (flClaimed ? flDuty : 0) + (spiOn ? col1Duty : 0),
+    );
+    const withDutyClamped = Math.max(
+      0,
+      money2(
+        totalDuty -
+          (!flClaimed ? flDuty : 0) -
+          (spiEligible && !spiOn ? col1Duty : 0),
+      ),
+    );
+    const pctOf = (d: number) => (entered > 0 ? money2((d / entered) * 100) : 0);
+    const claimLabel =
+      spiPref?.label ||
+      ftaTrack.claimed?.label ||
+      ftaTrack.available?.label ||
+      "FTA";
+    fta_compare = {
+      available: true,
+      claim_id: spiPref?.claim_id || ftaTrack.available?.claim_id || null,
+      label: claimLabel,
+      exemption_heading: ftaTrack.available?.heading || null,
+      basis: ftaTrack.available?.basis || null,
+      claimed: flClaimed || spiOn,
+      spi_applied: spiOn,
+      col1_suppressed: spiOn,
+      mpf_suppressed: spiOn,
+      without_claim: {
+        fl_heading: ftaTrack.without_fl_heading,
+        fl_duty: flDuty,
+        fl_rate_pct: ftaTrack.without_fl_rate_pct,
+        col1_duty: col1Duty,
+        line_duty: withoutDuty,
+        effective_duty_rate_pct: pctOf(withoutDuty),
+      },
+      with_claim: {
+        fl_heading: ftaTrack.claimed?.heading || ftaTrack.available?.heading || null,
+        fl_duty: 0,
+        fl_rate_pct: 0,
+        col1_duty: spiEligible ? 0 : col1Duty,
+        line_duty: withDutyClamped,
+        effective_duty_rate_pct: pctOf(withDutyClamped),
+      },
+      duty_saved: money2(withoutDuty - withDutyClamped),
+    };
+  }
+
   return {
     line_id,
     hts,
@@ -887,7 +1270,7 @@ export function assessLine(line: LineIn, index: number) {
     entered_value: entered,
     col1_rate_pct: col1Pct,
     col1_source: col1Source,
-    col1_rate_label: rateLabel || null,
+    col1_rate_label: spiPref ? "Free" : rateLabel || null,
     col1_specific_usd: col1SpecificUsd || null,
     quantity: Number.isFinite(qty) ? qty : null,
     quantity_uom: col1Uom || null,
@@ -911,12 +1294,16 @@ export function assessLine(line: LineIn, index: number) {
     suppressed,
     diagnostics,
     ch99_sequence: ch99_sequence_unique,
+    fta_compare,
+    fta_claim: resolveFtaClaim(line),
+    spi_preference: spiPref,
+    mpf_exempt: Boolean(spiPref),
     totals: {
       duty: totalDuty,
       parts_duty: partsDuty,
       metals_duty: metalsDuty,
-      specific_duty: specificDuty,
-      ad_valorem_commodity_duty: money2(entered * col1),
+      specific_duty: spiPref ? 0 : specificDuty,
+      ad_valorem_commodity_duty: spiPref ? 0 : money2(entered * col1),
       effective_duty_rate_pct: effective,
     },
     blocked,
@@ -1124,9 +1511,17 @@ function add301Fl(
   entered: number,
   col1: number,
   layers: DutyLayer[],
-  _suppressed: SuppressedLayer[],
+  suppressed: SuppressedLayer[],
   diagnostics: Diagnostic[],
   rateDay?: string,
+  line?: LineIn,
+  ftaTrack?: {
+    available: FlEconomyExemption | null;
+    claimed: FlEconomyExemption | null;
+    without_fl_heading: string | null;
+    without_fl_rate_pct: number;
+    without_fl_duty: number;
+  },
 ) {
   if (rateDay && !s301flAppliesOn(rateDay)) {
     diagnostics.push({
@@ -1146,7 +1541,145 @@ function add301Fl(
     return;
   }
 
-  const rate = fl.kind === "threshold_no_add" ? 0 : fl.rate_pct_decimal;
+  const wouldRate = fl.kind === "threshold_no_add" ? 0 : fl.rate_pct_decimal;
+  const wouldDuty = money2(entered * wouldRate);
+  if (ftaTrack) {
+    ftaTrack.without_fl_heading = fl.heading;
+    ftaTrack.without_fl_rate_pct = money2(wouldRate * 100);
+    ftaTrack.without_fl_duty = wouldDuty;
+  }
+
+  const claimRaw = line ? resolveFtaClaim(line) : null;
+  const matched = flClaimMatches(coo, claimRaw);
+  const available = ftaTrack?.available || lookupFlClaimExemption(coo);
+  const flags = line?.flags || {};
+  const pharmaHit = matchFlPharmaHts(line?.hts || "");
+  const pharmaClaim = flPharmaClaimed(flags);
+
+  if (matched) {
+    if (ftaTrack) ftaTrack.claimed = matched;
+    layers.push(
+      layer({
+        slot: "3.2",
+        program: "SEC_301_FL",
+        ch99: matched.heading,
+        label: `301-FL exempt — ${matched.label}`,
+        reason: `${matched.basis}. Claimed ${matched.label}: report ${matched.heading} @ 0% instead of ${fl.heading}. SPI Free (Column-1 / MPF) is separate — applied only for USMCA / CAFTA-DR preferential claims.`,
+        source_ref: "CSMS #69326983 — Note 52 economy exemption",
+        basis_amount: entered,
+        rate_pct: 0,
+      }),
+    );
+    suppressed.push({
+      ...layer({
+        slot: "3.2",
+        program: "SEC_301_FL",
+        ch99: fl.heading,
+        label: `${fl.label} (not claimed)`,
+        reason: `Superseded by ${matched.label} claim (${matched.heading}). Would otherwise assess $${wouldDuty.toFixed(2)}. ${fl.reason}`,
+        source_ref: "CSMS #69326983",
+        basis_amount: entered,
+        rate_pct: wouldRate,
+      }),
+      reason: `Not applied — ${matched.label} claim (${matched.heading}). Would otherwise assess $${wouldDuty.toFixed(2)}.`,
+    });
+    diagnostics.push({
+      severity: "INFO",
+      code: "FTA_CLAIM_APPLIED",
+      message: `${matched.label} Note 52 exemption for ${coo}: 301-FL reports ${matched.heading} @ 0% instead of ${fl.heading} ($${wouldDuty.toFixed(2)} avoided).`,
+      remediation:
+        "SPI S/S+ (or CAFTA SPI) separately zeros Column-1 and MPF. Other programs still need their own USMCA/FTA Chapter 99 exception.",
+    });
+
+    if (matched.claim_id === "CAFTA_DR") {
+      const digits = String(line?.hts || "").replace(/\D/g, "");
+      const ch = Number(digits.slice(0, 2));
+      if (!(ch >= 50 && ch <= 63)) {
+        diagnostics.push({
+          severity: "WARNING",
+          code: "CAFTA_TEXTILE_SCOPE",
+          message: `CAFTA-DR exemption ${matched.heading} is scoped to textiles/apparel (Note 52(i)). This HTS chapter ${Number.isFinite(ch) ? ch : "?"} may not qualify — confirm product scope before filing.`,
+        });
+      }
+    }
+    if (pharmaClaim && pharmaHit) {
+      diagnostics.push({
+        severity: "INFO",
+        code: "FL_PHARMA_SUPERSEDED",
+        message: `Pharmaceutical-use claim (${pharmaHit.heading}) is available for this HTS, but ${matched.label} (${matched.heading}) already clears 301-FL. Pharma claim is not needed on this path.`,
+      });
+    }
+    return;
+  }
+
+  // Note 52(e) pharmaceutical applications — claim-gated; does NOT zero Col-1 / MPF (R10).
+  if (pharmaClaim) {
+    const heading = pharmaHit?.heading || flPharmaMeta().heading;
+    if (!pharmaHit) {
+      diagnostics.push({
+        severity: "WARNING",
+        code: "FL_PHARMA_OFF_LIST",
+        message: `Pharmaceutical-use claim asserted, but this HTS is not on the seeded Note 52(e) list for ${heading}. Confirm Forced Labor HTS List membership before filing; 301-FL still assessed.`,
+        remediation: "Clear the Pharma use claim, or confirm the HTS appears under U.S. Note 52(e) on the CBP Forced Labor HTS List.",
+      });
+    } else {
+      layers.push(
+        layer({
+          slot: "3.2",
+          program: "SEC_301_FL",
+          ch99: heading,
+          label: "301-FL exempt — pharmaceutical applications",
+          reason: `${pharmaHit.basis}. HTS stem ${pharmaHit.matched_stem} is on the Note 52(e) list and pharmaceutical use is claimed — report ${heading} @ 0% instead of ${fl.heading}. Column-1 and MPF still apply (R10).`,
+          source_ref: "CSMS #69326983 — U.S. Note 52(e)",
+          basis_amount: entered,
+          rate_pct: 0,
+        }),
+      );
+      suppressed.push({
+        ...layer({
+          slot: "3.2",
+          program: "SEC_301_FL",
+          ch99: fl.heading,
+          label: `${fl.label} (pharma exempt)`,
+          reason: `Superseded by pharmaceutical-use claim (${heading}). Would otherwise assess $${wouldDuty.toFixed(2)}. ${fl.reason}`,
+          source_ref: "CSMS #69326983",
+          basis_amount: entered,
+          rate_pct: wouldRate,
+        }),
+        reason: `Not applied — pharmaceutical use (${heading}). Would otherwise assess $${wouldDuty.toFixed(2)}.`,
+      });
+      diagnostics.push({
+        severity: "INFO",
+        code: "FL_PHARMA_APPLIED",
+        message: `Pharmaceutical applications (Note 52(e)): 301-FL reports ${heading} @ 0%. Without this claim (and without USMCA), ${fl.heading} would add $${wouldDuty.toFixed(2)}.`,
+        remediation:
+          "Actual use must be pharmaceutical. This does not suppress Column-1 or MPF — only USMCA/CAFTA SPI does that (R10).",
+      });
+      return;
+    }
+  } else if (pharmaHit) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "FL_PHARMA_AVAILABLE",
+      message: `This HTS matches the Note 52(e) pharmaceutical-use list (stem ${pharmaHit.matched_stem}). If actual use is pharmaceutical, claim Pharma use to report ${pharmaHit.heading} @ 0% instead of ${fl.heading}.`,
+      remediation: "Check Pharma use on Quick Check, or set flags.s301fl_pharma. Prefer USMCA when originating under USMCA (zeros Col-1 + MPF + FL).",
+    });
+  }
+
+  if (available && !matched) {
+    const spiNote =
+      available.claim_id === "USMCA" || available.claim_id === "CAFTA_DR"
+        ? ` Claiming ${available.label} also zeros Column-1 and MPF (R10); other programs still need their own Ch.99 exception.`
+        : ` This Note 52 claim only clears 301-FL — it does not zero Column-1 or MPF.`;
+    diagnostics.push({
+      severity: "INFO",
+      code: "FTA_CLAIM_AVAILABLE",
+      message: `${available.label} may exempt 301-FL for ${coo} via ${available.heading} (${available.basis}). Check the FTA claim box (or set flags.fta_usmca / fta_cafta_dr / fta_note_52) if the goods qualify.${spiNote}`,
+      remediation: `Re-run with fta_claim=${available.claim_id} to compare duties with and without the preference.`,
+    });
+  }
+
+  const rate = wouldRate;
   layers.push(
     layer({
       slot: "3.2",
@@ -1178,10 +1711,19 @@ export function assessEntry(body: {
   const enteredTotal = money2(
     lines.reduce((a, l) => a + (Number(l.entered_value) || 0), 0),
   );
+  const mpfExemptValue = money2(
+    lines.reduce((a, l) => {
+      if (l.mpf_exempt || l.spi_preference) {
+        return a + (Number(l.entered_value) || 0);
+      }
+      return a;
+    }, 0),
+  );
   const feePack = computeEntryFees({
     entered_value_total: enteredTotal,
     formal_entry: body.formal_entry !== false,
     mode_of_transport: body.mode_of_transport,
+    mpf_exempt_value: mpfExemptValue,
   });
   const landed = money2(enteredTotal + duty + feePack.total);
   return {
@@ -1195,7 +1737,11 @@ export function assessEntry(body: {
       entered_value: enteredTotal,
       landed_cost: landed,
       effective_duty_rate_pct:
-        enteredTotal > 0 ? money2((duty / enteredTotal) * 100) : 0,
+        enteredTotal > 0 && duty > 0
+          ? money2((duty / enteredTotal) * 100)
+          : lines.some((l) => l.blocked || l.totals?.effective_duty_rate_pct == null)
+            ? null
+            : 0,
     },
     entry_fees: feePack.fees,
   };

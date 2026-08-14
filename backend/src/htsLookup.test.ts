@@ -8,6 +8,7 @@ import {
   lookupHts,
   reloadHtsTable,
   resolveCol1,
+  suggestRelatedHts,
 } from "./htsLookup.ts";
 import {
   HTS_REPLACEMENTS_PATH,
@@ -146,5 +147,28 @@ describe("HTS ended → replacement", () => {
     assert.equal(replacements.length, 1);
     assert.equal(replacements[0].from, "6666666610");
     assert.equal(replacements[0].to, "6666666620");
+  });
+
+  it("suggests sibling statistical lines under the same 8-digit heading", () => {
+    const related = suggestRelatedHts("1805.00.0000", "2026-08-07");
+    assert.ok(related.length >= 2);
+    const codes = related.map((r) => r.hts);
+    assert.ok(codes.includes("1805000010"));
+    assert.ok(codes.includes("1805000090"));
+  });
+
+  it("coverage blocks unknown HTS and returns plain-text help + related", () => {
+    const cov = coverOne(
+      { hts: "1805.00.0000", coo: "" },
+      { as_of: "2026-08-07", default_coo: null },
+    );
+    assert.equal(cov.blocked, true);
+    assert.equal(cov.in_table, false);
+    assert.equal((cov.rules as unknown[]).length, 0);
+    assert.ok((cov.related_hts as unknown[]).length >= 2);
+    const help = cov.help as { title: string; steps: string[] };
+    assert.ok(help?.title);
+    assert.ok(help.steps?.length);
+    assert.ok(!(cov.notes as string[]).some((n) => /[—·]/.test(n)));
   });
 });

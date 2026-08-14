@@ -159,6 +159,18 @@
           <div class="quick-flags">
             <label class="check"><input type="checkbox" id="qc-232" />
               <span>232 auto part <span class="cap" id="qc-232-hint">(claim if off-list)</span></span></label>
+            <label class="check" id="qc-fta-wrap" hidden>
+              <input type="checkbox" id="qc-fta" />
+              <span id="qc-fta-label">Claim FTA / USMCA</span>
+            </label>
+            <label class="check" id="qc-pharma-wrap" hidden>
+              <input type="checkbox" id="qc-pharma" />
+              <span id="qc-pharma-label">Pharma use (9903.05.89)</span>
+            </label>
+            <label class="check" id="qc-s232-pharma-wrap" hidden>
+              <input type="checkbox" id="qc-s232-pharma" />
+              <span id="qc-s232-pharma-label">232 patented pharma</span>
+            </label>
             <details class="adv-override" id="qc-cn-adv">
               <summary class="cap">Advanced: override China 301 list</summary>
               <div class="field" style="margin:var(--sp-2) 0 0;min-width:200px">
@@ -286,7 +298,7 @@
                     <textarea id="pastebox" spellcheck="false"
 placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
 8708.29.5160,CN,10000,2.5,2026-07-25,2026-07-25,s301_list_3
-6203.42.4010,VN,25000,16.6,2026-07-25,2026-07-25,"></textarea>
+6203.42.0711,VN,25000,16.6,2026-07-25,2026-07-25,"></textarea>
                     <div class="actions" style="margin-top:var(--sp-2)">
                       <button class="btn-secondary btn-sm" id="doparse">Add rows</button>
                     </div>
@@ -352,7 +364,8 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
       <div class="viewhead">
         <h2>Which rules apply?</h2>
         <p class="cap">Drop a spreadsheet, paste a list, or upload CSV / JSON / Excel.
-          No entered value needed — see Column&nbsp;1 and the Chapter&nbsp;99 rules for each HTS.</p>
+          See Column&nbsp;1 and Chapter&nbsp;99 for each HTS. Unknown codes get clear guidance,
+          same-heading alternatives from the table, and USITC links — no invented duty stacks.</p>
       </div>
       <div id="lookupbanner"></div>
 
@@ -382,7 +395,7 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
               <label class="label" for="lookup-paste">Or paste codes</label>
               <textarea id="lookup-paste" spellcheck="false" rows="8"
 placeholder="hts,coo
-6203.42.4010,VN
+6203.42.0711,VN
 8708.10.3050,CN
 8517.12.0020,DE
 

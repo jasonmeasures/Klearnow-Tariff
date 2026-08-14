@@ -228,7 +228,7 @@
   },
   "data_files": {
     "program_status.json": "Live / sunset / struck program registry",
-    "interaction_rules.json": "R1–R9 stacking narrative + status",
+    "interaction_rules.json": "R1–R10 stacking narrative + status (includes R10 SPI/FTA Col-1+MPF)",
     "ch99_codes.json": "~120 Ch.99 code registry",
     "s301fl_pack.json": "301-FL 60 economies + exemptions (CSMS #69326983)",
     "s301_brazil.json": "Brazil country Section 301 9903.05.01–.09 (CSMS #69302472)",

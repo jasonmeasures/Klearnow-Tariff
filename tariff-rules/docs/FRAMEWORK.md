@@ -79,7 +79,7 @@ Wrong-era filings (e.g. IEEPA after 2026-02-23, Sec 122 on/after 2026-07-24) are
 
 ---
 
-## 4. Stacking (R1–R9)
+## 4. Stacking (R1–R10)
 
 Authoritative copies: `interaction_rules.json` + `framework_contract.json`.
 
@@ -96,6 +96,9 @@ Authoritative copies: `interaction_rules.json` + `framework_contract.json`.
 | **R6** | Trade-deal MFN cap — **BLOCKING** for totals |
 | **R8** | HTS authority: Item Master for parts |
 | **R9** | AD/CVD outside Ch.99 math |
+| **R10** | USMCA (SPI S/S+) / CAFTA-DR: zeros **Column-1 + MPF only**. Other programs need their **own** USMCA/FTA Ch.99 exception (e.g. 301-FL Note 52 → `9903.05.93` CA / `.94` MX) |
+
+Also distinct: **Section 232 patented pharma** (Proclamation 11020, CSMS [#69395344](https://content.govdelivery.com/bulletins/gd/USDHSCBP-422e390) / [#69415934](https://content.govdelivery.com/bulletins/gd/USDHSCBP-42333fe)) — UK `9903.04.63` @ **0% additional** from 2026-07-31; Ch.29/30 claim; suppresses 301-FL via `9903.05.90`. Not the same as Note 52(e) `9903.05.89` (301-FL pharmaceutical-use list).
 
 CBP reporting: Ch.99 before Ch.1–97; China 301 before 232 when both apply.
 

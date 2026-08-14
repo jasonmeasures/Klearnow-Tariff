@@ -1,0 +1,104 @@
+{
+  "program": {
+    "id": "s232_pharma",
+    "proclamation": "11020",
+    "title": "Section 232 — patented pharmaceuticals & ingredients",
+    "effective": "2026-07-31",
+    "annex_iii_duty_start": "2026-07-31",
+    "other_companies_duty_start": "2026-09-29",
+    "source_csms": ["69395344", "69415934"],
+    "detail": "Proclamation 11020. Subject Ch.29/30 classifications per U.S. note 40(c). Generics not subject to additional duties (9903.04.67). UK patented articles report 9903.04.63 — rate reduced from 10% additional to 0% effective 2026-07-31 (CSMS #69415934).",
+    "notes": [
+      "Effective 2026-07-31 all importers of subject Ch.29/30 goods must report an applicable 9903.04.60–.69 heading even when the rate is 0%.",
+      "FTA / SPI special rates: duties under 9903.04.60–.68 are collected in addition to any special Column-1 rate (CSMS #69395344) — SPI does not clear this 232 layer.",
+      "When a 9903.04.60–.66 patented-pharma heading applies, 301-FL is in the Section 232 universe → report 9903.05.90 (Note 52(f))."
+    ]
+  },
+  "chapters": [29, 30],
+  "claim_flag_patented": "s232_pharma_patented",
+  "claim_flag_generic": "s232_pharma_generic",
+  "headings": [
+    {
+      "code": "9903.04.60",
+      "rate_pct": 100,
+      "rate_kind": "combined_col1_and_232",
+      "label": "232 pharma — default patented (Annex III)",
+      "basis": "U.S. note 40(c)/(d)"
+    },
+    {
+      "code": "9903.04.61",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 pharma — non-Annex III interim 0%",
+      "basis": "U.S. note 40(c)/(e)",
+      "valid_through": "2026-09-28"
+    },
+    {
+      "code": "9903.04.62",
+      "rate_pct": 15,
+      "rate_kind": "combined_col1_and_232",
+      "label": "232 pharma — JP / EU / KR / CH / LI",
+      "basis": "U.S. note 40(c)/(f)",
+      "origins": ["JP", "KR", "CH", "LI", "EU"]
+    },
+    {
+      "code": "9903.04.63",
+      "rate_pct": 0,
+      "prior_rate_pct": 10,
+      "rate_kind": "additional",
+      "label": "232 pharma — United Kingdom (0% from 2026-07-31)",
+      "basis": "U.S. note 40(c)/(g); CSMS #69415934",
+      "origins": ["GB"],
+      "rate_effective": "2026-07-31",
+      "source_csms": "69415934"
+    },
+    {
+      "code": "9903.04.64",
+      "rate_pct": 20,
+      "rate_kind": "additional",
+      "label": "232 pharma — qualifying onshoring plan",
+      "basis": "U.S. note 40(c)/(h)(i)"
+    },
+    {
+      "code": "9903.04.65",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 pharma — Annex II onshoring + MFN pricing",
+      "basis": "U.S. note 40(c)/(h)(ii)",
+      "expires": "2029-01-20"
+    },
+    {
+      "code": "9903.04.66",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 pharma — specific-use carve-out",
+      "basis": "U.S. note 40(c)/(h)(iii)"
+    },
+    {
+      "code": "9903.04.67",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 pharma — generic articles",
+      "basis": "U.S. note 40(c)"
+    },
+    {
+      "code": "9903.04.68",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 pharma — U.S.-origin API in dosage form",
+      "basis": "U.S. note 40"
+    },
+    {
+      "code": "9903.04.69",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 pharma — Ch.29/30 non-pharmaceutical articles",
+      "basis": "U.S. note 40(i)"
+    }
+  ],
+  "sources": [
+    "https://content.govdelivery.com/bulletins/gd/USDHSCBP-422e390",
+    "https://content.govdelivery.com/bulletins/gd/USDHSCBP-42333fe",
+    "Presidential Proclamation 11020; 91 FR 18183"
+  ]
+}

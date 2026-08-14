@@ -1,0 +1,11 @@
+{
+  "heading": "9903.05.89",
+  "basis": "pharmaceutical applications — US Note 52(e)",
+  "claim_flag": "s301fl_pharma",
+  "notes": "Partial seed of the ~700-provision Forced Labor HTS pharmaceutical-use list. Match is prefix on digits (8-digit stem or longer). Expand via admin/import when full CBP Forced Labor HTS List is available.",
+  "source": "CSMS #69326983 / U.S. Note 52(e); user-confirmed 3907.69.0050",
+  "stems": [
+    "39076900",
+    "3907690050"
+  ]
+}

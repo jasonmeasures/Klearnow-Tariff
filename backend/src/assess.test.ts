@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { computeTradeDealTotal } from "../../tariff-rules/src/tariffRules.ts";
-import { assessLine, auditEntry } from "./assess.ts";
+import { assessLine, auditEntry, assessEntry } from "./assess.ts";
 import { resolveCol1 } from "./htsLookup.ts";
 
 describe("golden duty paths", () => {
@@ -326,6 +326,25 @@ describe("golden duty paths", () => {
     assert.ok(L.ch99_sequence.includes("9903.05.39"));
     assert.equal(L.totals.effective_duty_rate_pct, 10);
   });
+
+  it("unknown HTS with no replacement blocks the stack (no Free / no Ch.99 invent)", () => {
+    const L = assessLine(
+      {
+        hts: "1805.00.0000",
+        coo: "DE",
+        entered_value: 10000,
+        entry_date: "2026-08-07",
+        flags: {},
+      },
+      0,
+    );
+    assert.equal(L.blocked, true);
+    assert.equal(L.layers.length, 0);
+    assert.equal(L.ch99_sequence.length, 0);
+    assert.equal(L.totals.duty, 0);
+    assert.equal(L.totals.effective_duty_rate_pct, null);
+    assert.ok(L.diagnostics.some((d) => d.severity === "ERROR" && d.code === "UNKNOWN_HTS"));
+  });
 });
 
 describe("safety contract", () => {
@@ -558,5 +577,155 @@ describe("program era routing", () => {
     assert.ok(claimed.diagnostics.some((d) => d.code === "S232_ANNEX_CLAIM_GATED"));
     assert.ok(claimed.ch99_sequence.includes("9903.94.05"));
     assert.ok(claimed.ch99_sequence.includes("9903.05.90"));
+  });
+
+  it("MX plastics without USMCA → Col-1 + 301-FL flat 10%; with fta_usmca → Free Col-1 + 9903.05.94 + MPF exempt", () => {
+    const base = {
+      hts: "3907690050",
+      coo: "MX",
+      entered_value: 37626.88,
+      entry_date: "2026-08-07",
+    };
+    const without = assessLine({ ...base, flags: {} }, 0);
+    assert.ok(without.ch99_sequence.includes("9903.05.55"));
+    assert.ok(without.fta_compare?.available);
+    assert.equal(without.fta_compare?.claimed, false);
+    assert.equal(without.fta_compare?.label, "USMCA");
+    assert.ok(without.diagnostics.some((d) => d.code === "FTA_CLAIM_AVAILABLE"));
+    // 6.5% + 10% = 16.5%
+    assert.equal(without.totals.effective_duty_rate_pct, 16.5);
+    assert.equal(without.mpf_exempt, false);
+
+    const withClaim = assessLine({ ...base, flags: { fta_usmca: true } }, 0);
+    assert.ok(withClaim.ch99_sequence.includes("9903.05.94"));
+    assert.ok(!withClaim.ch99_sequence.includes("9903.05.55"));
+    assert.equal(withClaim.fta_compare?.claimed, true);
+    assert.equal(withClaim.totals.effective_duty_rate_pct, 0);
+    assert.equal(withClaim.totals.ad_valorem_commodity_duty, 0);
+    assert.equal(withClaim.col1_rate_label, "Free");
+    assert.equal(withClaim.mpf_exempt, true);
+    assert.ok(withClaim.spi_preference?.claim_id === "USMCA");
+    assert.ok(withClaim.suppressed.some((s) => s.ch99 === "9903.05.55"));
+    assert.ok(withClaim.diagnostics.some((d) => d.code === "SPI_PREFERENCE_APPLIED"));
+    assert.equal(withClaim.fta_compare?.with_claim?.effective_duty_rate_pct, 0);
+    assert.equal(withClaim.fta_compare?.without_claim?.effective_duty_rate_pct, 16.5);
+  });
+
+  it("USMCA entry: MPF amount is $0; HMF still applies on ocean", () => {
+    const R = assessEntry({
+      mode_of_transport: "OCEAN",
+      formal_entry: true,
+      lines: [
+        {
+          hts: "3907690050",
+          coo: "MX",
+          entered_value: 37626.88,
+          entry_date: "2026-08-07",
+          flags: { fta_usmca: true },
+        },
+      ],
+    });
+    const mpf = R.entry_fees.find((f: { code: string }) => f.code === "MPF");
+    assert.ok(mpf);
+    assert.equal(mpf!.amount, 0);
+    assert.match(mpf!.rate_note, /Exempt/i);
+    const hmf = R.entry_fees.find((f: { code: string }) => f.code === "HMF");
+    assert.ok(hmf && hmf.amount > 0);
+    assert.equal(R.totals.duty, 0);
+  });
+
+  it("CA USMCA claim → 9903.05.93 + Free Col-1; DE Note 52 claim → 9903.05.97 only (Col-1 stays)", () => {
+    const ca = assessLine(
+      {
+        hts: "3907690050",
+        coo: "CA",
+        entered_value: 10000,
+        entry_date: "2026-08-07",
+        flags: { fta_usmca: true },
+      },
+      0,
+    );
+    assert.ok(ca.ch99_sequence.includes("9903.05.93"));
+    assert.equal(ca.fta_compare?.label, "USMCA");
+    assert.equal(ca.totals.effective_duty_rate_pct, 0);
+    assert.equal(ca.mpf_exempt, true);
+
+    const de = assessLine(
+      {
+        hts: "3907690050",
+        coo: "DE",
+        entered_value: 10000,
+        entry_date: "2026-08-07",
+        flags: { fta_note_52: true },
+      },
+      0,
+    );
+    assert.ok(de.ch99_sequence.includes("9903.05.97"));
+    assert.equal(de.fta_compare?.label, "Note 52 preference");
+    assert.equal(de.mpf_exempt, false);
+    // Col-1 still due under Note 52-only (plastics 6.5%); FL exempt
+    assert.equal(de.totals.effective_duty_rate_pct, 6.5);
+  });
+
+  it("MX plastics pharma use → 9903.05.89 @ 0% FL + Col-1 still due; USMCA wins if both claimed", () => {
+    const base = {
+      hts: "3907690050",
+      coo: "MX",
+      entered_value: 37626.88,
+      entry_date: "2026-08-07",
+    };
+    const available = assessLine({ ...base, flags: {} }, 0);
+    assert.ok(available.diagnostics.some((d) => d.code === "FL_PHARMA_AVAILABLE"));
+    assert.ok(available.ch99_sequence.includes("9903.05.55"));
+    assert.equal(available.totals.effective_duty_rate_pct, 16.5);
+
+    const pharma = assessLine({ ...base, flags: { s301fl_pharma: true } }, 0);
+    assert.ok(pharma.ch99_sequence.includes("9903.05.89"));
+    assert.ok(!pharma.ch99_sequence.includes("9903.05.55"));
+    assert.ok(pharma.diagnostics.some((d) => d.code === "FL_PHARMA_APPLIED"));
+    // Col-1 6.5% remains — pharma does not zero Col-1 / MPF
+    assert.equal(pharma.totals.effective_duty_rate_pct, 6.5);
+    assert.equal(pharma.mpf_exempt, false);
+
+    const both = assessLine(
+      { ...base, flags: { fta_usmca: true, s301fl_pharma: true } },
+      0,
+    );
+    assert.ok(both.ch99_sequence.includes("9903.05.94"));
+    assert.ok(!both.ch99_sequence.includes("9903.05.89"));
+    assert.equal(both.totals.effective_duty_rate_pct, 0);
+    assert.ok(both.diagnostics.some((d) => d.code === "FL_PHARMA_SUPERSEDED"));
+  });
+
+  it("GB patented pharma Ch.29 → 9903.04.63 @ 0% + FL suppress; 3907 off-scope for 232 pharma", () => {
+    const gb = assessLine(
+      {
+        hts: "2933990000",
+        coo: "GB",
+        entered_value: 10000,
+        col1_rate_pct: 0,
+        entry_date: "2026-08-01",
+        flags: { s232_pharma_patented: true },
+      },
+      0,
+    );
+    assert.ok(gb.ch99_sequence.includes("9903.04.63"));
+    assert.ok(gb.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!gb.ch99_sequence.some((c: string) => /^9903\.05\.(?!90)/.test(c)));
+    assert.equal(gb.totals.duty, 0);
+    assert.ok(gb.diagnostics.some((d) => d.code === "S232_PHARMA_APPLIED"));
+
+    const plastics = assessLine(
+      {
+        hts: "3907690050",
+        coo: "GB",
+        entered_value: 10000,
+        entry_date: "2026-08-01",
+        flags: { s232_pharma_patented: true },
+      },
+      0,
+    );
+    assert.ok(plastics.diagnostics.some((d) => d.code === "S232_PHARMA_SCOPE"));
+    assert.ok(!plastics.ch99_sequence.includes("9903.04.63"));
   });
 });

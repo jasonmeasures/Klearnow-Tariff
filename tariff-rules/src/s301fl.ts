@@ -57,6 +57,8 @@ function load(): Pack {
 export function reloadS301fl(): Pack {
   pack = null;
   byIso = null;
+  pharmaPack = null;
+  pharmaStems = null;
   return load();
 }
 
@@ -85,6 +87,166 @@ export function listS301flExemptions() {
     general: p.general_exemptions,
     economy_specific: p.economy_specific_exemptions,
   };
+}
+
+/** Note 52(e) pharmaceutical-use exemption (9903.05.89) — claim-gated + HTS list. */
+const PHARMA_DATA = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../data/s301fl_pharma_hts.json",
+);
+
+type PharmaPack = {
+  heading: string;
+  basis: string;
+  claim_flag: string;
+  notes?: string;
+  stems: string[];
+};
+
+let pharmaPack: PharmaPack | null = null;
+let pharmaStems: string[] | null = null;
+
+function loadPharma(): PharmaPack {
+  if (pharmaPack) return pharmaPack;
+  pharmaPack = JSON.parse(readFileSync(PHARMA_DATA, "utf8")) as PharmaPack;
+  pharmaStems = (pharmaPack.stems || [])
+    .map((s) => String(s).replace(/\D/g, ""))
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  return pharmaPack;
+}
+
+export function reloadS301flPharma(): PharmaPack {
+  pharmaPack = null;
+  pharmaStems = null;
+  return loadPharma();
+}
+
+export const FL_PHARMA_HEADING = "9903.05.89";
+
+export function flPharmaMeta() {
+  const p = loadPharma();
+  return {
+    heading: p.heading || FL_PHARMA_HEADING,
+    basis: p.basis,
+    claim_flag: p.claim_flag || "s301fl_pharma",
+    stem_count: (p.stems || []).length,
+    notes: p.notes || "",
+  };
+}
+
+/** Match HTS against the seeded Note 52(e) pharmaceutical-use list (digit prefix). */
+export function matchFlPharmaHts(hts: string): {
+  matched_stem: string;
+  heading: string;
+  basis: string;
+} | null {
+  const digits = String(hts || "").replace(/\D/g, "");
+  if (digits.length < 6) return null;
+  const p = loadPharma();
+  const stems = pharmaStems || [];
+  for (const stem of stems) {
+    if (digits.startsWith(stem)) {
+      return {
+        matched_stem: stem,
+        heading: p.heading || FL_PHARMA_HEADING,
+        basis: p.basis,
+      };
+    }
+  }
+  // 8-digit statistical family: listed 39076900 covers 3907690050 etc.
+  if (digits.length >= 8) {
+    const d8 = digits.slice(0, 8);
+    for (const stem of stems) {
+      const s8 = stem.slice(0, 8);
+      if (s8.length >= 8 && d8 === s8) {
+        return {
+          matched_stem: s8,
+          heading: p.heading || FL_PHARMA_HEADING,
+          basis: p.basis,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+/** True when importer asserts pharmaceutical-use claim via flags. */
+export function flPharmaClaimed(flags?: Record<string, boolean> | null): boolean {
+  const f = flags || {};
+  return Boolean(
+    f.s301fl_pharma ||
+      f.pharma_use ||
+      f.pharma ||
+      f.fl_pharma ||
+      f.note_52e,
+  );
+}
+
+export type FlEconomyExemption = {
+  heading: string;
+  origins: string[];
+  basis: string;
+  /** Short claim id for UI / flags: USMCA | CAFTA_DR | NOTE_52 */
+  claim_id: string;
+  label: string;
+};
+
+function claimMeta(basis: string): { claim_id: string; label: string } {
+  const b = String(basis || "");
+  if (/USMCA/i.test(b)) return { claim_id: "USMCA", label: "USMCA" };
+  if (/CAFTA/i.test(b)) return { claim_id: "CAFTA_DR", label: "CAFTA-DR" };
+  return { claim_id: "NOTE_52", label: "Note 52 preference" };
+}
+
+/** Economy-specific 301-FL exemptions that fire only when the importer claims the related preference (USMCA / CAFTA-DR / Note 52). */
+export function listFlClaimExemptions(): FlEconomyExemption[] {
+  return load().economy_specific_exemptions.map((e) => {
+    const meta = claimMeta(e.basis);
+    return {
+      heading: e.heading,
+      origins: e.origins.map((o) => o.toUpperCase()),
+      basis: e.basis,
+      claim_id: meta.claim_id,
+      label: meta.label,
+    };
+  });
+}
+
+/** Resolve the claimable exemption for a COO (maps EU members → EU row). Prefer USMCA / CAFTA headings when multiple exist. */
+export function lookupFlClaimExemption(coo: string): FlEconomyExemption | null {
+  const iso = String(coo || "").trim().toUpperCase();
+  if (!iso) return null;
+  const keys = [iso];
+  if (EU_MEMBERS.has(iso)) keys.push("EU");
+  const hits = listFlClaimExemptions().filter((e) =>
+    e.origins.some((o) => keys.includes(o)),
+  );
+  if (!hits.length) return null;
+  // Prefer USMCA, then CAFTA-DR, then first Note 52(j) heading for the origin.
+  const rank = (id: string) => (id === "USMCA" ? 0 : id === "CAFTA_DR" ? 1 : 2);
+  hits.sort(
+    (a, b) => rank(a.claim_id) - rank(b.claim_id) || a.heading.localeCompare(b.heading),
+  );
+  return hits[0];
+}
+
+/** True when this claim id qualifies the COO for the Note 52 economy exemption. */
+export function flClaimMatches(
+  coo: string,
+  claim: string | null | undefined,
+): FlEconomyExemption | null {
+  const ex = lookupFlClaimExemption(coo);
+  if (!ex || !claim) return null;
+  const c = String(claim).trim().toUpperCase();
+  if (!c || c === "NONE" || c === "FALSE" || c === "0") return null;
+  if (c === ex.claim_id || c === ex.heading.replace(/\./g, "").toUpperCase()) return ex;
+  if (c === "USMCA" && ex.claim_id === "USMCA") return ex;
+  if ((c === "CAFTA" || c === "CAFTA_DR" || c === "CAFTA-DR") && ex.claim_id === "CAFTA_DR") {
+    return ex;
+  }
+  if (c === ex.heading.toUpperCase()) return ex;
+  return null;
 }
 
 /** Resolve pack row for a COO (maps EU members → EU). */

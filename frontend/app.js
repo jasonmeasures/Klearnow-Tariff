@@ -412,6 +412,17 @@ function initQuickCheck() {
     if (el) el.addEventListener("input", updateMetalResolved);
   });
   initCountryFields();
+  const cooEl = $("#qc-coo");
+  if (cooEl) {
+    let tFta = null;
+    const kick = () => {
+      clearTimeout(tFta);
+      tFta = setTimeout(syncFtaClaimUi, 250);
+    };
+    ["change", "blur", "input"].forEach((ev) => cooEl.addEventListener(ev, kick));
+  }
+  syncFtaClaimUi();
+  syncPharmaClaimUi();
 }
 
 function metalInputMode() {
@@ -485,8 +496,10 @@ async function previewHtsMeta() {
     el.innerHTML = "";
     if (wrap) wrap.hidden = true;
     if (metalWrap) metalWrap.hidden = true;
+    syncPharmaClaimUi();
     return;
   }
+  syncPharmaClaimUi();
   const asOf = $("#qc-date")?.value || new Date().toISOString().slice(0, 10);
   try {
     const r = await api(`/v1/hts/${encodeURIComponent(hts)}?as_of=${encodeURIComponent(asOf)}`);
@@ -623,7 +636,7 @@ async function previewHtsMeta() {
     if (detail?.replacement_hts) {
       const replLabel = detail.replacement_hts_display || detail.replacement_hts;
       el.innerHTML =
-        `No Column-1 row for this HTS. Suggested replacement <b class="mono">${esc(replLabel)}</b> ` +
+        `<span class="pill pill-ended">Not in HTS table</span> · Suggested replacement <b class="mono">${esc(replLabel)}</b> ` +
         `<button type="button" class="btn-secondary btn-sm" data-use-hts="${esc(replLabel)}">Use replacement</button> · ` +
         `<a class="usitc-link" href="https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">Look up on USITC</a>`;
       const useBtn = el.querySelector("[data-use-hts]");
@@ -638,7 +651,8 @@ async function previewHtsMeta() {
         });
       }
     } else {
-      el.innerHTML = `No Column-1 row for this HTS in the baseline table. ` +
+      el.innerHTML =
+        `<span class="pill pill-ended">Not in HTS table</span> · No Column-1 rate — duty will not calculate until this HTS is valid. ` +
         `<a class="usitc-link" href="https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">Look up on USITC</a>`;
     }
     if (wrap) wrap.hidden = true;
@@ -672,6 +686,15 @@ function applyQuickToLines() {
   if (cn === "list_3") flags.s301_list_3 = true;
   if (cn === "list_4a") flags.s301_list_4a = true;
   if ($("#qc-232")?.checked) flags.s232_auto_part = true;
+  const ftaWrap = $("#qc-fta-wrap");
+  const ftaClaimId = ftaWrap?.dataset?.claimId || "";
+  if ($("#qc-fta")?.checked && ftaClaimId) {
+    if (ftaClaimId === "USMCA") flags.fta_usmca = true;
+    else if (ftaClaimId === "CAFTA_DR") flags.fta_cafta_dr = true;
+    else flags.fta_note_52 = true;
+  }
+  if ($("#qc-pharma")?.checked) flags.s301fl_pharma = true;
+  if ($("#qc-s232-pharma")?.checked) flags.s232_pharma_patented = true;
   S.engine = "auto";
   const radio = document.querySelector('input[name="engine"][value="auto"]');
   if (radio) radio.checked = true;
@@ -731,13 +754,18 @@ const qcRun = $("#qc-run");
 if (qcRun) qcRun.onclick = () => runQuickCheck();
 const qcEx = $("#qc-example");
 if (qcEx) qcEx.onclick = () => {
-  $("#qc-hts").value = "6203.42.4010";
+  $("#qc-hts").value = "6203.42.0711";
   $("#qc-coo").value = "VN";
   $("#qc-value").value = "25000";
   $("#qc-date").value = "2026-07-25";
   if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
   if ($("#qc-qty")) $("#qc-qty").value = "";
   $("#qc-232").checked = false;
+  if ($("#qc-fta")) $("#qc-fta").checked = false;
+  if ($("#qc-pharma")) $("#qc-pharma").checked = false;
+  if ($("#qc-s232-pharma")) $("#qc-s232-pharma").checked = false;
+  syncFtaClaimUi();
+  syncPharmaClaimUi();
   previewHtsMeta();
   runQuickCheck();
 };
@@ -750,9 +778,107 @@ if (qcCn) qcCn.onclick = () => {
   if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
   if ($("#qc-qty")) $("#qc-qty").value = "";
   $("#qc-232").checked = true;
+  if ($("#qc-fta")) $("#qc-fta").checked = false;
+  if ($("#qc-pharma")) $("#qc-pharma").checked = false;
+  if ($("#qc-s232-pharma")) $("#qc-s232-pharma").checked = false;
+  syncFtaClaimUi();
+  syncPharmaClaimUi();
   previewHtsMeta();
   runQuickCheck();
 };
+
+/** Show FTA / USMCA claim when origin has a Note 52 economy exemption. */
+async function syncFtaClaimUi() {
+  const wrap = $("#qc-fta-wrap");
+  const label = $("#qc-fta-label");
+  const box = $("#qc-fta");
+  if (!wrap || !label || !box) return;
+  const coo = countryIsoFrom($("#qc-coo"));
+  if (!coo) {
+    wrap.hidden = true;
+    wrap.dataset.claimId = "";
+    box.checked = false;
+    return;
+  }
+  try {
+    const r = await api(`/v1/reference/fta-claim/${encodeURIComponent(coo)}`);
+    if (!r.available) {
+      wrap.hidden = true;
+      wrap.dataset.claimId = "";
+      box.checked = false;
+      return;
+    }
+    wrap.hidden = false;
+    wrap.dataset.claimId = r.claim_id || "";
+    label.innerHTML =
+      `Claim <b>${esc(r.label)}</b> <span class="cap">(Free Col-1 + MPF${
+        r.heading ? `; ${esc(r.heading)} for 301-FL` : ""
+      })</span>`;
+    wrap.title =
+      r.hint ||
+      `${r.label}: SPI preference zeros Column-1 and MPF. Other programs need their own ${r.label} Chapter 99 exception.`;
+  } catch {
+    wrap.hidden = true;
+    wrap.dataset.claimId = "";
+  }
+}
+
+/** Show Pharma use claim when HTS is on the seeded Note 52(e) list. */
+async function syncPharmaClaimUi() {
+  const wrap = $("#qc-pharma-wrap");
+  const label = $("#qc-pharma-label");
+  const box = $("#qc-pharma");
+  if (!wrap || !label || !box) return;
+  const hts = ($("#qc-hts")?.value || "").trim();
+  if (!hts || hts.replace(/\D/g, "").length < 6) {
+    wrap.hidden = true;
+    box.checked = false;
+    syncS232PharmaClaimUi();
+    return;
+  }
+  try {
+    const r = await api(`/v1/reference/fl-pharma/${encodeURIComponent(hts)}`);
+    if (!r.available) {
+      wrap.hidden = true;
+      if (!wrap.dataset.keepOfflist) box.checked = false;
+    } else {
+      wrap.hidden = false;
+      label.innerHTML =
+        `Pharma use <span class="cap">(${esc(r.heading)} — 301-FL only)</span>`;
+      wrap.title = r.hint || r.basis || "";
+    }
+  } catch {
+    wrap.hidden = true;
+  }
+  syncS232PharmaClaimUi();
+}
+
+/** Show Section 232 patented-pharma claim for Chapter 29/30 HTS (Proclamation 11020). */
+function syncS232PharmaClaimUi() {
+  const wrap = $("#qc-s232-pharma-wrap");
+  const label = $("#qc-s232-pharma-label");
+  const box = $("#qc-s232-pharma");
+  if (!wrap || !label || !box) return;
+  const hts = ($("#qc-hts")?.value || "").trim();
+  const digits = hts.replace(/\D/g, "");
+  const ch = digits.length >= 2 ? Number(digits.slice(0, 2)) : 0;
+  if (ch !== 29 && ch !== 30) {
+    wrap.hidden = true;
+    box.checked = false;
+    return;
+  }
+  wrap.hidden = false;
+  const coo = countryIsoFrom($("#qc-coo"));
+  if (coo === "GB") {
+    label.innerHTML =
+      `232 patented pharma <span class="cap">(GB → 9903.04.63 @ 0% — CSMS #69415934)</span>`;
+  } else {
+    label.innerHTML =
+      `232 patented pharma <span class="cap">(Proclamation 11020 / 9903.04.xx)</span>`;
+  }
+  wrap.title =
+    "Claim when goods are patented pharmaceuticals / ingredients under U.S. note 40. UK additional duty is 0% from 2026-07-31. Suppresses 301-FL via 9903.05.90.";
+}
 
 /* ================================================================ CALCULATOR */
 function blankLine(over = {}) {
@@ -1024,6 +1150,14 @@ async function run(mode) {
     S.last._mode = mode;
     S.last._engine = mode === "audit" ? "auto" : S.engine;
     renderResults(S.last);
+    const blocked = (S.last.lines || []).filter(l => l.blocked ||
+      (l.diagnostics || []).some(d => d.severity === "ERROR" && (d.code === "UNKNOWN_HTS" || d.code === "MISSING_COL1")));
+    if (blocked.length) {
+      const first = blocked[0];
+      const err = (first.diagnostics || []).find(d => d.severity === "ERROR") || {};
+      banner("#calcbanner", "err", "No duty rate",
+        err.message || "One or more HTS codes are not in the baseline table. Fix the HTS (or use a mapped replacement) before stacking.");
+    }
     updateScenarioActions();
     void refreshMeQuota();
   } catch (e) {
@@ -1244,11 +1378,21 @@ function renderResults(R) {
   let html = `<div class="body" style="padding:var(--sp-4) var(--sp-4) 0">
     <div class="summary">
       <div class="stat"><div class="k">Duty rate</div>
-        <div class="v">${pct(R.totals?.effective_duty_rate_pct)}%</div></div>
-      <div class="stat"><div class="k">Total duties</div><div class="v">$${money(R.totals?.duty)}</div></div>
+        <div class="v">${
+          nErr || R.totals?.effective_duty_rate_pct == null
+            ? `<span class="cap" style="font-size:1rem;font-weight:600;color:var(--color-red-700)">—</span>`
+            : `${pct(R.totals?.effective_duty_rate_pct)}%`
+        }</div></div>
+      <div class="stat"><div class="k">Total duties</div><div class="v">${
+          nErr ? `<span class="cap" style="color:var(--color-red-700)">—</span>` : `$${money(R.totals?.duty)}`
+        }</div></div>
       <div class="stat"><div class="k">Fees</div><div class="v">$${money(R.totals?.fees ?? 0)}</div></div>
       <div class="stat"><div class="k">Landed</div>
-        <div class="v">$${money(R.totals?.landed_cost ?? ((Number(R.totals?.entered_value)||0) + (Number(R.totals?.duty)||0) + (Number(R.totals?.fees)||0)))}</div></div>
+        <div class="v">${
+          nErr
+            ? `<span class="cap" style="color:var(--color-red-700)">—</span>`
+            : `$${money(R.totals?.landed_cost ?? ((Number(R.totals?.entered_value)||0) + (Number(R.totals?.duty)||0) + (Number(R.totals?.fees)||0)))}`
+        }</div></div>
     </div>
     <p class="cap" style="margin:var(--sp-2) 0 0">${
       nErr ? `<b style="color:var(--color-red-700)">${nErr} error${nErr > 1 ? "s" : ""}</b> — the duty is wrong or indeterminate until resolved. `
@@ -1256,7 +1400,7 @@ function renderResults(R) {
       nWarn ? `${nWarn} warning${nWarn > 1 ? "s" : ""} worth a look` : "No warnings"}${
       nInfo ? `, ${nInfo} note${nInfo > 1 ? "s" : ""}` : ""}.</p>`;
 
-  if (R.entry_fees?.length) {
+  if (R.entry_fees?.length && !nErr) {
     html += `<div class="cost-break">
       <div class="eyebrow">Cost breakdown</div>
       <div class="cost-row"><span>Entered value</span><span>$${money(R.totals?.entered_value)}</span></div>
@@ -1298,8 +1442,74 @@ function renderResults(R) {
   $("#results").innerHTML = html;
 }
 
+function ftaCompareHtml(fc) {
+  if (!fc || !fc.available) return "";
+  const claimed = fc.claimed;
+  const without = fc.without_claim || {};
+  const withC = fc.with_claim || {};
+  const bits = [];
+  if (fc.col1_suppressed || fc.spi_applied) bits.push("Col-1 Free");
+  if (fc.mpf_suppressed) bits.push("MPF exempt");
+  if (fc.exemption_heading) bits.push(`${fc.exemption_heading} @ 0%`);
+  return `<div class="fta-compare">
+    <div class="eyebrow">${esc(fc.label || "FTA")} duty comparison</div>
+    <p class="cap" style="margin:0 0 var(--sp-2)">
+      ${claimed
+        ? `<b>${esc(fc.label)}</b> claimed${bits.length ? ` — ${esc(bits.join(" · "))}` : ""}.`
+        : `<b>${esc(fc.label)}</b> available but not claimed — check the claim box to apply${
+            fc.exemption_heading ? ` <span class="mono">${esc(fc.exemption_heading)}</span>` : ""
+          }.`}
+      Duty saved if claimed: <b>$${money(fc.duty_saved)}</b>.
+      <span class="cap">SPI alone zeros Col-1 + MPF; other programs need their own exception.</span>
+    </p>
+    <div class="fta-compare-grid">
+      <div class="fta-col ${claimed ? "" : "is-active"}">
+        <div class="k">Without claim</div>
+        <div class="v">${pct(without.effective_duty_rate_pct)}%</div>
+        <div class="cap">$${money(without.line_duty)} duty
+          ${without.col1_duty != null ? ` · Col-1 $${money(without.col1_duty)}` : ""}
+          ${without.fl_heading ? ` · ${esc(without.fl_heading)} $${money(without.fl_duty)}` : ""}</div>
+      </div>
+      <div class="fta-col ${claimed ? "is-active" : ""}">
+        <div class="k">With ${esc(fc.label || "FTA")}</div>
+        <div class="v">${pct(withC.effective_duty_rate_pct)}%</div>
+        <div class="cap">$${money(withC.line_duty)} duty
+          ${fc.spi_applied || fc.claim_id === "USMCA" || fc.claim_id === "CAFTA_DR"
+            ? " · Col-1 Free"
+            : withC.col1_duty != null
+              ? ` · Col-1 $${money(withC.col1_duty)}`
+              : ""}
+          ${withC.fl_heading || fc.exemption_heading
+            ? ` · ${esc(withC.fl_heading || fc.exemption_heading)} @ 0%`
+            : ""}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderLedger(L) {
   const layers = L.layers || [], supp = L.suppressed || [];
+  const diag = L.diagnostics || [];
+  const unknown = L.blocked && diag.some(d => d.code === "UNKNOWN_HTS" || d.code === "MISSING_COL1");
+  if (unknown) {
+    const err = diag.find(d => d.severity === "ERROR") || diag[0];
+    return `<div class="ledger">
+      <div class="ledger-hd">
+        <div><span class="eyebrow">Line ${esc(L.line_id)}</span>
+          <b class="mono">${esc(L.hts)}</b> · ${esc(L.coo || "—")}</div>
+        <div class="r"><span class="pill" style="background:var(--color-red-50);color:var(--color-red-700)">Blocked</span></div>
+      </div>
+      <div class="banner err" style="margin:var(--sp-3)">
+        <b>No duty rate</b>
+        ${esc(err?.message || "HTS is not in the baseline table.")}
+        ${err?.remediation ? `<div class="why" style="margin-top:var(--sp-1)">${esc(err.remediation)}</div>` : ""}
+        ${L.replacement_hts
+          ? `<div class="why" style="margin-top:var(--sp-1)">Suggested replacement <b class="mono">${esc(L.replacement_hts_display || L.replacement_hts)}</b></div>`
+          : ""}
+        ${L.usitc_url ? `<div style="margin-top:var(--sp-2)"><a class="usitc-link" href="${esc(L.usitc_url)}" target="_blank" rel="noopener noreferrer">Look up on USITC</a></div>` : ""}
+      </div>
+    </div>`;
+  }
   const paying = layers.filter(x => Number(x.duty_amount) > 0);
   const total = Number(L.totals?.duty) || 0;
   const bar = paying.length
@@ -1351,6 +1561,11 @@ function renderLedger(L) {
       ${L.china_301?.list
         ? `<span class="pill pill-301">301 ${esc(L.china_301.list.replace(/_/g, " "))} → ${esc(L.china_301.ch99)}</span>`
         : ""}
+      ${L.fta_compare?.claimed
+        ? `<span class="pill" style="background:var(--color-green-50);color:var(--color-green-700)">${esc(L.fta_compare.label)} claimed</span>`
+        : L.fta_compare?.available
+          ? `<span class="pill" style="background:var(--color-blue-50);color:var(--color-blue-700)">${esc(L.fta_compare.label)} available</span>`
+          : ""}
       ${L.usitc_url
         ? `<a class="usitc-link" href="${esc(L.usitc_url)}" target="_blank" rel="noopener noreferrer">USITC</a>`
         : ""}
@@ -1360,6 +1575,7 @@ function renderLedger(L) {
       <span class="cap">${esc(L.rate_date_basis || "")}</span>
       ${L.col1_rate_label ? `<span class="cap"> · Column 1 <b class="mono">${esc(L.col1_rate_label)}</b></span>` : ""}
     </div>
+    ${ftaCompareHtml(L.fta_compare)}
     <table class="ledger"><thead><tr><th style="width:52px">Slot</th>
       <th>Chapter 99 / provision</th><th class="r" style="width:126px">Basis</th>
       <th class="r" style="width:148px">Rate</th><th class="r" style="width:108px">Duty</th>
@@ -1559,7 +1775,7 @@ $("#dopublish").onclick = async () => {
 /* ================================================================ UPLOAD */
 const TEMPLATES = {
   hts: `hts,effective_start,col1_rate_pct,description
-6203.42.4010,2026-01-01,16.6,"Men's cotton trousers"
+6203.42.0711,2026-01-01,16.6,"Men's cotton trousers"
 8708.29.5160,2026-01-01,2.5,"Motor vehicle body parts"
 3303.00.3000,2026-01-01,0,"Perfumes and toilet waters"`,
   rules: JSON.stringify({
@@ -2234,7 +2450,7 @@ function initLookup() {
   };
   $("#lookup-sample").onclick = () => {
     $("#lookup-paste").value = `hts,coo
-6203.42.4010,VN
+6203.42.0711,VN
 8708.10.3050,CN
 8517.12.0050,DE
 9403.60.8081,BR
@@ -2308,16 +2524,22 @@ async function runLookup() {
       banner("#lookupbanner", "warn", "None in baseline table",
         "HTS codes were read, but none match tariff-rules/data/hts_rates.json. " +
         "Re-import the classification workbook: cd backend && npm run import:hts");
+    } else if (s.blocked) {
+      banner("#lookupbanner", "err", "Some HTS codes need correction",
+        `${s.blocked} not in the Column-1 table` +
+        `${s.with_related ? ` | ${s.with_related} have suggested codes in Help / replacement` : ""}` +
+        `${s.with_replacement ? ` | ${s.with_replacement} have mapped replacements` : ""}` +
+        `. Click a suggested code to use it, or open the row for descriptions and USITC.`);
     } else if (s.ended) {
       banner("#lookupbanner", "warn", "Coverage ready",
-        `${s.in_table}/${s.rows} in HTS table · ${s.ended} ended` +
-        `${s.with_replacement ? ` · ${s.with_replacement} with replacement` : ""} · ${s.with_ch99} with Chapter 99.`);
+        `${s.in_table}/${s.rows} in HTS table | ${s.ended} ended` +
+        `${s.with_replacement ? ` | ${s.with_replacement} with replacement` : ""} | ${s.with_ch99} with Chapter 99.`);
     } else if (s.missing_coo) {
       banner("#lookupbanner", "ok", "Coverage ready",
-        `${s.in_table}/${s.rows} in HTS table · ${s.missing_coo} missing origin — set Default origin or a COO column.`);
+        `${s.in_table}/${s.rows} in HTS table | ${s.missing_coo} missing origin - set Default origin or a COO column.`);
     } else {
       banner("#lookupbanner", "ok", "Coverage ready",
-        `${s.in_table}/${s.rows} in HTS table · ${s.with_ch99} with Chapter 99.`);
+        `${s.in_table}/${s.rows} in HTS table | ${s.with_ch99} with Chapter 99.`);
     }
   } catch (e) {
     banner("#lookupbanner", "err", "Lookup failed", e.message);
@@ -2341,40 +2563,53 @@ function renderLookup(R) {
     <span class="pill">${s.rows ?? rows.length} codes</span>
     <span class="pill ok">${s.in_table ?? 0} in HTS table</span>
     <span class="pill">${s.with_ch99 ?? 0} with Ch.99</span>
+    ${s.blocked ? `<span class="pill warn">${s.blocked} need correction</span>` : ""}
     ${s.ended ? `<span class="pill warn">${s.ended} ended</span>` : ""}
     ${s.with_replacement ? `<span class="pill">${s.with_replacement} with replacement</span>` : ""}
     ${s.missing_coo ? `<span class="pill warn">${s.missing_coo} missing origin</span>` : ""}
     <span class="cap">as of ${esc(R.as_of)}</span>
   </div>`;
-  html += `<table class="cov"><thead><tr>`;
+  html += `<div class="lookup-scroll"><table class="cov"><thead><tr>`;
   if (showPart) html += `<th>Part</th>`;
   if (showSku) html += `<th>SKU</th>`;
-  html += `<th>HTS</th><th>Origin</th><th class="r">Col-1</th><th>Replacement</th><th>Rules that apply</th><th>Ch.99</th>
+  html += `<th>HTS</th><th>Origin</th><th class="r">Col-1</th><th>Help / replacement</th><th>Rules that apply</th><th>Ch.99</th>
   </tr></thead><tbody>`;
   rows.forEach((row, i) => {
-    const chips = (row.rules || [])
-      .filter(r => r.program !== "base")
-      .map(r => `<span class="rule-chip ${esc(r.program)}">${esc(r.ch99 || r.label)}</span>`)
-      .join("") || `<span class="cap">${row.coo ? "none beyond Col-1" : "add origin"}</span>`;
-    const seq = (row.ch99_sequence || []).join(" · ") || "—";
-    const miss = !row.in_table || row.error;
+    const miss = !row.in_table || row.error || row.blocked;
     const ended = row.window_status === "ended";
+    const related = row.related_hts || [];
+    const chips = miss
+      ? `<span class="cap" style="color:var(--color-red-700)">No stack - fix HTS first</span>`
+      : ((row.rules || [])
+          .filter(r => r.program !== "base")
+          .map(r => `<span class="rule-chip ${esc(r.program)}">${esc(r.ch99 || r.label)}</span>`)
+          .join("") || `<span class="cap">${row.coo ? "none beyond Col-1" : "add origin"}</span>`);
+    const seq = miss ? "-" : ((row.ch99_sequence || []).join(" | ") || "-");
+    const helpCell = row.replacement_hts_display || row.replacement_hts
+      ? `<b class="mono">${esc(row.replacement_hts_display || row.replacement_hts)}</b>${
+          row.replacement_col1_pct != null
+            ? `<div class="cap">${esc(String(row.replacement_col1_pct))}%</div>`
+            : ""
+        }<div class="cap">Mapped replacement · click row for details</div>`
+      : related.length
+        ? `<div class="cov-suggest-inline">${related.slice(0, 3).map((r, ri) =>
+            `<button type="button" class="linkish mono cov-suggest-hts" data-use-related="${i}" data-related-idx="${ri}" title="${esc(r.desc || r.rate_label || "")}">${esc(r.hts_display || r.hts)}</button>`
+          ).join("")}${related.length > 3
+            ? `<span class="cap">+${related.length - 3} more · click row</span>`
+            : `<span class="cap">click row for descriptions</span>`}</div>`
+        : miss
+          ? `<span class="cap" style="color:var(--color-orange-700)">No table match · click row for USITC help</span>`
+          : `<span class="cap">-</span>`;
     html += `<tr class="${miss ? "miss" : ""} ${ended ? "ended" : ""} ${Lookup.open.has(i) ? "open" : ""}" data-cov="${i}">`;
-    if (showPart) html += `<td class="mono">${esc(row.part || "—")}</td>`;
-    if (showSku) html += `<td class="mono">${esc(row.sku || "—")}</td>`;
-    html += `<td><b class="mono">${esc(row.hts || "—")}</b>
+    if (showPart) html += `<td class="mono">${esc(row.part || "-")}</td>`;
+    if (showSku) html += `<td class="mono">${esc(row.sku || "-")}</td>`;
+    html += `<td><b class="mono">${esc(row.hts || "-")}</b>
         ${row.desc ? `<div class="cap">${esc(row.desc)}</div>` : ""}
         ${ended ? `<div class="cap" style="color:var(--color-orange-700)">Ended${row.ended_on ? ` ${esc(row.ended_on)}` : ""}</div>` : ""}
-        ${!row.in_table ? `<div class="cap" style="color:var(--color-orange-700)">Not in baseline table</div>` : ""}</td>
-      <td class="mono">${esc(row.coo || "—")}</td>
-      <td class="r mono">${row.col1_pct == null ? "—" : esc(String(row.col1_pct)) + "%"}</td>
-      <td class="mono">${row.replacement_hts_display || row.replacement_hts
-        ? `<b>${esc(row.replacement_hts_display || row.replacement_hts)}</b>${
-            row.replacement_col1_pct != null
-              ? `<div class="cap">${esc(String(row.replacement_col1_pct))}%</div>`
-              : ""
-          }`
-        : `<span class="cap">—</span>`}</td>
+        ${miss ? `<div class="cap" style="color:var(--color-red-700)">Not in baseline table</div>` : ""}</td>
+      <td class="mono">${esc(row.coo || "-")}</td>
+      <td class="r mono">${row.col1_pct == null ? "-" : esc(String(row.col1_pct)) + "%"}</td>
+      <td>${helpCell}</td>
       <td><div class="rule-chips">${chips}</div></td>
       <td class="mono cap">${esc(seq)}</td>
     </tr>`;
@@ -2383,33 +2618,70 @@ function renderLookup(R) {
       if (row.part || row.sku) {
         html += `<p class="cap" style="margin:0 0 var(--sp-2)">`;
         if (row.part) html += `Part <b class="mono">${esc(row.part)}</b>`;
-        if (row.part && row.sku) html += " · ";
+        if (row.part && row.sku) html += " | ";
         if (row.sku) html += `SKU <b class="mono">${esc(row.sku)}</b>`;
         html += `</p>`;
       }
+      if (row.help || miss) {
+        const title = row.help?.title || "This HTS needs correction";
+        const summary = row.help?.summary
+          || "This code is not in the Column-1 baseline table, so no duty or Chapter 99 stack is shown.";
+        const steps = row.help?.steps || (row.notes || []);
+        html += `<div class="banner err" style="margin:0 0 var(--sp-3)">
+          <b>${esc(title)}</b>
+          <div style="margin-top:var(--sp-1)">${esc(summary)}</div>
+          ${steps.length ? `<ol class="cov-help-steps">${steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
+          ${row.usitc_url
+            ? `<div style="margin-top:var(--sp-2)"><a class="usitc-link" href="${esc(row.usitc_url)}" target="_blank" rel="noopener noreferrer">Look up on USITC</a></div>`
+            : ""}
+        </div>`;
+      }
       if (row.replacement_hts) {
-        html += `<p class="cap" style="margin:0 0 var(--sp-2)">Suggested replacement
-          <b class="mono">${esc(row.replacement_hts_display || row.replacement_hts)}</b>
-          <button type="button" class="btn-secondary btn-sm" data-use-cov-hts="${i}">Use in Quick check</button>
-        </p>`;
+        html += `<div class="cov-fix" style="margin:0 0 var(--sp-3)">
+          <div class="eyebrow">Mapped replacement</div>
+          <p style="margin:var(--sp-1) 0"><b class="mono">${esc(row.replacement_hts_display || row.replacement_hts)}</b>
+            ${row.replacement_desc ? `<span class="cap"> - ${esc(row.replacement_desc)}</span>` : ""}
+            ${row.replacement_col1_pct != null ? `<span class="cap"> | Col-1 ${esc(String(row.replacement_col1_pct))}%</span>` : ""}
+          </p>
+          <button type="button" class="btn-secondary btn-sm" data-use-cov-hts="${i}">Use replacement in Duty stack</button>
+        </div>`;
       }
-      html += (row.rules || []).map(r => `<div class="rule-row">
-        <div><span class="rule-chip ${esc(r.program)}">${esc(r.program)}</span>
-          <b class="mono">${esc(r.ch99 || "commodity")}</b> · ${esc(r.rate)}
-          <span class="cap"> · ${esc(r.status)}</span></div>
-        <div class="why">${esc(r.label)}</div>
-        <div class="why">${esc(r.reason)}</div>
-        ${r.source_ref ? `<div class="src">${esc(r.source_ref)}</div>` : ""}
-      </div>`).join("") || `<p class="cap">No rule rows.</p>`;
-      if (row.notes?.length) {
-        html += `<p class="cap" style="margin:var(--sp-2) 0 0">${row.notes.map(esc).join(" · ")}</p>`;
+      if (related.length) {
+        html += `<div class="cov-fix" style="margin:0 0 var(--sp-3)">
+          <div class="eyebrow">Active codes under the same 8-digit heading</div>
+          <p class="cap" style="margin:var(--sp-1) 0 var(--sp-2)">Pick the statistical suffix that matches the part (description comes from the HTS table).</p>
+          <table class="cov-related"><thead><tr><th>HTS</th><th>Description</th><th class="r">Col-1</th><th></th></tr></thead><tbody>
+          ${related.map((r, ri) => `<tr>
+            <td class="mono"><b>${esc(r.hts_display || r.hts)}</b></td>
+            <td class="cap">${esc(r.desc || "-")}</td>
+            <td class="r mono">${esc(r.rate_label || (r.col1_pct != null ? r.col1_pct + "%" : "-"))}</td>
+            <td><button type="button" class="btn-secondary btn-sm" data-use-related="${i}" data-related-idx="${ri}">Use this HTS</button></td>
+          </tr>`).join("")}
+          </tbody></table>
+        </div>`;
       }
-      html += `<div class="actions" style="margin-top:var(--sp-2)">
-        <button type="button" class="btn-secondary btn-sm" data-send-calc="${i}">Run stack for this HTS</button>
-      </div></div></td></tr>`;
+      if (!(row.help || miss)) {
+        html += (row.rules || []).map(r => `<div class="rule-row">
+          <div><span class="rule-chip ${esc(r.program)}">${esc(r.program)}</span>
+            <b class="mono">${esc(r.ch99 || "commodity")}</b> | ${esc(r.rate)}
+            <span class="cap"> | ${esc(r.status)}</span></div>
+          <div class="why">${esc(r.label)}</div>
+          <div class="why">${esc(r.reason)}</div>
+          ${r.source_ref ? `<div class="src">${esc(r.source_ref)}</div>` : ""}
+        </div>`).join("") || `<p class="cap">No rule rows.</p>`;
+      }
+      if (row.notes?.length && !(row.help || miss)) {
+        html += `<ul class="cov-notes">${row.notes.map(n => `<li class="cap">${esc(n)}</li>`).join("")}</ul>`;
+      }
+      if (!miss) {
+        html += `<div class="actions" style="margin-top:var(--sp-2)">
+          <button type="button" class="btn-secondary btn-sm" data-send-calc="${i}">Run stack for this HTS</button>
+        </div>`;
+      }
+      html += `</div></td></tr>`;
     }
   });
-  html += `</tbody></table>`;
+  html += `</tbody></table></div>`;
   $("#lookup-out").innerHTML = html;
   $$("#lookup-out tr[data-cov]").forEach(tr => {
     tr.onclick = () => {
@@ -2428,9 +2700,10 @@ function renderLookup(R) {
       $("#qc-value").value = $("#qc-value").value || "10000";
       $("#qc-date").value = row.as_of || $("#lookup-date").value;
       show("calc");
-      const idBits = [row.part && `part ${row.part}`, row.sku && `SKU ${row.sku}`].filter(Boolean).join(" · ");
+      previewHtsMeta();
+      const idBits = [row.part && `part ${row.part}`, row.sku && `SKU ${row.sku}`].filter(Boolean).join(" | ");
       banner("#calcbanner", "info", "From HTS list",
-        `${row.hts}${idBits ? ` (${idBits})` : ""} loaded into Duty stack — add value if needed, then Run the stack.`);
+        `${row.hts}${idBits ? ` (${idBits})` : ""} loaded into Duty stack - add value if needed, then Run the stack.`);
     };
   });
   $$("#lookup-out [data-use-cov-hts]").forEach(btn => {
@@ -2441,10 +2714,27 @@ function renderLookup(R) {
       $("#qc-hts").value = row.replacement_hts_display || row.replacement_hts;
       $("#qc-coo").value = row.coo || $("#lookup-coo").value || "";
       $("#qc-date").value = row.as_of || $("#lookup-date").value;
+      $("#qc-value").value = $("#qc-value").value || "10000";
       show("calc");
       previewHtsMeta();
       banner("#calcbanner", "info", "Replacement loaded",
-        `${row.hts} → ${row.replacement_hts_display || row.replacement_hts} — confirm and run the stack.`);
+        `${row.hts} -> ${row.replacement_hts_display || row.replacement_hts} - confirm and run the stack.`);
+    };
+  });
+  $$("#lookup-out [data-use-related]").forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const row = Lookup.last.rows[Number(btn.dataset.useRelated)];
+      const rel = (row?.related_hts || [])[Number(btn.dataset.relatedIdx)];
+      if (!rel) return;
+      $("#qc-hts").value = rel.hts_display || rel.hts;
+      $("#qc-coo").value = row.coo || $("#lookup-coo").value || "";
+      $("#qc-date").value = row.as_of || $("#lookup-date").value;
+      $("#qc-value").value = $("#qc-value").value || "10000";
+      show("calc");
+      previewHtsMeta();
+      banner("#calcbanner", "info", "Related HTS loaded",
+        `${row.hts} -> ${rel.hts_display || rel.hts}${rel.desc ? ` (${rel.desc})` : ""} - confirm classification, then run the stack.`);
     };
   });
 }
@@ -2458,8 +2748,8 @@ function exportLookupCsv() {
   const headers = [
     ...(showPart ? ["part"] : []),
     ...(showSku ? ["sku"] : []),
-    "hts", "coo", "as_of", "in_table", "window_status", "ended_on", "col1_pct", "desc",
-    "replacement_hts", "replacement_col1_pct", "ch99_sequence", "rules", "notes",
+    "hts", "coo", "as_of", "in_table", "blocked", "window_status", "ended_on", "col1_pct", "desc",
+    "replacement_hts", "replacement_col1_pct", "related_hts", "ch99_sequence", "rules", "notes", "help_steps",
   ];
   const lines = [headers.join(",")];
   rows.forEach(r => {
@@ -2467,11 +2757,13 @@ function exportLookupCsv() {
     if (showPart) cols.push(r.part);
     if (showSku) cols.push(r.sku);
     cols.push(
-      r.hts, r.coo, r.as_of, r.in_table, r.window_status, r.ended_on, r.col1_pct, r.desc,
+      r.hts, r.coo, r.as_of, r.in_table, r.blocked, r.window_status, r.ended_on, r.col1_pct, r.desc,
       r.replacement_hts_display || r.replacement_hts, r.replacement_col1_pct,
+      (r.related_hts || []).map(x => x.hts_display || x.hts).join(" | "),
       (r.ch99_sequence || []).join(" "),
       (r.rules || []).map(x => `${x.program}:${x.ch99 || "base"}@${x.rate}`).join(" | "),
-      (r.notes || []).join(" · "),
+      (r.notes || []).join(" | "),
+      (r.help?.steps || []).join(" | "),
     );
     lines.push(cols.map(q).join(","));
   });
