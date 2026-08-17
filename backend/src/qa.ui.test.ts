@@ -13,6 +13,14 @@ const css = readFileSync(join(REPO_ROOT, "frontend/styles.css"), "utf8");
 describe("QA UI contract", () => {
   it("Quick Check example chips match qa_goldens.json", () => {
     const { examples } = loadGoldens();
+    const bundled = JSON.parse(
+      readFileSync(join(REPO_ROOT, "frontend/qc-examples.json"), "utf8"),
+    );
+    assert.deepEqual(
+      bundled.examples,
+      examples,
+      "frontend/qc-examples.json must match tariff-rules/data/qa_goldens.json examples (Docker SPA build cannot see the parent tree)",
+    );
     for (const ex of examples) {
       const re = new RegExp(`data-example="${ex.id}"`);
       assert.ok(re.test(html), `index.html missing data-example="${ex.id}"`);

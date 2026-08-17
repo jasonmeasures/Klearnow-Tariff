@@ -21,7 +21,7 @@ import {
   rpsUrl,
   setDemoRole,
 } from "./auth.js";
-import goldens from "../tariff-rules/data/qa_goldens.json";
+import goldens from "./qc-examples.json";
 
 let KEY = apiKeyFromQuery();
 
