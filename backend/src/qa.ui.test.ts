@@ -44,4 +44,13 @@ describe("QA UI contract", () => {
     const examplesAt = html.indexOf("qc-examples");
     assert.ok(runAt < examplesAt, "Run the stack should sit above example chips");
   });
+
+  it("MOT is a primary Quick Check field (not buried in metals)", () => {
+    const modeAt = html.indexOf('id="qc-mode"');
+    const metalAt = html.indexOf('id="qc-metal-wrap"');
+    assert.ok(modeAt > 0, "qc-mode missing");
+    assert.ok(metalAt > 0, "qc-metal-wrap missing");
+    assert.ok(modeAt < metalAt, "MOT must sit with HTS / origin / value, not inside metals");
+    assert.match(html, /HMF 0\.125% on ocean only/);
+  });
 });

@@ -767,9 +767,8 @@ function applyQuickToLines() {
   S.lines = [blankLine(over)];
   renderLines();
   const modeEl = $("#mode");
-  if (modeEl && ($("#qc-metal-wrap") && !$("#qc-metal-wrap").hidden)) {
-    modeEl.value = $("#qc-mode")?.value || "OCEAN";
-  }
+  const qcMode = $("#qc-mode")?.value || "OCEAN";
+  if (modeEl) modeEl.value = qcMode;
 }
 
 async function runQuickCheck() {
@@ -810,6 +809,8 @@ async function loadQuickExample(id) {
   $("#qc-coo").value = ex.coo;
   $("#qc-value").value = ex.value;
   $("#qc-date").value = ex.date;
+  if ($("#qc-mode")) $("#qc-mode").value = ex.mode || "OCEAN";
+  if ($("#mode")) $("#mode").value = $("#qc-mode")?.value || "OCEAN";
   if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
   if ($("#qc-qty")) $("#qc-qty").value = "";
   $("#qc-232").checked = Boolean(ex.flags?.s232_auto_part);
@@ -830,6 +831,12 @@ const qcRun = $("#qc-run");
 if (qcRun) qcRun.onclick = () => runQuickCheck();
 document.querySelectorAll(".qc-example[data-example]").forEach((btn) => {
   btn.onclick = () => loadQuickExample(btn.dataset.example);
+});
+$("#qc-mode")?.addEventListener("change", () => {
+  if ($("#mode")) $("#mode").value = $("#qc-mode").value;
+});
+$("#mode")?.addEventListener("change", () => {
+  if ($("#qc-mode") && $("#mode").value) $("#qc-mode").value = $("#mode").value;
 });
 
 /** Show FTA / USMCA claim when origin has a Note 52 economy exemption. */
@@ -1494,7 +1501,9 @@ function renderResults(R) {
       <div class="cost-row"><span>Entered value</span><span>$${money(R.totals?.entered_value)}</span></div>
       <div class="cost-row"><span>Total duties</span><span>$${money(R.totals?.duty)}</span></div>` +
       R.entry_fees.map(f =>
-        `<div class="cost-row"><span>${esc(f.label)}${f.floored ? " (floor)" : f.capped ? " (cap)" : ""}</span><span>$${money(f.amount)}</span></div>`
+        `<div class="cost-row"><span>${esc(f.label)}${f.floored ? " (floor)" : f.capped ? " (cap)" : ""}${
+          f.code === "HMF" && f.rate_note ? ` <span class="cap">${esc(f.rate_note)}</span>` : ""
+        }</span><span>$${money(f.amount)}</span></div>`
       ).join("") +
       `<div class="cost-row total"><span>Landed cost</span><span>$${money(R.totals?.landed_cost)}</span></div>
     </div>`;
@@ -2578,9 +2587,13 @@ function initLookup() {
     $("#lookup-paste").value = `hts,coo
 6203.42.0711,VN
 8708.10.3050,CN
-8517.12.0050,DE
-9403.60.8081,BR
-6109.10.0012,BD`;
+8703.23.01,JP
+8704.23.01,DE
+8702.10.31,KR
+4407.11.00,CA
+9401.61.4011,VN
+8473.30.00,TW
+8517.12.0050,DE`;
     $("#lookup-coo").value = "";
     updateLookupCount();
     runLookup();
@@ -2689,6 +2702,8 @@ function renderLookup(R) {
     <span class="pill">${s.rows ?? rows.length} codes</span>
     <span class="pill ok">${s.in_table ?? 0} in HTS table</span>
     <span class="pill">${s.with_ch99 ?? 0} with Ch.99</span>
+    ${s.with_s232 ? `<span class="pill ok">${s.with_s232} on a 232 list</span>` : ""}
+    ${s.needs_claim ? `<span class="pill warn">${s.needs_claim} need a claim</span>` : ""}
     ${s.blocked ? `<span class="pill warn">${s.blocked} need correction</span>` : ""}
     ${s.ended ? `<span class="pill warn">${s.ended} ended</span>` : ""}
     ${s.with_replacement ? `<span class="pill">${s.with_replacement} with replacement</span>` : ""}
@@ -2704,12 +2719,17 @@ function renderLookup(R) {
     const miss = !row.in_table || row.error || row.blocked;
     const ended = row.window_status === "ended";
     const related = row.related_hts || [];
-    const chips = miss
-      ? `<span class="cap" style="color:var(--color-red-700)">No stack - fix HTS first</span>`
-      : ((row.rules || [])
-          .filter(r => r.program !== "base")
-          .map(r => `<span class="rule-chip ${esc(r.program)}">${esc(r.ch99 || r.label)}</span>`)
-          .join("") || `<span class="cap">${row.coo ? "none beyond Col-1" : "add origin"}</span>`);
+    const listRules = (row.rules || []).filter(r => r.program !== "base");
+    const chips = listRules.length
+      ? listRules
+          .map(r => {
+            const claim = r.status === "needs_claim" ? " · claim" : "";
+            return `<span class="rule-chip ${esc(r.program)} ${esc(r.status || "")}">${esc(r.ch99 || r.label)}${claim}</span>`;
+          })
+          .join("")
+      : miss
+        ? `<span class="cap" style="color:var(--color-red-700)">No stack - fix HTS first</span>`
+        : `<span class="cap">${row.coo ? "none beyond Col-1" : "add origin"}</span>`;
     const seq = miss ? "-" : ((row.ch99_sequence || []).join(" | ") || "-");
     const helpCell = row.replacement_hts_display || row.replacement_hts
       ? `<b class="mono">${esc(row.replacement_hts_display || row.replacement_hts)}</b>${
@@ -2786,15 +2806,31 @@ function renderLookup(R) {
           </tbody></table>
         </div>`;
       }
-      if (!(row.help || miss)) {
+      if (!(row.help || miss) || (row.rules || []).length) {
         html += (row.rules || []).map(r => `<div class="rule-row">
-          <div><span class="rule-chip ${esc(r.program)}">${esc(r.program)}</span>
+          <div><span class="rule-chip ${esc(r.program)} ${esc(r.status || "")}">${esc(r.program)}</span>
             <b class="mono">${esc(r.ch99 || "commodity")}</b> | ${esc(r.rate)}
             <span class="cap"> | ${esc(r.status)}</span></div>
           <div class="why">${esc(r.label)}</div>
           <div class="why">${esc(r.reason)}</div>
           ${r.source_ref ? `<div class="src">${esc(r.source_ref)}</div>` : ""}
-        </div>`).join("") || `<p class="cap">No rule rows.</p>`;
+        </div>`).join("") || (row.help || miss ? "" : `<p class="cap">No rule rows.</p>`);
+      }
+      const uni = row.s232_universe || {};
+      const uniBits = [
+        uni.passenger_vehicle && `Passenger vehicle ${uni.passenger_vehicle.matched_stem} → ${uni.passenger_vehicle.ch99}`,
+        uni.mhdv_vehicle && `MHDV vehicle ${uni.mhdv_vehicle.matched_stem} → ${uni.mhdv_vehicle.ch99}`,
+        uni.mhdv_bus && `Bus ${uni.mhdv_bus.matched_stem} → ${uni.mhdv_bus.ch99}`,
+        uni.mhdv_part_list && `MHDV parts list ${uni.mhdv_part_list.matched_stem} (claim for ${uni.mhdv_part_list.ch99})`,
+        uni.wood && `Wood ${uni.wood.bucket} ${uni.wood.matched_stem} → ${uni.wood.ch99}`,
+        uni.semiconductor && `Semiconductor list ${uni.semiconductor.matched_stem} (claim for 9903.79.01)`,
+        uni.auto_parts && `Auto-parts annex ${uni.auto_parts.matched_stem} → ${uni.auto_parts.ch99}`,
+      ].filter(Boolean);
+      if (uniBits.length) {
+        html += `<div class="cov-fix" style="margin:var(--sp-3) 0 0">
+          <div class="eyebrow">Section 232 lists</div>
+          <ul class="cov-notes">${uniBits.map(b => `<li class="cap">${esc(b)}</li>`).join("")}</ul>
+        </div>`;
       }
       if (row.notes?.length && !(row.help || miss)) {
         html += `<ul class="cov-notes">${row.notes.map(n => `<li class="cap">${esc(n)}</li>`).join("")}</ul>`;
@@ -2875,7 +2911,7 @@ function exportLookupCsv() {
     ...(showPart ? ["part"] : []),
     ...(showSku ? ["sku"] : []),
     "hts", "coo", "as_of", "in_table", "blocked", "window_status", "ended_on", "col1_pct", "desc",
-    "replacement_hts", "replacement_col1_pct", "related_hts", "ch99_sequence", "rules", "notes", "help_steps",
+    "replacement_hts", "replacement_col1_pct", "related_hts", "ch99_sequence", "s232_lists", "rules", "notes", "help_steps",
   ];
   const lines = [headers.join(",")];
   rows.forEach(r => {
@@ -2887,6 +2923,18 @@ function exportLookupCsv() {
       r.replacement_hts_display || r.replacement_hts, r.replacement_col1_pct,
       (r.related_hts || []).map(x => x.hts_display || x.hts).join(" | "),
       (r.ch99_sequence || []).join(" "),
+      (() => {
+        const u = r.s232_universe || {};
+        return [
+          u.passenger_vehicle && `pv:${u.passenger_vehicle.ch99}`,
+          u.mhdv_vehicle && `mhdv:${u.mhdv_vehicle.ch99}`,
+          u.mhdv_bus && `bus:${u.mhdv_bus.ch99}`,
+          u.mhdv_part_list && `mhdv_parts:${u.mhdv_part_list.ch99}`,
+          u.wood && `wood:${u.wood.ch99}`,
+          u.semiconductor && "semi:9903.79.01",
+          u.auto_parts && `auto_parts:${u.auto_parts.ch99}`,
+        ].filter(Boolean).join(" | ");
+      })(),
       (r.rules || []).map(x => `${x.program}:${x.ch99 || "base"}@${x.rate}`).join(" | "),
       (r.notes || []).join(" | "),
       (r.help?.steps || []).join(" | "),

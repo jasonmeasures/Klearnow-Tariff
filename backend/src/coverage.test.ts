@@ -154,4 +154,96 @@ GO-1002,SKU-B,1806329000,CN`,
     assert.equal(covered.summary.missing_coo, 0);
     assert.equal(covered.summary.in_table, 251);
   });
+
+  it("surfaces new 232 packs (vehicles / MHDV / wood / semiconductors) on HTS list", () => {
+    const r = coverRows({
+      as_of: "2026-08-01",
+      rows: [
+        { hts: "4407.11.00", coo: "CA" },
+        { hts: "8703.23.01", coo: "JP" },
+        { hts: "8704.23.01", coo: "DE" },
+        { hts: "8702.10.31", coo: "KR" },
+        { hts: "9401.61.4011", coo: "VN" },
+        { hts: "8473.30.00", coo: "TW" },
+        { hts: "8709.90.00", coo: "DE" },
+      ],
+    });
+    const by = (hts: string) =>
+      r.rows.find((x) => String(x.hts).replace(/\D/g, "").startsWith(hts.replace(/\D/g, "").slice(0, 8)))!;
+    const wood = by("440711");
+    assert.ok(
+      (wood.rules as { ch99?: string }[]).some((x) => x.ch99 === "9903.76.01"),
+      "softwood lumber should hit 9903.76.01",
+    );
+    const pv = by("870323");
+    assert.ok((pv.s232_universe as { passenger_vehicle?: unknown }).passenger_vehicle);
+    assert.ok((pv.rules as { ch99?: string }[]).some((x) => x.ch99 === "9903.94.01"));
+    const mhdv = by("870423");
+    assert.ok((mhdv.rules as { ch99?: string }[]).some((x) => x.ch99 === "9903.74.01"));
+    const bus = by("870210");
+    assert.ok((bus.rules as { ch99?: string }[]).some((x) => x.ch99 === "9903.74.02"));
+    const furniture = by("940161");
+    assert.ok((furniture.rules as { ch99?: string }[]).some((x) => x.ch99 === "9903.76.02"));
+    const semi = by("847330");
+    assert.ok(
+      (semi.rules as { ch99?: string; status?: string }[]).some(
+        (x) => x.ch99 === "9903.79.01" && x.status === "needs_claim",
+      ),
+      "semiconductor list without claim is needs_claim",
+    );
+    const parts = by("870990");
+    assert.ok(
+      (parts.rules as { ch99?: string; status?: string }[]).some(
+        (x) => x.ch99 === "9903.74.08" && x.status === "needs_claim",
+      ),
+    );
+    assert.ok((r.summary as { with_s232?: number }).with_s232 >= 6);
+    assert.ok((r.summary as { needs_claim?: number }).needs_claim >= 2);
+  });
+
+  it("shows 232 list membership even without origin or Column-1", () => {
+    const r = coverRows({
+      as_of: "2026-08-01",
+      rows: [{ hts: "8703.23.01" }, { hts: "8473.30.00" }],
+    });
+    const pv = r.rows[0];
+    assert.ok((pv.s232_universe as { passenger_vehicle?: unknown }).passenger_vehicle);
+    assert.ok((pv.rules as { ch99?: string }[]).some((x) => x.ch99 === "9903.94.01"));
+    const semi = r.rows[1];
+    assert.ok(
+      (semi.rules as { status?: string; ch99?: string }[]).some(
+        (x) => x.ch99 === "9903.79.01" && x.status === "needs_claim",
+      ),
+    );
+  });
+
+  it("parses MHDV / semiconductor claim columns from CSV", () => {
+    const rows = parseCoverageInput({
+      text: `hts,coo,s232_mhdv_part,s232_semiconductor
+8709.90.00,DE,Y,
+8473.30.00,TW,,Y`,
+    });
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0].s232_mhdv_part, true);
+    assert.equal(rows[1].s232_semiconductor, true);
+    const covered = coverRows({ as_of: "2026-08-01", rows });
+    const mhdv = covered.rows[0];
+    assert.ok(
+      (mhdv.rules as { ch99?: string; status?: string }[]).some(
+        (x) => x.ch99 === "9903.74.08" && x.status === "applies",
+      ),
+    );
+    const semi = covered.rows[1];
+    assert.ok(
+      (semi.rules as { ch99?: string; status?: string }[]).some(
+        (x) => x.ch99 === "9903.79.01" && x.status === "applies",
+      ),
+    );
+    if ((mhdv.ch99_sequence as string[])?.length) {
+      assert.ok((mhdv.ch99_sequence as string[]).includes("9903.74.08"));
+    }
+    if ((semi.ch99_sequence as string[])?.length) {
+      assert.ok((semi.ch99_sequence as string[]).includes("9903.79.01"));
+    }
+  });
 });

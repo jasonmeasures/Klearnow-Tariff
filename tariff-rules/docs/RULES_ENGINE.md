@@ -4,7 +4,8 @@
 **Source of truth:** `tariff-rules/` (this repo) + assess API in `backend/`  
 **Pack version:** rulepack ~1.1.x · stacking contract **1.3.0** · as of **2026-08-05**  
 **Shareable framework (other apps):** [`FRAMEWORK.md`](./FRAMEWORK.md) + [`../data/framework_contract.json`](../data/framework_contract.json)  
-**Companion narrative:** [`RULES.md`](./RULES.md) · [`CH99_ENGINE.md`](./CH99_ENGINE.md) · [`OPEN_ITEMS.md`](./OPEN_ITEMS.md)
+**Companion narrative:** [`RULES.md`](./RULES.md) (full review pack) · [`CH99_ENGINE.md`](./CH99_ENGINE.md) · [`OPEN_ITEMS.md`](./OPEN_ITEMS.md)  
+**Operators:** [`../../docs/USER_MANUAL.md`](../../docs/USER_MANUAL.md)
 
 Use this document to wire Inditex entry / ES-003 review against the same stacking logic as KlearNow Tariff (Duty stack). Prefer calling the API rather than re-implementing rates in the Inditex Python app.
 

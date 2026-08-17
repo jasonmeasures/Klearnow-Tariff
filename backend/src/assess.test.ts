@@ -632,6 +632,30 @@ describe("program era routing", () => {
     const hmf = R.entry_fees.find((f: { code: string }) => f.code === "HMF");
     assert.ok(hmf && hmf.amount > 0);
     assert.equal(R.totals.duty, 0);
+    assert.equal(R.hmf_applies, true);
+    assert.equal(R.mode_of_transport, "OCEAN");
+  });
+
+  it("air MOT: MPF still due; HMF is $0", () => {
+    const R = assessEntry({
+      mode_of_transport: "AIR",
+      formal_entry: true,
+      lines: [
+        {
+          hts: "6203420711",
+          coo: "VN",
+          entered_value: 25000,
+          entry_date: "2026-07-25",
+        },
+      ],
+    });
+    const hmf = R.entry_fees.find((f: { code: string }) => f.code === "HMF");
+    assert.ok(hmf);
+    assert.equal(hmf!.amount, 0);
+    assert.match(hmf!.rate_note, /Not due/i);
+    assert.equal(R.hmf_applies, false);
+    const mpf = R.entry_fees.find((f: { code: string }) => f.code === "MPF");
+    assert.ok(mpf && mpf.amount > 0);
   });
 
   it("CA USMCA claim → 9903.05.93 + Free Col-1; DE Note 52 claim → 9903.05.97 only (Col-1 stays)", () => {

@@ -1,13 +1,15 @@
 # KlearNow Tariff Rules Framework (shareable)
 
-**Version 1.4.0 · as of 2026-08-14 · US jurisdiction**  
+**Version 1.5.0 · as of 2026-08-17 · US jurisdiction**  
 **Status:** Interim pack for **other apps** until the core Duty-stack engine is exposed as a **shared API**.
 
 | Artifact | Path |
 |----------|------|
 | **This guide** | `tariff-rules/docs/FRAMEWORK.md` |
+| **Review pack (devs + compliance)** | [`RULES.md`](./RULES.md) |
+| Operator manual | [`../../docs/USER_MANUAL.md`](../../docs/USER_MANUAL.md) |
 | **Machine contract** | [`../data/framework_contract.json`](../data/framework_contract.json) |
-| Narrative / inventory | [`RULES_ENGINE.md`](./RULES_ENGINE.md), [`RULES.md`](./RULES.md), [`OPEN_ITEMS.md`](./OPEN_ITEMS.md) |
+| Narrative / inventory | [`RULES_ENGINE.md`](./RULES_ENGINE.md), [`OPEN_ITEMS.md`](./OPEN_ITEMS.md) |
 | Live data | `tariff-rules/data/*.json` |
 
 Pin results to **`framework_contract.version`** + backend **`rulepack.hash`** when you share assessments across apps.
@@ -222,6 +224,7 @@ Full list: [`OPEN_ITEMS.md`](./OPEN_ITEMS.md).
 
 | Ver | Date | Notes |
 |-----|------|-------|
+| **1.5.0** | 2026-08-17 | Review pack (`RULES.md`) + user manual; HTS list surfaces 232 vehicles / MHDV / wood / semiconductors (auto vs claim) |
 | **1.4.0** | 2026-08-14 | Section 232 wood / passenger vehicles / MHDV / semiconductors packs from CSMS; 232 still wins via `9903.05.90` |
 | **1.3.1** | 2026-08-06 | Brazil Section 301 `9903.05.01` @ 25% wired (CSMS #69302472); stacks with 301-FL; R2c |
 | **1.3.0** | 2026-08-05 | Shareable framework + `framework_contract.json`; 232 annex auto-apply; 301-FL flowchart; API preview |

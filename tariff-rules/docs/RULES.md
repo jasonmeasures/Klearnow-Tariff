@@ -1,85 +1,519 @@
-# KlearNow Tariff Stacking Rules — Narrative Reference
+# KlearNow Tariff Stacking Rules — Review Pack
 
-Version 1.0.0 · as of 2026-07-31 · machine tables live in `../data/`
+**Version 1.5.0 · as of 2026-08-17 · United States only (HTSUS)**  
+**Audience:** developers integrating the engine, and compliance / trade reviewing the logic before it is used in production.
 
-> **Inditex / integration hand-off:** see [`RULES_ENGINE.md`](./RULES_ENGINE.md) (eras, stacking contract, inventory, API map, open items).
+This is the document to **read, mark up, and sign off**. Machine tables in `tariff-rules/data/` are the authority if this prose and a JSON file ever disagree.
 
-## 1. Legal landscape (what's alive, what's dead)
+Shareable HTML (same content): [`RULES.html`](./RULES.html) — open in a browser or Print → PDF.
 
-| Program | Ch.99 family | Status |
-|---|---|---|
-| IEEPA | 9903.01.xx | **Struck down** — SCOTUS 2026-02-20 held IEEPA does not authorize tariffs. Whole layer gone prospectively, incl. 9903.01.33 auto-parts carve-out. Ruling did not touch 232 or 301. |
-| Section 122 | 9903.03.01 (as surcharge) | **Sunset** 12:01 a.m. 2026-07-24 (150-day statutory limit, no extension). |
-| 301-FL | 9903.05.xx | **Live** 2026-07-24 (CSMS #69326983). Functional replacement for 122 — no sunset. |
-| 232 autos/parts | Procl. 10908 | **Live.** Parts annex + passenger vehicles (`9903.94.01`). |
-| 232 MHDV | Procl. 10984 | **Live.** Vehicles/buses auto; parts claim-gated. |
-| 232 wood | Procl. 10976 | **Live.** Softwood / furniture / cabinets (`9903.76`). |
-| 232 semiconductors | Jan 2026 proc. | **Live, claim-gated** Note 39(b) (`9903.79.01`). |
-| 232 metals | 9903.03.xx / .85.xx | **Live.** Separate entry line, metal-content value. |
-| Legacy China 301 | 9903.88.xx | **Live.** Not suppressed by 232. |
-| Brazil 301 | 9903.05.01 | **Live** from 2026-07-22 @ 25% (CSMS #69302472). Exemptions `.02`–`.09`. Stacks with 301-FL `.27`. |
+| If you are… | Start here | Then check |
+|-------------|------------|------------|
+| **Compliance / trade** | §1–§3 (what's live), §5 (stacking), §6 (each 232 program + HTS lists) | §12 claim flags, §15 open items, **sign-off** at the end |
+| **Developer** | §4 decision order, §12 flags, §13 data files / API | `FRAMEWORK.md`, `interaction_rules.json`, tests in `backend/src/s232NewPacks.test.ts` |
+| **Operator using the app** | [`docs/USER_MANUAL.md`](../../docs/USER_MANUAL.md) | HTS list + Duty stack walkthrough |
 
-## 2. Core interactions
+Related docs: [`FRAMEWORK.md`](./FRAMEWORK.md) (shareable contract) · [`RULES_ENGINE.md`](./RULES_ENGINE.md) (Inditex API hand-off) · [`OPEN_ITEMS.md`](./OPEN_ITEMS.md).
 
-**R1 — 232 vs 301-FL: mutually exclusive, 232 wins.** When a line is a valid
-232 auto part, report 9903.05.90 to suppress 301-FL. The 232 determination is
-10-digit specific against the Proclamation 10908 annex — chapter membership is
-triage, not a determination. General-purpose parts not specifically intended
-for automotive use fall outside scope.
+---
 
-**R2 — Legacy China 301 is not suppressed.** Both report, 301 first.
-Worked: CN 8708 List 3 @ 2.5% col-1 → 25% + 25% + 2.5% = **52.5%**.
+## How to review this pack
 
-**R3 — Japan 232 top-up.** Col-1 < 15% is brought up to 15% via 9903.94.43,
-15% on the Ch.99 line, **zero** on the Ch.1–97 line.
+Please treat every **CONFIRMED** row as “this is what we will file / compute” and every **TBC** row as “do not ship totals / labels until this is closed.”
+
+For each program below, confirm:
+
+1. **Scope** — the HTS list (or claim) is the right trigger; chapter triage alone is not enough for auto parts.
+2. **Heading + rate** — the Chapter 99 code and additional rate match CSMS / the proclamation.
+3. **Auto vs claim** — the engine should not invent a 25% duty that CBP only assesses when the importer certifies a fact (MHDV part, semiconductor Note 39(b), patented pharma).
+4. **Stacking** — 232 suppresses 301-FL (`9903.05.90`); China 301 is **not** suppressed; metals stay on their own value basis.
+5. **Era** — IEEPA and Section 122 must not compute forward outside their windows.
+
+Mark the sign-off table at the end when you agree — or file a comment against the rule id (R1, R2, …) or program id (`s232_wood`, etc.).
+
+---
+
+## 1. What this engine does
+
+Given **HTS**, **country of origin**, **entered value**, **mode of transport** (MOT — required for HMF), **rate-determination date** (Entry Date under 19 CFR 141.68 / 141.69), and optional **claims** (232 part, semiconductor params, USMCA, metal content), it returns:
+
+1. Column 1 (Chapters 1–97) duty from the HTS table.
+2. The Chapter 99 layers that should report, in CBP order, with rates and reasons.
+3. Suppressions (especially 301-FL killed by 232).
+4. Diagnostics when a claim is needed, a heading is TBC, or the HTS is unknown.
+
+It does **not** classify the product, invent Column 1 for an unknown 10-digit line, or auto-certify claim-gated facts (Note 39(b) TPP/DRAM, “this is an MHDV part,” patented vs generic pharma).
+
+**Safety (non-negotiable):**
+
+1. Never hardcode a rate in application code — use `data/` or `POST /v1/entries:assess`.
+2. Non-`CONFIRMED` codes do not compute silently.
+3. Trade-deal **totals** are blocked until R6 (MFN cap) is resolved.
+4. IEEPA / Section 122 are rejected outside their eras.
+5. 232 metals use metal-content value where required (`9903.82.02`).
+
+---
+
+## 2. Legal landscape — what's alive, what's dead
+
+| Program | Ch.99 family | Status | Compute live? |
+|---------|--------------|--------|----------------|
+| IEEPA | `9903.01.xx` / `.02.xx` | **Struck down** — SCOTUS 2026-02-20; IEEPA does not authorize tariffs. Did **not** touch 232 or 301. | No (prospective). Historical CAPE / refund only. |
+| Section 122 | `9903.03.01` (surcharge) | **Sunset** 12:01 a.m. 2026-07-24 (150-day statutory limit). | Historical only (2026-02-24 → 2026-07-23). |
+| **301-FL** | `9903.05.20+` | **Live** from 2026-07-24 (CSMS #69326983). Functional replacement for 122 — no sunset. | Yes |
+| Brazil country 301 | `9903.05.01`–`.09` | **Live** from 2026-07-22 @ 25% (CSMS #69302472). Distinct from 301-FL Brazil `.27`. | Yes |
+| Legacy China 301 | `9903.88.xx` | **Live.** Not suppressed by 232 or 122. | Yes |
+| 232 auto parts | `9903.94.05` (+ JP top-up `.43`) | **Live.** Proclamation 10908 annex. | Yes (in-annex auto) |
+| 232 passenger vehicles / light trucks | `9903.94.01`–`.04` | **Live.** CSMS #64624801. | Yes (list auto) |
+| 232 MHDV / buses / parts | `9903.74.01`–`.11` | **Live.** Proclamation 10984 / CSMS #66665333. | Vehicles/buses auto; **parts claim-gated** |
+| 232 wood | `9903.76.xx` | **Live.** Proclamation 10976 / CSMS #66492057. | Yes (list auto) |
+| 232 semiconductors | `9903.79.01`–`.09` | **Live.** CSMS #67400472. | **Claim-gated** Note 39(b) |
+| 232 metals | `9903.82.xx` | **Live.** Separate line; metal-content or entered-value derivative. | Yes (chapter triage + content) |
+| 232 patented pharma | `9903.04.60`–`.67` | **Live.** Proclamation 11020 / CSMS #69395344, #69415934. | **Claim-gated** Ch.29/30 |
+| JP / EU / KR trade-deal caps | `9903.94.43/.45/.55/.63` | Rate known; **MFN mechanic TBC (R6)** | Rate yes; **totals blocked** |
+
+---
+
+## 3. Filing eras (rate-determination date)
+
+Calendar days are **inclusive**. Entry Date is the usual proxy.
+
+| Era | Dates | Primary layer | Ch.99 |
+|-----|-------|---------------|-------|
+| Pre-IEEPA | before 2025-02-04 | Baseline / other | — |
+| IEEPA | 2025-02-04 → **2026-02-23** | CAPE / refund only | `9903.01` / `.02` |
+| Section 122 | **2026-02-24** → **2026-07-23** | 10% surcharge, **entry-level** | `9903.03.01` |
+| **301-FL** | from **2026-07-24** | Forced Labor 301 | `9903.05.xx` |
+
+Wrong-era filings (IEEPA after 2026-02-23, Sec 122 on/after 2026-07-24) are **ERROR**s.
+
+Section 232 programs have their own effective dates (vehicles 2025-04-03, auto parts 2025-05-03, wood 2025-10-14, MHDV 2025-11-01, semiconductors 2026-01-15, patented pharma 2026-07-31). The engine will not apply a 232 pack before that pack's effective date.
+
+---
+
+## 4. How a line is decided (plain English)
+
+```mermaid
+flowchart TD
+  A[HTS + origin + rate date + claims] --> B{On a Section 232 list or valid 232 claim?}
+  B -->|Yes — pick the 232 winner by precedence| C[Report 232 Ch.99 + 9903.05.90]
+  C --> D{China 301 list?}
+  D -->|Yes| E[Also report 9903.88.xx first]
+  D -->|No| F[Done with remedies]
+  B -->|No| G{Rate date ≥ 2026-07-24?}
+  G -->|Yes| H[301-FL by origin — flat or threshold]
+  G -->|No, in 122 window| I[9903.03.01 unless 232]
+  H --> D
+```
+
+**Section 232 winner (entered-value programs), highest first:**
+
+1. **Claimed semiconductors** `9903.79.01` (beats autos / MHDV / metals).
+2. **MHDV vehicles / buses** (auto from HTS). MHDV **parts** only when claimed.
+3. **Passenger vehicles / light trucks** (auto from HTS).
+4. **Auto-parts annex** (auto) or off-list auto-part **claim**. Chapter 73/74 metals still win over parts (R5 TBC).
+5. **Wood** (auto from HTS) — skipped if autos/parts already won.
+
+`8704.60.00` is on **both** the passenger-vehicle and MHDV vehicle lists. Default is passenger `9903.94.01` unless the filer claims `s232_mhdv`.
+
+---
+
+## 5. Stacking rules (R1–R10)
+
+Authoritative copies: `interaction_rules.json` + `framework_contract.json`.
+
+### R1 — 232 vs 301-FL: mutually exclusive, 232 wins
+
+When a line is a valid 232 determination (any family in §6), report **`9903.05.90`** and do **not** assess 301-FL additional duty.
+
+A valid 232 determination is **list + (auto or claim)** — not “this chapter looks automotive.”
+
+### R2 — Legacy China 301 is not suppressed
+
+`9903.88.xx` reports **in addition to** 232 (and in addition to historical Sec 122). China 301 reports **first**.
+
+Worked: CN `8708` List 3 @ 2.5% col-1 → 25% (301) + 25% (232) + 2.5% = **52.5%**.
+
+### R2b — Section 122 does not stack with 232
+
+When 232 applies in the 122 window, report `9903.03.06` and suppress `9903.03.01`. China 301 still reports (R2).
+
+### R2c — Brazil country 301 stacks with 301-FL
+
+Brazil `9903.05.01` @ 25% (from 2026-07-22) **and** 301-FL Brazil `9903.05.27` @ 12.5% (from 2026-07-24) both apply when the line is not in the 232 universe. In the 232 universe: Brazil exemption `.07` + FL `.90`.
+
+### R3 — Japan 232 auto-parts top-up
+
+For **auto parts only** (not passenger vehicles): if col-1 &lt; 15%, 232 tops up to 15% via `9903.94.43` (15% on the Ch.99 line; **zero** on the Ch.1–97 line).
+
 Worked: JP part @ 2.5% col-1 → 232 of 12.5% → **15.0%** total.
-Same part *not* a 232 auto part → 9903.05.49 (+10%) → **12.5%** total.
-The 232 determination is worth 2.5 pts either way on Japan — far more elsewhere
-(15% JP cap vs 25% default 232 vs 12.5% flat 301-FL).
+Same part *not* a 232 auto part → 301-FL threshold (e.g. `9903.05.49` +10%) → **12.5%** total.
 
-**R4 — Metals on a separate line.** 232 steel/aluminum reports against
-metal-content value; excluded from parts TOTAL.
+A JP **passenger vehicle** uses `9903.94.01` @ 25% additional — **not** the 15% parts top-up.
 
-**R8 — HTS authority.** Parts: Item Master only (BL10 HTS is inaccurate).
-Vehicles: HA30 `primary_tariff_num`, Item Master fallback.
+### R4 — Metals on a separate line / basis
 
-## 3. Ch.99 code registry (summary — authoritative copy in data/ch99_codes.json)
+- **R4a** `9903.82.02` — primary steel / aluminum / copper articles: **+50% on metal-content** (needs content + melt/pour).
+- **R4b** `9903.82.09` — copper / derivative alu+steel: **+25% on entered value**.
+- **R4c** Sec 122 is **entry-level**: `9903.03.01` on any ESL of an Entry Summary Number satisfies the entry.
 
-| Code | Program | Rate | MFN | Status |
-|---|---|---|---|---|
-| 9903.03.06 | 232 metals exclusion | 0% | normal | ✅ |
-| 9903.03.03 | 232 metals exclusion | 0% | normal | ✅ |
-| 9903.03.01 | Steel duty | 10% | normal | ✅ |
-| 9903.74.11 | Med/heavy parts exclusion | 0% | normal | ✅ |
-| 9903.82.02 | Sec. 301 | 50% | normal | ✅ |
-| 9903.88.01 | China 301 List 4A | 25% | normal | ✅ |
-| 9903.88.03 | China 301 List 3 | 25% | normal | ✅ |
-| 9903.94.05 | ⚠ label TBC | 25% | stacks | rate ✅ / program ⚠ |
-| 9903.94.07 | ⚠ label TBC | 25% | capped | rate ✅ / mechanic ⚠ |
-| 9903.94.43 | JP trade deal | 15% | capped | rate ✅ / mechanic ⚠ |
-| 9903.94.45 | EU trade deal | 15% | capped | rate ✅ / mechanic ⚠ |
-| 9903.94.55 | JP trade deal | 15% | capped | rate ✅ / mechanic ⚠ |
-| 9903.94.63 | KR trade deal | 15% | capped | rate ✅ / mechanic ⚠ |
-| 9903.05.27 | 301-FL flat | 12.5% | normal | ✅ |
-| 9903.05.49 | 301-FL threshold | +10% | normal | ✅ |
-| 9903.05.90 | 301-FL suppression | 0% | normal | ✅ |
+Do not fold metals duty into the parts TOTAL.
 
-## 4. Review tiers (from the 2026-07-27 full-stack analysis, 251 lines)
+### R5 — Metals vs autos on Ch.73/74 — **TBC**
 
-- **Tier 1** (15 lines, Ch. 39/49/82/91): 232 auto-part claim fails on chapter scope — reject.
-- **Tier 1b** (1 line, 7419 copper).
-- **Tier 2** (211 lines): in annex chapters but unconfirmed at 10 digits;
-  104 general-purpose-heading lines need part-number-level evidence from Subaru.
-- **Tier 3** (22 lines, Ch. 73 steel derivatives): autos-vs-metals precedence — Marek.
-- **Tier 4** (2 US-origin lines).
-- **AD/CVD:** 45 lines flagged in ACE — producer/exporter case coverage verification.
+Conflicting published guidance. Engine currently lets chapter metals win over auto-parts on those chapters. **Do not treat as signed off.**
 
-Key finding: Subaru's blanket "everything is a 232 auto part" claim **raises** duty
-on every line (15% JP 232 cap vs 12.5% 301-FL; 25% default 232 vs 12.5% flat),
-costs ~15.36 aggregate pts across 246 priced lines (~6.2 pts/line avg),
-forfeits drawback on the 232 portion, and is a misdeclaration risk.
+### R6 — Trade-deal MFN cap — **BLOCKING**
+
+Unresolved whether MFN is zeroed or conditionally capped on `9903.94.43/.45/.55/.63`. Engine **refuses a total** on those paths until resolved.
+
+### R7 — `9903.94.xx` program label — **TBC**
+
+232 autos vs trade-deal framing. Rates may still be confirmed; legal-basis / drawback labeling is not.
+
+### R8 — HTS authority
+
+Parts: **Item Master only** (BL10 HTS is inaccurate). Vehicles: HA30 `primary_tariff_num`, Item Master fallback.
+
+### R9 — AD/CVD
+
+Outside Chapter 99 math. Flag for producer/exporter case coverage; do not invent AD/CVD in this stack.
+
+### R10 — USMCA / CAFTA-DR
+
+SPI S/S+ (and CAFTA-DR) zeros **Column 1 + MPF only**. It does **not** automatically clear 301-FL, 232, China 301, or Brazil 301. Those need their **own** Ch.99 exception (e.g. 301-FL Note 52 → `9903.05.93` CA / `.94` MX). MHDV parts with USMCA claim use `9903.74.10` @ 0% additional (still in the 232 universe → FL `.90`).
+
+### Reporting order
+
+CBP: Chapter 99 lines **before** Chapters 1–97. Where China 301 and 232 both apply, **301 reports first**.
+
+---
+
+## 6. Section 232 programs (review in detail)
+
+Membership is **prefix / stem** match against the published list (8-digit or 10-digit as published). A 10-digit statistical line under a listed stem is in.
+
+### 6.1 Auto parts — Proclamation 10908 / U.S. note 33
+
+| | |
+|--|--|
+| Pack | `data/s232_auto_parts_annex.json` (~130 stems) |
+| CSMS / source | CBP Attachment 2 — Automobile Parts HTS List |
+| Effective | 2025-05-03 |
+| Duty | **`9903.94.05` @ 25% additional** (auto if in annex) |
+| 301-FL | Suppressed via `9903.05.90` |
+| Off-list | No auto-232. Optional claim `s232_auto_part` with evidence (claim-gated warning). |
+| Japan | Top-up `9903.94.43` (R3) — parts only |
+
+**In annex (examples):** `8544.30.00`, `8708.10.30`, `8708.29`, `8471` (whole heading).  
+**Not in annex (examples):** `8544.42.90`, `8544.49`, sign plates `8310…`.
+
+Chapter membership (e.g. “it's Ch.87”) is **triage, not a determination**.
+
+### 6.2 Passenger vehicles and light trucks — CSMS #64624801
+
+| | |
+|--|--|
+| Pack | `data/s232_autos_vehicles.json` |
+| Proclamation | 10908 (U.S. note 33 subdiv. (a)–(e)) |
+| Effective | 2025-04-03 |
+| Duty | **`9903.94.01` @ 25% additional** — **auto from HTS list** |
+| Not a PV / light truck | `9903.94.02` @ 0% (claim `s232_auto_not_pv`) |
+| 25-year vehicle | `9903.94.04` @ 0% (claim `s232_vehicle_vintage`) |
+| USMCA non-U.S. content | `9903.94.03` — Commerce approval; **not auto-assessed** |
+
+**HTS list (complete — please confirm):**
+
+```
+8703.22.01  8703.23.01  8703.24.01
+8703.31.01  8703.32.01  8703.33.01
+8703.40.00  8703.50.00  8703.60.00  8703.70.00  8703.80.00
+8703.90.01
+8704.21.01  8704.31.01  8704.41.00  8704.51.00  8704.60.00
+```
+
+`8704.60.00` also appears on the MHDV vehicle list. **Default = passenger `9903.94.01`** unless `flags.s232_mhdv`.
+
+Japan 15% top-up **does not** apply to this heading.
+
+### 6.3 MHDV, buses, and MHDV parts — Proclamation 10984 / CSMS #66665333
+
+| | |
+|--|--|
+| Pack | `data/s232_mhdv.json` |
+| Effective | 2025-11-01 |
+| MHDV vehicles | **`9903.74.01` @ 25%** — auto from vehicle list |
+| Buses | **`9903.74.02` @ 10%** — auto from bus list |
+| MHDV parts | **`9903.74.08` @ 25%** — **claim-gated** (`s232_mhdv_part`) |
+| Not an MHDV part | `9903.74.11` @ 0% (list membership without the part claim) |
+| 25-year MHDV | `9903.74.07` @ 0% |
+| USMCA MHDV parts | `9903.74.10` @ 0% additional (still suppresses 301-FL) |
+| USMCA vehicle content | `9903.74.03` / `.06` — Commerce approval; **not auto-assessed** |
+
+When MHDV applies, CSMS says the goods are **not** also subject to 232 metals, copper, or wood.
+
+Many MHDV part stems overlap the auto-parts annex. **Auto-parts `9903.94.05` remains the default** unless MHDV part is claimed.
+
+**Vehicle HTS (complete — please confirm):**
+
+```
+8701.21.00  8701.22.00  8701.23.00  8701.24.00  8701.29.00
+8704.10.10  8704.10.50  8704.22.11  8704.22.51  8704.23.01
+8704.32.01  8704.42.00  8704.43.00  8704.52.00  8704.60.00
+8704.90.01  8705.40.00  8705.90.0080
+8706.00.03  8706.00.0520  8706.00.0575  8706.00.25  8706.00.50
+8709.11.00  8709.19.00
+```
+
+**Bus HTS (complete — please confirm):**
+
+```
+8702.10.31  8702.10.61  8702.20.31  8702.20.61  8702.30.31
+8702.30.61  8702.40.31  8702.40.61  8702.90.31  8702.90.61
+```
+
+**Parts HTS:** ~180 stems in `s232_mhdv.json` → `parts_hts` (hose, tires, engines, 8708.*, `8709.90.00`, etc.). Full list is too long for this review page — **diff the JSON against the CBP MHDV attachment**. Parts duty is **not** inferred from the list alone.
+
+### 6.4 Wood — Proclamation 10976 / CSMS #66492057
+
+| | |
+|--|--|
+| Pack | `data/s232_wood.json` |
+| Effective | 2025-10-14 |
+| Softwood timber / lumber | **`9903.76.01` @ 10%** — all origins |
+| Upholstered wooden furniture | **`9903.76.02` @ 25%**; UK `9903.76.20` @ 10%; JP `9903.76.21` @ 15%; EU `9903.76.22` @ 15% |
+| Completed kitchen cabinets / vanities | **`9903.76.03` @ 25%** with the same UK/JP/EU split |
+| Not a completed cabinet | `9903.76.04` @ 0% (claim `s232_wood_not_cabinet`) |
+
+If the good is also subject to autos/parts 232 (Proclamation 10908), **wood does not apply**.
+
+**Softwood HTS (complete — please confirm):**
+
+```
+4403.11.00  4403.21.01  4403.22.01  4403.23.01  4403.24.01
+4403.25.01  4403.26.01  4403.99.01
+4406.11.00  4406.91.00
+4407.11.00  4407.12.00  4407.13.00  4407.14.00  4407.19.00
+```
+
+**Upholstered wooden furniture:** `9401.61.4011` `9401.61.4031` `9401.61.6011` `9401.61.6031`
+
+**Kitchen cabinets / vanities / parts:** `9403.40.9060` `9403.60.8093` `9403.91.0080`
+
+### 6.5 Semiconductors — CSMS #67400472 / U.S. note 39
+
+| | |
+|--|--|
+| Pack | `data/s232_semiconductors.json` |
+| Effective | 2026-01-15 |
+| Duty | **`9903.79.01` @ 25% additional** only when **both** are true: HTS is on the list **and** Note 39(b) TPP + DRAM bandwidth bands are **claimed** (`s232_semiconductor`) |
+| On list, params not met | `9903.79.02` @ 0% |
+| Other 0% use headings | `.03`–`.09` (data center, repair, R&D, startup, consumer, industrial, public sector) — each has its own claim flag |
+
+**HTS list (complete):** `8471.50` · `8471.80` · `8473.30`
+
+Note 39(b) (logic IC, or article containing one):
+
+1. TPP &gt; 14,000 and &lt; 17,500 **and** total DRAM bandwidth &gt; 4,500 GB/s and &lt; 5,000 GB/s, **or**
+2. TPP &gt; 20,800 and &lt; 21,100 **and** total DRAM bandwidth &gt; 5,800 GB/s and &lt; 6,200 GB/s.
+
+The engine **cannot** infer TPP/DRAM from HTS. `8471.50` is also in the auto-parts annex — **without** the semiconductor claim, auto-parts `9903.94.05` applies. **With** the claim, `9903.79.01` wins.
+
+### 6.6 Metals — CSMS #68253075 / U.S. note 16
+
+| Heading | Basis | Typical trigger |
+|---------|-------|-----------------|
+| `9903.82.02` | **+50% on metal-content** | Ch.72–73 steel, Ch.76 aluminum, Ch.74 copper articles |
+| `9903.82.09` | **+25% on entered value** | Copper / derivative alu+steel; annex derivatives outside 72–76 are claim-gated |
+| `9903.82.01` / `.03` / `.06` | 0% or 10% relief | Exclusions / US-content — not auto-applied |
+
+Melt / pour (or smelt / cast / refine) country is collected for the article path. MHDV filings are not also assessed as metals.
+
+### 6.7 Patented pharma — Proclamation 11020
+
+Ch.29 / Ch.30. Claim `s232_pharma_patented` or `s232_pharma_generic`. UK patented articles report `9903.04.63` @ **0% additional** from 2026-07-31. Patented headings suppress 301-FL via `9903.05.90`. This is **not** the same as 301-FL pharmaceutical-use `9903.05.89` (Note 52(e)).
+
+---
+
+## 7. Section 301 Forced Labor (301-FL)
+
+Pack: `data/s301fl_pack.json` — **60 economies**, CSMS #69326983, from **2026-07-24**.
+
+Only runs if 232 has **not** already won.
+
+| Mechanic | Who | What the engine does |
+|----------|-----|----------------------|
+| **Flat** | Most listed origins (e.g. VN 20% apparel path is **not** 301-FL 20% — check the pack; Brazil FL is `9903.05.27` @ 12.5%) | Additional % on entered value |
+| **Threshold / combined-to-cap** | EU & TW cap **10%**; JP, KR, CH cap **12.5%** | If col-1 already ≥ cap → report 0% heading; else top-up to the cap |
+
+**301-FL decision flow (after 232 check):**
+
+```mermaid
+flowchart TD
+  A[Primary HTS] --> B{Sec 232 present?}
+  B -->|Yes| C[9903.05.90 — stop]
+  B -->|No| D{On 9903.05.86 exclusion?}
+  D -->|Yes| E[9903.05.86 — stop]
+  D -->|No| F[Match COO to 301-FL pack]
+  F --> G{Flat country?}
+  G -->|Yes| H[Country Ch.99 at flat rate]
+  F --> I{Threshold EU JP KR CH TW?}
+  I -->|Duty ≥ cap| J[Report 0% heading]
+  I -->|Duty < cap| K[Override Ch.99 — top-up]
+  F --> L{No match?}
+  L -->|Yes| M[Not subject — no 301-FL]
+```
+
+Related exclusions in pack: `9903.05.85`, `9903.05.87`, pharma-use `9903.05.89` (claim `s301fl_pharma`).
+
+---
+
+## 8. Other 301 programs
+
+**Legacy China 301** — `data/s301_china_lists.json`. Membership is 8-digit HTS, not a checkbox. Lists map to `9903.88.01` / `.02` / `.03` / `.15`. Stacks with 232 (R2).
+
+**Brazil country 301** — `data/s301_brazil.json`. `9903.05.01` @ 25% from 2026-07-22; exemptions `.02`–`.09`. Stacks with 301-FL Brazil `.27` when 232 does not apply (R2c).
+
+---
+
+## 9. Claim flags (what a human must still assert)
+
+The UI only shows a checkbox when the HTS is on the relevant list. Spreadsheet / API flags:
+
+| Flag | When to set | Heading |
+|------|-------------|---------|
+| `s232_auto_part` | Off-list auto part with annex evidence | `9903.94.05` |
+| `s232_mhdv_part` | Article **is** a part of an MHDV | `9903.74.08` |
+| `s232_mhdv` | `8704.60.00` overlap — file as MHDV not passenger | `9903.74.01` |
+| `s232_mhdv_not_part` | On MHDV parts list but **not** an MHDV part | `9903.74.11` |
+| `s232_vehicle_vintage` | Manufactured ≥25 years before entry | `9903.94.04` / `9903.74.07` |
+| `s232_semiconductor` | Note 39(b) TPP/DRAM bands met | `9903.79.01` |
+| `s232_semiconductor_params_not_met` | On semi list, params not met | `9903.79.02` |
+| `s232_wood_not_cabinet` | On cabinet HTS list, not a completed cabinet | `9903.76.04` |
+| `s232_pharma_patented` / `_generic` | Ch.29/30 patented vs generic | `9903.04.60`–`.67` |
+| `s301fl_pharma` | Pharmaceutical **use** Note 52(e) | `9903.05.89` |
+| `fta_usmca` | SPI S/S+ | Col-1 + MPF; FL `.93`/`.94` if Note 52 |
+
+Do not treat a UI checkbox as authority when the annex JSON already auto-applies.
+
+---
+
+## 10. HTS list (coverage) — how the new rules show up
+
+`POST /v1/hts:coverage` (the **HTS list** screen) does **not** need entered value. For every code it now:
+
+1. Resolves Column 1 when the statistical line is in `hts_rates.json`.
+2. Always runs **Section 232 universe preview** (passenger / MHDV / bus / MHDV parts / wood / semiconductors / auto parts) even if origin is missing or the line is not in the Column 1 table.
+3. Marks **auto** headings as `applies` and **claim-gated** headings as `needs_claim` (orange **claim** chip).
+4. When origin is present, runs a notional $10k stack for the Chapter 99 sequence (232 still suppresses 301-FL).
+5. Exports `s232_lists` in the CSV.
+
+That is the operator check: “is this HTS on a new 232 list, and do I need a claim?” Duty dollars still require a valid 10-digit line + origin + value in **Duty stack**.
+
+---
+
+## 11. Worked examples (locked in QA goldens)
+
+| Scenario | HTS | Origin | Result |
+|----------|-----|--------|--------|
+| CA softwood | `4407.11.00` | CA | `9903.76.01` @ 10% + `9903.05.90` |
+| VN upholstered wood furniture | `9401.61.4011` | VN | `9903.76.02` @ 25% + `.90` |
+| DE same furniture | `9401.61.4011` | DE | `9903.76.22` @ 15% (EU) + `.90` |
+| GB kitchen cabinets | `9403.40.9060` | GB | `9903.76.20` @ 10% + `.90` |
+| JP passenger vehicle | `8703.23.01` | JP | `9903.94.01` @ 25% additional — **not** `.43` |
+| DE dump truck | `8704.23.01` | DE | `9903.74.01` @ 25% + `.90` |
+| KR bus | `8702.10.31` | KR | `9903.74.02` @ 10% + `.90` |
+| MHDV parts, no claim | `8709.90.00` | DE | Diagnostic only — **no** `.08` |
+| MHDV parts, claimed | `8709.90.00` | DE + `s232_mhdv_part` | `9903.74.08` @ 25% + `.90` |
+| Semi HTS, no claim | `8473.30` | TW | List warning; no `9903.79.01` |
+| Semi params claimed | `8473.30` + `s232_semiconductor` | TW | `9903.79.01` @ 25% + `.90` |
+| `8471.50` claimed semi | beats auto-parts annex | TW | `9903.79.01`, not `9903.94.05` |
+
+Regression lock: `tariff-rules/data/qa_goldens.json` + `cd backend && npm test`.
+
+---
+
+## 12. Data files and API (developers)
+
+| File | Role |
+|------|------|
+| `program_status.json` | Live / sunset / struck |
+| `interaction_rules.json` | R1–R10 |
+| `ch99_codes.json` | Chapter 99 registry |
+| `s301fl_pack.json` | 60 economies |
+| `s301_brazil.json` | Brazil 301 |
+| `s301_china_lists.json` | China 301 HTS membership |
+| `s232_auto_parts_annex.json` | Auto-parts stems |
+| `s232_autos_vehicles.json` | Passenger / light truck stems |
+| `s232_mhdv.json` | MHDV / bus / parts stems |
+| `s232_wood.json` | Wood buckets |
+| `s232_semiconductors.json` | Semi stems + Note 39 headings |
+| `s232_pharma.json` | Patented pharma |
+| `hts_rates.json` | Column 1 |
+| `framework_contract.json` | Versioned shareable contract |
+
+TypeScript: `tariff-rules/src/s232Resolve.ts` (precedence), `backend/src/assess.ts` (full stack), `backend/src/coverage.ts` (HTS list).
+
+| Endpoint | Use |
+|----------|-----|
+| `GET /v1/hts/{code}?as_of=` | Col-1 + `s232_universe` + auto-parts annex |
+| `POST /v1/hts:coverage` | HTS list / which rules apply |
+| `POST /v1/entries:assess` | Duty stack |
+| `POST /v1/entries:audit` | Filed vs required |
+| `GET /v1/openapi.json` | Contract |
+
+Pin results to `framework_contract.version` + `rulepack.hash`.
+
+---
+
+## 13. Open items (do not skip)
+
+Full table: [`OPEN_ITEMS.md`](./OPEN_ITEMS.md).
+
+| # | Item | Blocking? |
+|---|------|-----------|
+| 1 | **R6** MFN cap on trade-deal `9903.94.43/.45/.55/.63` | **Yes — totals** |
+| 2 | **R7** `9903.94.xx` program labeling | Labeling / drawback |
+| 3 | Auto-part 10-digit determinations (general-purpose headings) | 232 vs 301-FL routing |
+| 4 | **R5** metals vs autos on Ch.73/74 | Metal lines |
+| 5 | Korea / Taiwan bilateral 232 heading assignment | KR/TW lines |
+| 6 | Brazil 301 heading | **Resolved** `9903.05.01` |
+| 7–9 | JP col-1 PENDING rows; CN outlier headings; AD/CVD cases | Scoped |
+
+---
+
+## 14. Review sign-off
+
+Please initial / date. Comment on the rule or program id if you disagree.
+
+| Topic | Compliance | Engineering | Notes |
+|-------|------------|-------------|-------|
+| Eras (IEEPA / 122 / 301-FL dates) | | | |
+| R1 232 wins via `9903.05.90` | | | |
+| R2 China 301 not suppressed | | | |
+| R2c Brazil 301 + FL stack | | | |
+| R3 JP parts top-up only (not vehicles) | | | |
+| R10 SPI zeros Col-1+MPF only | | | |
+| Auto-parts annex auto-apply + 8544.42 **out** | | | |
+| Passenger vehicle HTS list + `9903.94.01` | | | |
+| `8704.60.00` default passenger | | | |
+| MHDV vehicles/buses auto; parts **claim-gated** | | | |
+| Wood HTS buckets + UK/JP/EU split | | | |
+| Semiconductors claim-gated Note 39(b) | | | |
+| Semi claim beats auto-parts on `8471.50` | | | |
+| Metals content basis `9903.82.02` | | | |
+| R5 / R6 / R7 left open | | | |
+| HTS list shows new 232 lists + claim chips | | | |
+
+---
 
 ## Changelog
 
-- **1.0.0 (2026-07-31)** — initial repo cut from the 2026-07-27 full-stack build
-  and 2026-07-30 code corrections. Open items carried into OPEN_ITEMS.md.
+- **1.5.0 (2026-08-17)** — Full review pack for developers and compliance: 232 vehicles / MHDV / wood / semiconductors with complete short HTS lists, claim vs auto, precedence, HTS-list behavior, sign-off table.
+- **1.4.0 (2026-08-14)** — New 232 packs wired from CSMS (see `FRAMEWORK.md`).
+- **1.3.x** — Brazil 301; shareable framework.
+- **1.0.0 (2026-07-31)** — Initial cut from the 2026-07-27 full-stack build.
+
+---
+
+*Machine truth: `tariff-rules/data/*.json`. If prose and JSON disagree, JSON wins.*

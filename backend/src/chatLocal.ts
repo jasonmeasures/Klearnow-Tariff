@@ -20,6 +20,7 @@ export type ChatIntent = {
   wants_stack: boolean;
   wants_csms: boolean;
   s301fl_iso2: string | null;
+  mode_of_transport: string | null;
 };
 
 const NAME_TO_ISO: Record<string, string> = {
@@ -109,6 +110,17 @@ export function parseChatIntent(text: string): ChatIntent {
     src.match(/\b([A-Z]{2})\b[^.]{0,20}\b301-?fl\b/i)?.[1] ||
     null;
 
+  let mode_of_transport: string | null = null;
+  if (/\b(ocean|vessel|sea\s*freight|by\s*sea|mot\s*[:\-]?\s*1[012])\b/i.test(src)) {
+    mode_of_transport = "OCEAN";
+  } else if (/\b(air\s*freight|by\s*air|mot\s*[:\-]?\s*4[01])\b/i.test(src)) {
+    mode_of_transport = "AIR";
+  } else if (/\b(truck|by\s*road|mot\s*[:\-]?\s*3[012])\b/i.test(src)) {
+    mode_of_transport = "TRUCK";
+  } else if (/\b(rail|by\s*train|mot\s*[:\-]?\s*2[01])\b/i.test(src)) {
+    mode_of_transport = "RAIL";
+  }
+
   return {
     hts,
     ch99,
@@ -120,6 +132,7 @@ export function parseChatIntent(text: string): ChatIntent {
     wants_stack,
     wants_csms,
     s301fl_iso2: flIso && !["US", "FL"].includes(flIso) ? flIso : coo && /\b301-?fl\b/i.test(src) ? coo : null,
+    mode_of_transport,
   };
 }
 
@@ -144,6 +157,7 @@ export function formatAssessReply(result: ReturnType<typeof assessEntry>, intent
   const flags = [
     intent.hts,
     intent.coo,
+    intent.mode_of_transport,
     intent.usmca ? "USMCA" : intent.cafta ? "CAFTA-DR" : null,
     intent.entered_value != null ? money(intent.entered_value) : null,
     line.rate_determination_date,
@@ -164,6 +178,12 @@ export function formatAssessReply(result: ReturnType<typeof assessEntry>, intent
     `Line duty: ${money(line.totals.duty)}${line.totals.effective_duty_rate_pct != null ? ` (${line.totals.effective_duty_rate_pct}%)` : ""}`,
     `MPF: ${line.mpf_exempt ? "exempt" : "applies (formal entry)"}`,
   );
+  const hmf = result.entry_fees?.find((f: { code: string }) => f.code === "HMF");
+  if (hmf) {
+    rows.push(`HMF: ${hmf.amount ? money(hmf.amount) : "not due"} (${hmf.rate_note})`);
+  } else {
+    rows.push("HMF: skipped — add MOT (ocean) to include 0.125% Harbor Maintenance Fee.");
+  }
   if (result.totals) {
     rows.push(`Entry duty: ${money(result.totals.duty)} · fees ${money(result.totals.fees)} · landed ${money(result.totals.landed_cost)}`);
   }
@@ -221,7 +241,7 @@ export async function answerFromTables(text: string): Promise<{
     };
     if (intent.usmca) line.fta_claim = "USMCA";
     if (intent.cafta) line.fta_claim = "CAFTA_DR";
-    const input = { formal_entry: true, lines: [line] };
+    const input = { formal_entry: true, mode_of_transport: intent.mode_of_transport, lines: [line] };
     const output = assessEntry(input as never);
     tool_trace.push({ name: "assess_entry", input, output });
     return { reply: formatAssessReply(output, intent), tool_trace };

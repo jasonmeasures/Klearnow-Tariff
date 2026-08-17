@@ -21,7 +21,10 @@ These are not customer- or brand-specific rules — any US entry tool can consum
 tariff-rules/
 ├── README.md
 ├── docs/
-│   ├── RULES.md                 ← stacking narrative (R1–R9)
+│   ├── RULES.md                 ← full stacking review pack (developers + compliance)
+│   ├── RULES.html               ← shareable HTML (regenerate: node scripts/render-docs.mjs)
+│   ├── FRAMEWORK.md             ← shareable contract for other apps
+│   ├── RULES_ENGINE.md          ← Inditex / API hand-off
 │   ├── CH99_ENGINE.md           ← how to call the Ch99 stack engine
 │   └── OPEN_ITEMS.md
 ├── data/

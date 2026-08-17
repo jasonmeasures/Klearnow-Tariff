@@ -93,6 +93,16 @@
                 title="Customs entered value in US dollars" /></div>
             <div class="field"><label class="label" for="qc-date">Rate date</label>
               <input type="date" id="qc-date" title="Rate-determination / entry date" /></div>
+            <div class="field">
+              <label class="label" for="qc-mode">MOT</label>
+              <select id="qc-mode" title="Mode of transport — Harbor Maintenance Fee is 0.125% on ocean / vessel only">
+                <option value="OCEAN" selected>Ocean</option>
+                <option value="AIR">Air</option>
+                <option value="TRUCK">Truck</option>
+                <option value="RAIL">Rail</option>
+              </select>
+              <p class="cap" style="margin:var(--sp-1) 0 0">HMF 0.125% on ocean only</p>
+            </div>
             <div class="field" id="qc-qty-wrap" hidden>
               <label class="label" for="qc-qty">Quantity <span id="qc-qty-uom" class="cap"></span></label>
               <input type="text" id="qc-qty" class="num" inputmode="decimal"
@@ -149,15 +159,6 @@
                   </div>
                 </div>
                 <p class="cap" id="qc-metal-resolved" style="margin:var(--sp-2) 0 0"></p>
-                <div class="field" style="margin-top:var(--sp-2);max-width:220px">
-                  <label class="label" for="qc-mode">Mode of transport</label>
-                  <select id="qc-mode" title="Used for Harbor Maintenance Fee (ocean)">
-                    <option value="OCEAN" selected>Ocean</option>
-                    <option value="AIR">Air</option>
-                    <option value="TRUCK">Truck</option>
-                    <option value="RAIL">Rail</option>
-                  </select>
-                </div>
                 <div id="qc-exclusions" class="excl-list" hidden></div>
               </div>
             </div>
@@ -309,9 +310,11 @@
                     <div class="field"><label class="label" for="entryno">Entry number</label>
                       <input type="text" id="entryno" title="Optional entry number for the assessment" /></div>
                     <div class="field"><label class="label" for="mode">Mode of transport</label>
-                      <select id="mode">
-                        <option value="">Not stated</option><option value="OCEAN">Ocean</option>
-                        <option value="AIR">Air</option><option value="TRUCK">Truck</option>
+                      <select id="mode" title="Harbor Maintenance Fee is 0.125% on ocean / vessel only">
+                        <option value="">Not stated</option>
+                        <option value="OCEAN">Ocean</option>
+                        <option value="AIR">Air</option>
+                        <option value="TRUCK">Truck</option>
                         <option value="RAIL">Rail</option>
                       </select></div>
                     <div class="field"><label class="label" for="formal">Entry type</label>
@@ -433,8 +436,10 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
       <div class="viewhead">
         <h2>Which rules apply?</h2>
         <p class="cap">Drop a spreadsheet, paste a list, or upload CSV / JSON / Excel.
-          See Column&nbsp;1 and Chapter&nbsp;99 for each HTS. Unknown codes get clear guidance,
-          same-heading alternatives from the table, and USITC links — no invented duty stacks.</p>
+          See Column&nbsp;1 and Chapter&nbsp;99 for each HTS — including the new Section&nbsp;232
+          vehicle, MHDV, wood, and semiconductor lists. Claim-gated headings show as
+          <b>claim</b>. Unknown codes get clear guidance, same-heading alternatives from the table,
+          and USITC links — no invented duty stacks.</p>
       </div>
       <div id="lookupbanner"></div>
 
@@ -457,7 +462,8 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
               <input type="file" id="lookup-file" accept=".csv,.tsv,.txt,.json,.xlsx,.xls" hidden />
               <p class="drop-title">Drop Excel, CSV, or JSON</p>
               <p class="cap">or <button type="button" class="linkish" id="lookup-browse">browse</button>
-                · columns recognised: <span class="mono">hts</span>, <span class="mono">coo</span> / origin, date</p>
+                · columns recognised: <span class="mono">hts</span>, <span class="mono">coo</span> / origin, date,
+                <span class="mono">s232_mhdv_part</span>, <span class="mono">s232_semiconductor</span></p>
             </div>
 
             <div class="field" style="margin-top:var(--sp-4)">
@@ -466,7 +472,9 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
 placeholder="hts,coo
 6203.42.0711,VN
 8708.10.3050,CN
-8517.12.0020,DE
+8703.23.01,JP
+4407.11.00,CA
+8473.30.00,TW
 
 — or one HTS per line —
 8708103050
@@ -491,8 +499,8 @@ placeholder="hts,coo
             <div class="empty">
               <h4>No list yet</h4>
               <p class="cap" style="max-width:36ch;margin:0 auto">Add HTS codes on the left.
-                You’ll see Column&nbsp;1, 301-FL, and other Chapter&nbsp;99 headings that apply —
-                then open any row for the full rule trail.</p>
+                You’ll see Column&nbsp;1, 301-FL, 232 vehicles / MHDV / wood / semiconductors,
+                and other Chapter&nbsp;99 headings — then open any row for the full rule trail.</p>
             </div>
           </div>
         </div>

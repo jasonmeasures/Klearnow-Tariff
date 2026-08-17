@@ -22,8 +22,36 @@ const MPF_RATE = 0.003464;
 const MPF_MIN = 33.58;
 const MPF_MAX = 651.5;
 
-/** Harbor Maintenance Fee — 0.125% of entered value, ocean only. */
-const HMF_RATE = 0.00125;
+/** Harbor Maintenance Fee — 0.125% of entered value, ocean / vessel only. */
+export const HMF_RATE = 0.00125;
+
+const OCEAN_NAMES = new Set([
+  "OCEAN",
+  "VESSEL",
+  "SEA",
+  "WATER",
+  "MARITIME",
+  "BARGE",
+  "SHIP",
+]);
+
+/** ACE conveyance: 10 vessel non-container, 11 vessel container, 12 barge. */
+const OCEAN_ACE = new Set(["10", "11", "12"]);
+
+/** Normalize MOT for API / UI (OCEAN | AIR | TRUCK | RAIL | raw). */
+export function normalizeMot(raw: string | null | undefined): string | null {
+  const m = String(raw || "").trim().toUpperCase();
+  if (!m) return null;
+  if (OCEAN_NAMES.has(m) || OCEAN_ACE.has(m)) return "OCEAN";
+  if (m === "AIR" || m === "40" || m === "41") return "AIR";
+  if (m === "TRUCK" || m === "ROAD" || m === "30" || m === "31" || m === "32") return "TRUCK";
+  if (m === "RAIL" || m === "TRAIN" || m === "20" || m === "21") return "RAIL";
+  return m;
+}
+
+export function isOceanMot(raw: string | null | undefined): boolean {
+  return normalizeMot(raw) === "OCEAN";
+}
 
 export function computeEntryFees(opts: {
   entered_value_total: number;
@@ -31,12 +59,13 @@ export function computeEntryFees(opts: {
   mode_of_transport?: string | null;
   /** Entered value of USMCA / CAFTA-DR (etc.) SPI Free goods — excluded from MPF basis. */
   mpf_exempt_value?: number;
-}): { fees: EntryFee[]; total: number } {
+}): { fees: EntryFee[]; total: number; mode_of_transport: string | null; hmf_applies: boolean } {
   const entered = Math.max(0, Number(opts.entered_value_total) || 0);
   const exempt = Math.max(0, Math.min(entered, Number(opts.mpf_exempt_value) || 0));
   const mpfBasis = money2(entered - exempt);
   const fees: EntryFee[] = [];
-  const mode = String(opts.mode_of_transport || "").toUpperCase();
+  const mode = normalizeMot(opts.mode_of_transport);
+  const ocean = mode === "OCEAN";
   const formal = opts.formal_entry !== false; // default formal when unspecified for UI parity
 
   if (formal && mpfBasis > 0) {
@@ -70,17 +99,29 @@ export function computeEntryFees(opts: {
     });
   }
 
-  if (mode === "OCEAN" || mode === "VESSEL" || mode === "SEA") {
+  if (ocean && entered > 0) {
     const hmf = money2(entered * HMF_RATE);
     if (hmf > 0) {
       fees.push({
         code: "HMF",
         label: "Harbor Maintenance Fee (HMF)",
         amount: Math.round(hmf),
-        rate_note: `${(HMF_RATE * 100).toFixed(3)}% ocean / vessel`,
+        rate_note: `${(HMF_RATE * 100).toFixed(3)}% of entered value (ocean / vessel)`,
       });
     }
+  } else if (mode && entered > 0) {
+    fees.push({
+      code: "HMF",
+      label: "Harbor Maintenance Fee (HMF)",
+      amount: 0,
+      rate_note: `Not due — ${mode.toLowerCase()} (HMF is ${(HMF_RATE * 100).toFixed(3)}% on ocean / vessel only)`,
+    });
   }
 
-  return { fees, total: money2(fees.reduce((a, f) => a + f.amount, 0)) };
+  return {
+    fees,
+    total: money2(fees.reduce((a, f) => a + f.amount, 0)),
+    mode_of_transport: mode,
+    hmf_applies: ocean && entered > 0,
+  };
 }

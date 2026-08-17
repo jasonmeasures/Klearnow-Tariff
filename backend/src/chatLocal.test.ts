@@ -14,6 +14,15 @@ describe("chat local tables (no Anthropic)", () => {
     assert.equal(i.wants_stack, true);
   });
 
+  it("parses ocean MOT for HMF", () => {
+    const i = parseChatIntent(
+      "duty stack 6203.42.0711, COO VN, entered value 25000 ocean",
+    );
+    assert.equal(i.mode_of_transport, "OCEAN");
+    assert.equal(i.hts, "6203.42.0711");
+    assert.equal(i.coo, "VN");
+  });
+
   it("runs the MX USMCA plastics stack from live tables", async () => {
     const q =
       "tariff stack for - 3907.69.0050, COO MX, USMCA entered value - 47000";

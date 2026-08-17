@@ -1918,6 +1918,8 @@ export function assessEntry(body: {
     entry_number: body.entry_number || null,
     jurisdiction: "US",
     rulepack: rulepackPublic(),
+    mode_of_transport: feePack.mode_of_transport,
+    hmf_applies: feePack.hmf_applies,
     lines,
     totals: {
       duty,

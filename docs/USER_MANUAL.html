@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KlearNow Tariff — User Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --color-primary-50: #E7ECF0;
+  --color-primary-100: #B0C3CC;
+  --color-primary-500: #003F5B;
+  --color-primary-600: #013A56;
+  --color-primary-700: #022E44;
+  --color-blue-sapphire-50: #E6F0F2;
+  --color-blue-sapphire-700: #01435A;
+  --color-blue-sapphire-900: #002834;
+  --color-blue-gray-50: #F8FAFC;
+  --color-blue-gray-100: #F1F5F9;
+  --color-blue-gray-200: #E2E8F0;
+  --color-blue-gray-600: #475569;
+  --color-blue-gray-700: #334155;
+  --color-green-50: #F3FCF7;
+  --color-green-800: #116A33;
+  --color-red-50: #FFF5F4;
+  --color-red-800: #8B221C;
+  --color-marigold-50: #FDF4E5;
+  --color-marigold-700: #B06604;
+  --color-orange-50: #FFF7ED;
+  --ink: var(--color-blue-sapphire-900);
+  --muted: var(--color-blue-gray-600);
+  --bg: #fff;
+  --accent: var(--color-primary-500);
+  --font: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--color-blue-gray-50);
+  line-height: 1.55;
+  font-size: 16px;
+}
+a { color: var(--color-primary-600); }
+a:hover { color: var(--color-primary-700); }
+.top {
+  background: var(--color-primary-600);
+  color: #fff;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.brand {
+  font-weight: 700;
+  letter-spacing: .04em;
+  background: #fff;
+  color: var(--color-primary-600);
+  width: 2.25rem; height: 2.25rem;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  font-size: .85rem;
+}
+.top h1 { font-size: 1.05rem; margin: 0; font-weight: 650; }
+.top .sub { font-size: .8rem; opacity: .85; }
+.top .spacer { flex: 1; }
+.top nav { display: flex; gap: .75rem; font-size: .85rem; }
+.top nav a { color: #fff; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,.4); }
+.layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 52rem);
+  gap: 2rem;
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+.toc {
+  position: sticky;
+  top: 4.5rem;
+  align-self: start;
+  background: #fff;
+  border: 1px solid var(--color-blue-gray-200);
+  border-radius: 12px;
+  padding: 1rem 1rem 1rem 0;
+  max-height: calc(100vh - 6rem);
+  overflow: auto;
+  font-size: .82rem;
+}
+.toc p {
+  margin: 0 0 .5rem 1rem;
+  font-size: .7rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--muted);
+}
+.toc a { color: var(--color-blue-gray-700); text-decoration: none; display: block; padding: .2rem 1rem; border-left: 3px solid transparent; }
+.toc a:hover, .toc a:focus { background: var(--color-primary-50); border-left-color: var(--accent); }
+.toc .l3 { padding-left: 1.6rem; font-size: .78rem; color: var(--muted); }
+.prose { background: #fff; border: 1px solid var(--color-blue-gray-200); border-radius: 12px; padding: 2rem 2.25rem 3rem; }
+.prose h1 { font-size: 1.85rem; line-height: 1.25; margin: 0 0 .5rem; color: var(--color-primary-700); }
+.prose h2 { font-size: 1.35rem; margin: 2.25rem 0 .75rem; padding-top: .5rem; color: var(--color-primary-700); border-top: 1px solid var(--color-blue-gray-200); }
+.prose h2:first-of-type { border-top: 0; }
+.prose h3 { font-size: 1.08rem; margin: 1.6rem 0 .5rem; color: var(--color-blue-sapphire-700); }
+.prose p { margin: 0 0 .85rem; }
+.prose ul, .prose ol { margin: 0 0 1rem; padding-left: 1.35rem; }
+.prose li { margin: .25rem 0; }
+.prose hr { border: 0; border-top: 1px solid var(--color-blue-gray-200); margin: 1.75rem 0; }
+.prose code {
+  font-family: var(--mono);
+  font-size: .86em;
+  background: var(--color-blue-gray-100);
+  padding: .1em .35em;
+  border-radius: 4px;
+}
+.prose pre {
+  background: var(--color-primary-700);
+  color: #E7ECF0;
+  padding: 1rem 1.1rem;
+  border-radius: 10px;
+  overflow: auto;
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.prose pre code { background: none; color: inherit; padding: 0; }
+.prose pre.mermaid { background: var(--color-blue-gray-50); color: var(--ink); border: 1px solid var(--color-blue-gray-200); }
+.table-wrap { overflow-x: auto; margin: 0 0 1.15rem; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { border: 1px solid var(--color-blue-gray-200); padding: .45rem .65rem; text-align: left; vertical-align: top; }
+th { background: var(--color-primary-50); color: var(--color-primary-700); font-weight: 650; }
+tr:nth-child(even) td { background: var(--color-blue-gray-50); }
+td.blank { background: #fff; min-width: 6rem; height: 2rem; }
+table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #fff 6px, var(--color-blue-gray-50) 6px, var(--color-blue-gray-50) 7px); }
+.note {
+  background: var(--color-marigold-50);
+  border-left: 4px solid var(--color-marigold-700);
+  padding: .75rem 1rem;
+  margin: 0 0 1.25rem;
+  font-size: .92rem;
+}
+.foot { margin-top: 2rem; font-size: .8rem; color: var(--muted); }
+@media (max-width: 920px) {
+  .layout { grid-template-columns: 1fr; }
+  .toc { position: static; max-height: none; }
+  .prose { padding: 1.25rem; }
+}
+@media print {
+  body { background: #fff; }
+  .top { position: static; }
+  .top nav .print-hide, .toc { display: none; }
+  .layout { display: block; max-width: none; padding: 0; }
+  .prose { border: 0; }
+  h2 { break-after: avoid; }
+  table, pre { break-inside: avoid; }
+  a { color: inherit; text-decoration: none; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand" aria-hidden="true">KN</div>
+  <div>
+    <div class="sub">Operator guide</div>
+    <h1>KlearNow Tariff — User Manual</h1>
+  </div>
+  <div class="spacer"></div>
+  <nav>
+    <a href="../tariff-rules/docs/RULES.html">Rules review pack</a>
+    <a class="print-hide" href="#" onclick="window.print(); return false;">Print / PDF</a>
+  </nav>
+</header>
+<div class="layout">
+  <nav class="toc" aria-label="Contents">
+    <p>Contents</p>
+    <a class="l2" href="#1-what-this-tool-is">1. What this tool is</a>
+<a class="l2" href="#2-who-sees-what">2. Who sees what</a>
+<a class="l2" href="#3-duty-stack-single-hts">3. Duty stack (single HTS)</a>
+<a class="l3" href="#claims-checkboxes-that-appear-only-when-relevant">Claims (checkboxes that appear only when relevant)</a>
+<a class="l3" href="#reading-the-result">Reading the result</a>
+<a class="l3" href="#multi-line-and-a-b">Multi-line and A/B</a>
+<a class="l2" href="#4-hts-list-which-rules-apply">4. HTS list (which rules apply)</a>
+<a class="l3" href="#what-you-will-see">What you will see</a>
+<a class="l2" href="#5-audit-ace-es-003">5. Audit (ACE ES-003)</a>
+<a class="l2" href="#6-other-screens-authors-admins">6. Other screens (authors / admins)</a>
+<a class="l2" href="#7-eras-at-a-glance-why-the-date-field-matters">7. Eras at a glance (why the date field matters)</a>
+<a class="l2" href="#8-common-questions">8. Common questions</a>
+<a class="l2" href="#9-local-run-developers">9. Local run (developers)</a>
+  </nav>
+  <article class="prose">
+    <p class="note">Shareable HTML generated from <code>docs/USER_MANUAL.md</code>. Markdown remains the source of truth. Print this page to PDF if you need a file for review.</p>
+    <h1 id="klearnow-tariff-user-manual">KlearNow Tariff — User Manual</h1>
+<p><strong>Version 1.5.0 · as of 2026-08-17 · United States entries only</strong></p>
+<p>This is the operator guide for the Duty stack app. For <em>why</em> a heading applies, share <a href="../tariff-rules/docs/RULES.html"><code>tariff-rules/docs/RULES.md</code></a> with compliance — that pack is written for review.</p>
+<p>Shareable HTML (same content): <a href="./USER_MANUAL.html"><code>USER_MANUAL.html</code></a> — open in a browser or Print → PDF.</p>
+<hr />
+<h2 id="1-what-this-tool-is">1. What this tool is</h2>
+<p>KlearNow Tariff builds the <strong>US duty stack</strong> for a classification: Column 1 (the ordinary HTS rate) plus every <strong>Chapter 99</strong> layer that should report — China 301, 301-FL, Section 232 (autos, vehicles, MHDV, wood, semiconductors, metals, patented pharma), Brazil 301 — in the order CBP expects.</p>
+<p>It does <strong>not</strong> classify the product. You still need a correct 10-digit HTS. It will not invent a Column 1 rate for an unknown code, and it will not tick a claim (MHDV part, semiconductor Note 39 parameters, patented pharma) unless you do.</p>
+<p>Typical uses:</p>
+<div class="table-wrap"><table><thead><tr><th>You have…</th><th>Use</th></tr></thead><tbody><tr><td>One HTS, origin, value, date</td><td><strong>Duty stack</strong></td></tr>
+<tr><td>A spreadsheet of parts / SKUs</td><td><strong>HTS list</strong> (which rules apply — no value needed)</td></tr>
+<tr><td>An ACE ES-003 export</td><td><strong>Audit</strong> (filed Ch.99 vs expected)</td></tr></tbody></table></div>
+<hr />
+<h2 id="2-who-sees-what">2. Who sees what</h2>
+<div class="table-wrap"><table><thead><tr><th>Who</th><th>Sign-on</th><th>What they get</th></tr></thead><tbody><tr><td>Guest / WordPress embed</td><td>Optional Auth0</td><td>Duty stack, HTS list, Audit. Daily quotas. No admin.</td></tr>
+<tr><td>Signed-in user</td><td>Auth0</td><td>Full calculator; Chat / CSMS when enabled.</td></tr>
+<tr><td>Admin</td><td>Auth0 + app role <code>admin</code></td><td>Rules, Upload, Snapshots, Users.</td></tr></tbody></table></div>
+<p>Local demo: open http://localhost:3000 with API key <code>dev-internal</code>. Use <strong>View as</strong> to preview user / guest. Playground / WordPress replace that switch with Auth0.</p>
+<hr />
+<h2 id="3-duty-stack-single-hts">3. Duty stack (single HTS)</h2>
+<p>Open <strong>Duty stack</strong>. Fill in:</p>
+<ol><li><strong>HTS</strong> — 10-digit statistical reporting number, with or without dots (<code>8708.10.3050</code> or <code>8708103050</code>).</li><li><strong>Origin</strong> — type a name or ISO-2 (<code>Germany</code> or <code>DE</code>) and Tab.</li><li><strong>Entered value</strong> — customs value in USD.</li><li><strong>Rate date</strong> — Entry Date (or the date you want the stack as of). This picks the era (IEEPA / Section 122 / 301-FL) and whether a 232 program has started.</li></ol>
+<p>Then click <strong>Run the stack</strong>.</p>
+<p>Under the fields, a preview line appears as you type the HTS:</p>
+<ul><li>Column 1 rate and description</li><li>China 301 list membership (from the 8-digit HTS)</li><li><strong>232 list pills</strong> — passenger vehicle, MHDV, bus, wood, auto-parts annex, metals</li><li>USITC link</li></ul>
+<p>If Column 1 is a specific rate (¢/kg, etc.), a <strong>quantity</strong> field appears. If the HTS is in Chapters 72–74 / 76, a <strong>metals</strong> panel appears (content in USD or % of entered, plus melt/pour country).</p>
+<h3 id="claims-checkboxes-that-appear-only-when-relevant">Claims (checkboxes that appear only when relevant)</h3>
+<div class="table-wrap"><table><thead><tr><th>Checkbox</th><th>When you see it</th><th>When to tick it</th></tr></thead><tbody><tr><td><strong>232 auto part</strong></td><td>Always available; auto-checked if the HTS is on the Proclamation 10908 annex</td><td>Tick only if the part is <strong>off-list</strong> but you have annex evidence</td></tr>
+<tr><td><strong>232 MHDV part</strong></td><td>HTS is on the MHDV <strong>parts</strong> list</td><td>Tick if the article is actually a part of a medium- or heavy-duty vehicle</td></tr>
+<tr><td><strong>232 semiconductor (Note 39 params)</strong></td><td>HTS is <code>8471.50</code> / <code>8471.80</code> / <code>8473.30</code></td><td>Tick only if TPP / DRAM bandwidth bands in U.S. note 39(b) are met</td></tr>
+<tr><td><strong>25-year vehicle</strong></td><td>HTS is on the passenger or MHDV <strong>vehicle/bus</strong> list</td><td>Tick if manufactured ≥25 years before entry (0% additional 232)</td></tr>
+<tr><td><strong>232 patented pharma</strong></td><td>Chapters 29 / 30</td><td>Tick for patented articles under Proclamation 11020</td></tr>
+<tr><td><strong>Pharma use (9903.05.89)</strong></td><td>301-FL pharma-use list</td><td>Tick for Note 52(e) pharmaceutical <strong>use</strong> — not the same as 232 pharma</td></tr>
+<tr><td><strong>Claim FTA / USMCA</strong></td><td>Origin CA / MX / CAFTA</td><td>SPI S/S+ zeros Column 1 and MPF only — it does not automatically clear 232 or 301-FL</td></tr></tbody></table></div>
+<p>If a 232 program <strong>auto-applies</strong> from the published HTS list (passenger vehicle, MHDV truck, bus, wood, in-annex auto part), you do <strong>not</strong> need a checkbox. The stack will already include that heading and <code>9903.05.90</code> (301-FL suppressed).</p>
+<h3 id="reading-the-result">Reading the result</h3>
+<p>Each row is a layer: program, Chapter 99 code (or “commodity” for Column 1), rate, duty dollars, and a short reason with the CSMS / proclamation source.</p>
+<ul><li><strong>Suppressed</strong> layers (typical: 301-FL killed by 232) stay visible so you can see <em>why</em> they did not assess.</li><li><strong>Diagnostics</strong> warn when a list hit needs a claim, when metal content is missing, or when a trade-deal total is blocked (R6).</li><li><strong>Chapter 99 sequence</strong> is the reporting order (99 before 1–97; China 301 before 232 when both apply).</li></ul>
+<p>Use <strong>Try an example</strong> chips for a known-good VN apparel, CN auto-parts, or DE pharma stack.</p>
+<h3 id="multi-line-and-a-b">Multi-line and A/B</h3>
+<p>Open <strong>Multi-line &amp; scenarios</strong> when you need several lines on one entry, a paste from Excel, or to pin two runs (for example with vs without an MHDV-part claim).</p>
+<hr />
+<h2 id="4-hts-list-which-rules-apply">4. HTS list (which rules apply)</h2>
+<p>Open <strong>HTS list</strong> when you have many codes and want coverage — <strong>not</strong> duty dollars.</p>
+<ol><li>Set <strong>Rate date</strong>.</li><li>Optionally set <strong>Default origin</strong> (used when the sheet has no COO column). Origin is required for 301-FL and for the filed Chapter 99 sequence; 232 <strong>list membership</strong> still shows without it.</li><li>Drop Excel / CSV / JSON, or paste <code>hts,coo</code> (one code per line is fine).</li><li>Click <strong>Find applicable rules</strong>.</li></ol>
+<p>Recognised columns include <code>hts</code> / <code>primary_hts</code>, <code>coo</code> / origin, <code>part</code>, <code>sku</code>, date, <code>s232_mhdv_part</code>, <code>s232_semiconductor</code>, and the older <code>s232_auto_part</code> / China 301 list flags.</p>
+<h3 id="what-you-will-see">What you will see</h3>
+<div class="table-wrap"><table><thead><tr><th>Chip</th><th>Meaning</th></tr></thead><tbody><tr><td>Green 232 heading</td><td>Auto-applies from a published list (vehicle, bus, wood, in-annex auto part)</td></tr>
+<tr><td>Orange heading <strong>· claim</strong></td><td>On a claim-gated list (MHDV parts, semiconductors) — duty only if you certify the fact</td></tr>
+<tr><td>301-FL heading</td><td>Origin is in the Forced Labor pack — <strong>suppressed</strong> if 232 already won</td></tr>
+<tr><td><strong>on a 232 list</strong> / <strong>need a claim</strong></td><td>Summary pills at the top of the results</td></tr></tbody></table></div>
+<p>Click a row for the rule trail, Section 232 list hits, mapped replacements, and <strong>Run stack for this HTS</strong> (sends the line to Duty stack). <strong>Export CSV</strong> includes <code>s232_lists</code>.</p>
+<p><strong>Load sample list</strong> includes apparel, auto parts, a Japan passenger vehicle, an MHDV dump truck, a bus, Canadian lumber, VN wood furniture, and a Taiwan semiconductor stem so you can see auto vs claim chips.</p>
+<p>Unknown 10-digit codes stay <strong>blocked</strong> for duty math (no invented Free rate). If that stem is on a 232 CSMS list, list membership still appears so you can see the new rules — then fix the statistical suffix via USITC / the suggested related codes.</p>
+<hr />
+<h2 id="5-audit-ace-es-003">5. Audit (ACE ES-003)</h2>
+<p>Open <strong>Audit</strong>, drop an ACE <strong>Entry Summary Line Tariff Details</strong> Excel, and run.</p>
+<p>The tool groups lines by Entry Summary Number, uses each line’s <strong>Entry Date</strong> for the era, and compares filed Chapter 99 to the live stack.</p>
+<div class="table-wrap"><table><thead><tr><th>Check</th><th>What it means</th></tr></thead><tbody><tr><td>IEEPA / CAPE</td><td><code>9903.01</code> / <code>.02</code> in the IEEPA window → refund candidates. After 2026-02-23 → dead program.</td></tr>
+<tr><td>Missing Ch.99</td><td>Expected heading (301-FL, 232, China 301, …) not filed.</td></tr>
+<tr><td>Extra Ch.99</td><td>Filed heading the current pack does not produce for that date.</td></tr>
+<tr><td>Duty math</td><td>Computed stack vs filing (entered value from the commodity ordinal).</td></tr>
+<tr><td>Needs inputs</td><td>Metals content is not on ES-003 — those lines cannot finish 232 metals math.</td></tr></tbody></table></div>
+<p>China 301 uses HTS list membership, not a column on the report.</p>
+<hr />
+<h2 id="6-other-screens-authors-admins">6. Other screens (authors / admins)</h2>
+<div class="table-wrap"><table><thead><tr><th>Screen</th><th>Who</th><th>What</th></tr></thead><tbody><tr><td><strong>Chat</strong></td><td>Users</td><td>Ask about an HTS / origin / pack rule. Stacks run from live tables.</td></tr>
+<tr><td><strong>CSMS</strong></td><td>Users</td><td>Jump to CBP Cargo Systems Messaging Service.</td></tr>
+<tr><td><strong>Rules</strong></td><td>Admin</td><td>Browse materialized rules; publish snapshots. A draft does not affect assessments until published.</td></tr>
+<tr><td><strong>Upload</strong></td><td>Admin</td><td>Replace or merge the Column 1 HTS table (Excel / CSV) without a rebuild.</td></tr>
+<tr><td><strong>Snapshots</strong></td><td>Admin</td><td>History of published packs.</td></tr>
+<tr><td><strong>Users</strong></td><td>Admin</td><td>App roles (when PostgreSQL is configured). Auth0 only proves identity.</td></tr>
+<tr><td><strong>Insights / API &amp; ref</strong></td><td>Browse</td><td>Pack stats and claim-flag / OpenAPI reference.</td></tr></tbody></table></div>
+<hr />
+<h2 id="7-eras-at-a-glance-why-the-date-field-matters">7. Eras at a glance (why the date field matters)</h2>
+<div class="table-wrap"><table><thead><tr><th>Rate date</th><th>What dominates</th></tr></thead><tbody><tr><td>2025-02-04 → 2026-02-23</td><td>IEEPA (historical / CAPE only — not live forward)</td></tr>
+<tr><td>2026-02-24 → 2026-07-23</td><td>Section 122 10% surcharge (<code>9903.03.01</code>), entry-level</td></tr>
+<tr><td><strong>From 2026-07-24</strong></td><td><strong>301-FL</strong> (<code>9903.05.xx</code>) unless Section 232 already won</td></tr></tbody></table></div>
+<p>Section 232 programs can apply in those windows too, on their own effective dates (vehicles from 2025-04-03, wood 2025-10-14, MHDV 2025-11-01, semiconductors 2026-01-15, patented pharma 2026-07-31).</p>
+<hr />
+<h2 id="8-common-questions">8. Common questions</h2>
+<p><strong>Why did 301-FL disappear?</strong> Section 232 and 301-FL are mutually exclusive. If the HTS is a valid 232 auto part, vehicle, MHDV, wood article, claimed semiconductor, metal, or patented pharma, the stack reports <code>9903.05.90</code> and does not assess 301-FL. China 301 (<code>9903.88</code>) still stacks.</p>
+<p><strong>Why is a Japan car 25% additional, not 15%?</strong> The 15% Japan top-up (<code>9903.94.43</code>) is an <strong>auto-parts</strong> path. Passenger vehicles use <code>9903.94.01</code> @ 25% additional.</p>
+<p><strong>Why didn’t MHDV parts add 25%?</strong> The parts list is necessary but not sufficient — CBP also has a 0% heading for listed articles that are <em>not</em> MHDV parts. Tick <strong>232 MHDV part</strong> (or a <code>s232_mhdv_part</code> column on the spreadsheet) when the article really is an MHDV part.</p>
+<p><strong>Why didn’t semiconductors add 25%?</strong> HTS <code>8471.50</code> / <code>8471.80</code> / <code>8473.30</code> only puts you on the list. 25% requires a Note 39(b) TPP/DRAM claim. <code>8471.50</code> without that claim often follows the <strong>auto-parts annex</strong> instead.</p>
+<p><strong>USMCA is claimed — why is there still 232 / 301-FL?</strong> SPI S/S+ zeros Column 1 and MPF only. Other programs need their own Chapter 99 exception.</p>
+<p><strong>The HTS is “not in the baseline table.”</strong> The Column 1 workbook does not have that 10-digit statistical line (padded zeros are a common cause). Use the suggested related codes, the mapped replacement, or USITC — then re-run. 232 list hits may still show.</p>
+<p><strong>Totals say blocked.</strong> Trade-deal MFN cap (R6) is unresolved for some JP/EU/KR headings. Rates can still display; a single total duty figure is withheld until compliance signs that mechanic off.</p>
+<hr />
+<h2 id="9-local-run-developers">9. Local run (developers)</h2>
+<pre><code class="lang-bash">cd backend &amp;&amp; npm install &amp;&amp; npm run dev    # :8080
+cd frontend &amp;&amp; npm install &amp;&amp; npm run dev   # :3000, proxies /v1</code></pre>
+<p>Open http://localhost:3000. Tests: <code>cd backend &amp;&amp; npm test</code>.</p>
+<p>More: root <a href="../README.html"><code>README.md</code></a>, <a href="../DEPLOYMENT.html"><code>DEPLOYMENT.md</code></a>.</p>
+    <p class="foot">KlearNow Tariff · generated 2026-08-17</p>
+  </article>
+</div>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });
+</script>
+</body>
+</html>
