@@ -38,6 +38,11 @@ function fileHash(): string {
     "s301fl_pack.json",
     "s301fl_pharma_hts.json",
     "s232_pharma.json",
+    "s232_auto_parts_annex.json",
+    "s232_autos_vehicles.json",
+    "s232_mhdv.json",
+    "s232_wood.json",
+    "s232_semiconductors.json",
     "ch99_rules.json",
     "s301_china_lists.json",
   ];

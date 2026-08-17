@@ -72,6 +72,9 @@ Filing IEEPA after 2026-02-23, or Sec 122 on/after 2026-07-24, is a **WRONG_ERA*
 | Section 122 | `9903.03.01` | **SUNSET** 12:01 a.m. 2026-07-24 | Historical only |
 | **301-FL** | `9903.05.xx` | **ACTIVE** (CSMS #69326983) | Yes |
 | **232 autos/parts** | Procl. 10908 / `9903.94` / exclusions | **ACTIVE** | Yes |
+| **232 MHDV** | Procl. 10984 / `9903.74` | **ACTIVE** | Yes (parts claim-gated) |
+| **232 wood** | Procl. 10976 / `9903.76` | **ACTIVE** | Yes |
+| **232 semiconductors** | `9903.79` | **ACTIVE** | Yes (Note 39(b) claim) |
 | **232 metals** | `9903.82.xx`, `9903.03.06` | **ACTIVE** | Yes (own line) |
 | **China 301 legacy** | `9903.88.xx` | **ACTIVE** | Yes |
 | Brazil 301 | `9903.05.01` | **ACTIVE** | Yes |

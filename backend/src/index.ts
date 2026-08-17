@@ -7,9 +7,11 @@ import { initDb, isDbEnabled } from "./db.ts";
 import { assessCh99Entry } from "./ch99Assess.ts";
 import { chatRouter } from "./chat.ts";
 import { coverRows, parseCoverageInput } from "./coverage.ts";
+import { csmsRouter } from "./csms.ts";
 import { auditEs003, ingestEs003 } from "./es003.ts";
 import { htsTableMeta, lookupHts } from "./htsLookup.ts";
 import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
+import { previewS232Universe } from "../../tariff-rules/src/s232Resolve.ts";
 import { insightsRouter } from "./insights.ts";
 import { quotaStatus, requireQuota } from "./quota.ts";
 import { referenceRouter } from "./reference.ts";
@@ -162,6 +164,7 @@ app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
   const raw = String(req.params.hts);
   const look = lookupHts(raw, asOf);
   const annex = match232AutoPartsAnnex(raw);
+  const s232_universe = previewS232Universe(raw);
   const s232_auto_parts = annex
     ? { in_annex: true, matched_stem: annex.matched_stem, ch99: annex.ch99_duty, source: annex.source }
     : { in_annex: false, matched_stem: null, ch99: null, note: "Not on Proclamation 10908 / U.S. note 33 auto-parts list" };
@@ -172,6 +175,7 @@ app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
       as_of: asOf,
       window_status: look.window_status,
       s232_auto_parts,
+      s232_universe,
     });
     return;
   }
@@ -181,6 +185,7 @@ app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
     as_of: asOf,
     table: htsTableMeta(),
     s232_auto_parts,
+    s232_universe,
     window_status: look.window_status,
     ended_on: look.ended_on,
     replacement_hts: look.replacement_hts,
@@ -280,6 +285,7 @@ app.use("/v1", referenceRouter);
 app.use("/v1", adminRouter);
 app.use("/v1", usersRouter);
 app.use("/v1", chatRouter);
+app.use("/v1", csmsRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

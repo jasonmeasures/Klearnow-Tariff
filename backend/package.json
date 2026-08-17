@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/**/*.test.ts",
+    "qa:dump": "tsx src/qa.dump.ts",
     "import:hts": "tsx src/import_hts.ts"
   },
   "dependencies": {

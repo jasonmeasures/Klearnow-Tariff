@@ -14,6 +14,7 @@ import {
   lookupFlClaimExemption,
   matchFlPharmaHts,
   s301flMeta,
+  type FlAssessment,
   type FlEconomyExemption,
 } from "../../tariff-rules/src/s301fl.ts";
 import {
@@ -29,6 +30,7 @@ import {
 } from "../../tariff-rules/src/s301China.ts";
 import { classify232Metals, resolve232Metals } from "../../tariff-rules/src/s232Metals.ts";
 import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
+import { resolveS232EnteredValue } from "../../tariff-rules/src/s232Resolve.ts";
 import {
   assessS232Pharma,
   s232PharmaClaimed,
@@ -118,6 +120,53 @@ function pctLabel(decimalRate: number): string {
   const p = decimalRate * 100;
   const s = p.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
   return `${s}% ad valorem`;
+}
+
+function fmtPctNum(n: number): string {
+  return money2(n).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+type AppliedFl = Exclude<FlAssessment, { kind: "out_of_scope" }>;
+
+/** Conversational copy for Pharma use vs the 301-FL heading it replaced. Duty math is unchanged. */
+function pharmaVsFlCopy(
+  fl: AppliedFl,
+  col1Pct: number,
+  wouldDuty: number,
+  pharmaHeading: string,
+): { diagnostic: string; suppressed: string; layerReason: string } {
+  const addPct = fl.kind === "threshold_no_add" ? 0 : money2(fl.rate_pct_decimal * 100);
+  const isEuCap = fl.heading === "9903.05.38" || fl.heading === "9903.05.39";
+  const extra = `$${wouldDuty.toFixed(2)}`;
+  if (fl.kind === "threshold_topup") {
+    const cap = fmtPctNum(fl.cap_pct);
+    const col1 = fmtPctNum(col1Pct);
+    const add = fmtPctNum(addPct);
+    const skipped =
+      `Pharma use (${pharmaHeading}) skipped this ${isEuCap ? "EU" : "301-FL"} cap. ` +
+      `Without it, this line would have been capped at ${cap}% — that's Column-1 ${col1}% plus an extra ${add}% (${extra}), not a second ${cap}%.`;
+    return {
+      diagnostic: `${skipped} Column-1 and MPF still apply.`,
+      suppressed: skipped,
+      layerReason: `${skipped} Report ${pharmaHeading} @ 0%. Column-1 and MPF still apply.`,
+    };
+  }
+  if (fl.kind === "threshold_no_add") {
+    const skipped =
+      `Pharma use (${pharmaHeading}) skipped ${fl.heading}. Column-1 is already at ${fmtPctNum(col1Pct)}%, so the ${isEuCap ? "EU cap" : `${fmtPctNum(fl.cap_pct)}% 301-FL cap`} would not have added extra duty.`;
+    return {
+      diagnostic: `${skipped} Column-1 and MPF still apply.`,
+      suppressed: skipped,
+      layerReason: `${skipped} Report ${pharmaHeading} @ 0%. Column-1 and MPF still apply.`,
+    };
+  }
+  const skipped =
+    `Pharma use (${pharmaHeading}) skipped ${fl.heading}. Without it, 301-FL would have added a flat ${fmtPctNum(addPct)}% (${extra}) on top of Column-1 ${fmtPctNum(col1Pct)}%.`;
+  return {
+    diagnostic: `${skipped} Column-1 and MPF still apply.`,
+    suppressed: skipped,
+    layerReason: `${skipped} Report ${pharmaHeading} @ 0%. Column-1 and MPF still apply.`,
+  };
 }
 
 /** Resolve FTA / Note 52 claim from line field or boolean flags. */
@@ -222,6 +271,9 @@ function uiProgram(id: string): string {
     SEC_232_AUTOS: "s232",
     SEC_232_METALS: "s232",
     SEC_232_PHARMA: "s232",
+    SEC_232_MHDV: "s232",
+    SEC_232_WOOD: "s232",
+    SEC_232_SEMI: "s232",
     SEC_122: "s122",
     TRADE_DEAL_JP: "s232",
     TRADE_DEAL_EU: "s232",
@@ -739,6 +791,22 @@ export function assessLine(line: LineIn, index: number) {
 
   const claimedAuto232 = Boolean(flags.s232_auto_part || flags.s232_auto || flags.s232);
   const annex232 = match232AutoPartsAnnex(hts);
+  const chapterMetals = classify232Metals(hts);
+  const s232Res = resolveS232EnteredValue({
+    hts,
+    coo,
+    rateDay: rd.date,
+    flags,
+    chapterMetals: Boolean(chapterMetals),
+  });
+  const s232Hit = s232Res.hit;
+  for (const n of s232Res.notes) {
+    diagnostics.push({
+      severity: n.severity,
+      code: n.code,
+      message: n.message,
+    });
+  }
   const pharma232 = assessS232Pharma({
     hts,
     coo,
@@ -746,6 +814,14 @@ export function assessLine(line: LineIn, index: number) {
     flags,
   });
   const pharmaClaim = s232PharmaClaimed(flags);
+  const flPharmaWanted = flPharmaClaimed(flags);
+  if (flPharmaWanted && pharma232?.applies) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "FL_PHARMA_OVER_S232",
+      message: `Pharma use (9903.05.89) is claimed — 232 patented pharma (${pharma232.heading}, EU 15% cap) is not applied. Clear Pharma use if you intend to file ${pharma232.heading}.`,
+    });
+  }
   if ((pharmaClaim.patented || pharmaClaim.generic) && pharma232 && !pharma232.applies) {
     diagnostics.push({
       severity: "WARNING",
@@ -756,8 +832,7 @@ export function assessLine(line: LineIn, index: number) {
     });
   }
   // Pure metal articles (Ch.72–74/76): metals path wins over an accidental autos claim (R5).
-  const chapterMetals = classify232Metals(hts);
-  if (metalsHit && (claimedAuto232 || annex232) && chapterMetals) {
+  if (metalsHit && (claimedAuto232 || annex232) && chapterMetals && !s232Hit?.suppresses_metals) {
     diagnostics.push({
       severity: "WARNING",
       code: "R5_METALS_OVER_AUTOS",
@@ -765,8 +840,8 @@ export function assessLine(line: LineIn, index: number) {
     });
   }
   // Annex membership auto-applies 232. Off-list needs an explicit claim (evidence required).
-  const is232 = Boolean((claimedAuto232 || annex232) && !metalsHit);
-  if (annex232 && is232) {
+  const is232 = Boolean(s232Hit);
+  if (annex232 && s232Hit?.family === "autos_parts") {
     diagnostics.push({
       severity: "INFO",
       code: "S232_ANNEX_HIT",
@@ -818,7 +893,9 @@ export function assessLine(line: LineIn, index: number) {
   let blocked = false;
   /** Metals content/melt-pour gaps must not block Sec 122 / China 301 / 301-FL on entered value. */
   let metalsReady = true;
-  const metalsNeedsContent = Boolean(metalsHit && metalsHit.basis === "METAL_CONTENT_VALUE");
+  const metalsNeedsContent = Boolean(
+    metalsHit && metalsHit.basis === "METAL_CONTENT_VALUE" && !s232Hit?.suppresses_metals,
+  );
   if (metalsNeedsContent && !(metalVal > 0)) {
     metalsReady = false;
     diagnostics.push({
@@ -879,6 +956,10 @@ export function assessLine(line: LineIn, index: number) {
     without_fl_duty: number;
     col1_without_spi_duty: number;
     spi_applied: boolean;
+    pharma_applied: boolean;
+    pharma_heading: string | null;
+    fl_kind: AppliedFl["kind"] | null;
+    fl_cap_pct: number | null;
   } = {
     available: lookupFlClaimExemption(coo),
     claimed: null,
@@ -887,6 +968,10 @@ export function assessLine(line: LineIn, index: number) {
     without_fl_duty: 0,
     col1_without_spi_duty: money2(entered * col1 + (specificDuty > 0 ? specificDuty : 0)),
     spi_applied: Boolean(spiPref),
+    pharma_applied: false,
+    pharma_heading: null,
+    fl_kind: null,
+    fl_cap_pct: null,
   };
 
   // Trade-deal total path (non JP top-up) is blocked by R6
@@ -910,6 +995,7 @@ export function assessLine(line: LineIn, index: number) {
 
   const applyMetals232 = Boolean(
     metalsHit &&
+      !s232Hit?.suppresses_metals &&
       !blocked &&
       (metalsHit.basis === "ENTERED_VALUE" || (metalVal > 0 && metalsReady)),
   );
@@ -930,31 +1016,47 @@ export function assessLine(line: LineIn, index: number) {
         }),
       );
 
-      if (is232) {
-        const meta = assertRateKnown("9903.94.05");
-        if (meta.status !== "CONFIRMED") {
-          diagnostics.push({
-            severity: "WARNING",
-            code: "TBC_PROGRAM_LABEL",
-            message: `${meta.code} rate is confirmed but program labeling is unresolved. ${meta.notes}`,
-            remediation:
-              "Confirm 232 vs trade-deal/IEEPA labeling before relying on drawback/refund treatment.",
-          });
+      if (s232Hit) {
+        if (s232Hit.family === "autos_parts") {
+          const meta = assertRateKnown(s232Hit.heading);
+          if (meta.status !== "CONFIRMED") {
+            diagnostics.push({
+              severity: "WARNING",
+              code: "TBC_PROGRAM_LABEL",
+              message: `${meta.code} rate is confirmed but program labeling is unresolved. ${meta.notes}`,
+              remediation:
+                "Confirm 232 vs trade-deal/IEEPA labeling before relying on drawback/refund treatment.",
+            });
+          }
+          layers.push(
+            layer({
+              slot: "3.3",
+              program: "SEC_232_AUTOS",
+              ch99: meta.code,
+              label: "Section 232 — auto parts (rate known)",
+              reason: `China stack (R2): effective ${(
+                chinaStack(col1, c301.rate, meta.rate) * 100
+              ).toFixed(1)}% when col-1 is ${col1Pct}%.`,
+              source_ref: meta.notes,
+              basis_amount: entered,
+              rate_pct: meta.rate,
+            }),
+          );
+        } else {
+          const meta = assertComputable(s232Hit.heading);
+          layers.push(
+            layer({
+              slot: "3.3",
+              program: s232Hit.program,
+              ch99: meta.code,
+              label: s232Hit.label,
+              reason: s232Hit.reason,
+              source_ref: s232Hit.source,
+              basis_amount: entered,
+              rate_pct: s232Hit.rate_pct_decimal,
+            }),
+          );
         }
-        layers.push(
-          layer({
-            slot: "3.3",
-            program: "SEC_232_AUTOS",
-            ch99: meta.code,
-            label: "Section 232 — auto parts (rate known)",
-            reason: `China stack (R2): effective ${(
-              chinaStack(col1, c301.rate, meta.rate) * 100
-            ).toFixed(1)}% when col-1 is ${col1Pct}%.`,
-            source_ref: meta.notes,
-            basis_amount: entered,
-            rate_pct: meta.rate,
-          }),
-        );
         push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
         applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
       } else if (metalsHit) {
@@ -979,7 +1081,7 @@ export function assessLine(line: LineIn, index: number) {
       });
       blocked = true;
     }
-  } else if (!blocked && is232 && coo === "JP") {
+  } else if (!blocked && is232 && coo === "JP" && s232Hit?.jp_parts_topup) {
     // Confirmed JP 232 top-up path (R3) — uses helper, not computeTradeDealTotal
     const top = jp232TopUp(col1);
     const heading = "9903.94.43";
@@ -1012,32 +1114,46 @@ export function assessLine(line: LineIn, index: number) {
     push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
     applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
     pushCommodity(top.ch1to97Line === 0);
-  } else if (!blocked && is232) {
-    // Non-JP 232 — annex heading 9903.94.05 (25%) unless pack overrides
+  } else if (!blocked && is232 && s232Hit) {
+    // Entered-value 232 (vehicles, parts, MHDV, wood, semiconductors)
     try {
-      const dutyCode = annex232?.ch99_duty || "9903.94.05";
-      const meta = assertRateKnown(dutyCode);
-      if (meta.status !== "CONFIRMED") {
-        diagnostics.push({
-          severity: "WARNING",
-          code: "TBC_PROGRAM_LABEL",
-          message: `${meta.code} rate confirmed; program label unresolved. ${meta.notes}`,
-        });
+      if (s232Hit.family === "autos_parts") {
+        const dutyCode = s232Hit.heading || "9903.94.05";
+        const meta = assertRateKnown(dutyCode);
+        if (meta.status !== "CONFIRMED") {
+          diagnostics.push({
+            severity: "WARNING",
+            code: "TBC_PROGRAM_LABEL",
+            message: `${meta.code} rate confirmed; program label unresolved. ${meta.notes}`,
+          });
+        }
+        layers.push(
+          layer({
+            slot: "3.3",
+            program: "SEC_232_AUTOS",
+            ch99: meta.code,
+            label: "Section 232 — auto parts",
+            reason: s232Hit.reason,
+            source_ref: s232Hit.source || meta.notes,
+            basis_amount: entered,
+            rate_pct: meta.rate,
+          }),
+        );
+      } else {
+        const meta = assertComputable(s232Hit.heading);
+        layers.push(
+          layer({
+            slot: "3.3",
+            program: s232Hit.program,
+            ch99: meta.code,
+            label: s232Hit.label,
+            reason: s232Hit.reason,
+            source_ref: s232Hit.source,
+            basis_amount: entered,
+            rate_pct: s232Hit.rate_pct_decimal,
+          }),
+        );
       }
-      layers.push(
-        layer({
-          slot: "3.3",
-          program: "SEC_232_AUTOS",
-          ch99: meta.code,
-          label: "Section 232 — auto parts",
-          reason: annex232
-            ? `Proclamation 10908 annex stem ${annex232.matched_stem} → ${meta.code} @ ${(meta.rate * 100).toFixed(0)}%.`
-            : "Default 232 auto-parts duty while off-list claim is asserted.",
-          source_ref: annex232?.source || meta.notes,
-          basis_amount: entered,
-          rate_pct: meta.rate,
-        }),
-      );
       addBrazil301(coo, entered, layers, diagnostics, rd.date, {
         in232Universe: true,
         flags,
@@ -1071,7 +1187,7 @@ export function assessLine(line: LineIn, index: number) {
     applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
     add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
     pushCommodity(false);
-  } else if (!blocked && pharma232?.applies) {
+  } else if (!blocked && pharma232?.applies && !flPharmaWanted) {
     // Section 232 patented / generic pharma — Proclamation 11020 (CSMS #69395344 / #69415934)
     try {
       const meta = assertComputable(pharma232.heading);
@@ -1195,7 +1311,13 @@ export function assessLine(line: LineIn, index: number) {
     ...seq.filter((c) => c === "9903.05.90" || c === "9903.03.06" || c === "9903.03.03"),
     ...seq.filter((c) => c.startsWith("9903.82")),
     ...seq.filter((c) => c.startsWith("9903.04")), // Proclamation 11020 pharma
-    ...seq.filter((c) => c.startsWith("9903.94") || c.startsWith("9903.74")),
+    ...seq.filter(
+      (c) =>
+        c.startsWith("9903.94") ||
+        c.startsWith("9903.74") ||
+        c.startsWith("9903.76") ||
+        c.startsWith("9903.79"),
+    ),
     ...seq.filter(
       (c) => c.startsWith("9903.05") && c !== "9903.05.90" && !brazil301(c),
     ),
@@ -1203,9 +1325,53 @@ export function assessLine(line: LineIn, index: number) {
   ];
   const ch99_sequence_unique = [...new Set(ordered.length ? ordered : seq)];
 
+  const pctOf = (d: number) => (entered > 0 ? money2((d / entered) * 100) : 0);
+
+  let pharma_compare: Record<string, unknown> | null = null;
+  if (ftaTrack.pharma_applied && ftaTrack.pharma_heading) {
+    const addDuty = ftaTrack.without_fl_duty;
+    const addPct = ftaTrack.without_fl_rate_pct;
+    const capPct =
+      ftaTrack.fl_cap_pct != null ? ftaTrack.fl_cap_pct : money2(col1Pct + addPct);
+    const withDuty = money2(totalDuty);
+    const withoutDuty = money2(totalDuty + addDuty);
+    const isEuCap =
+      ftaTrack.without_fl_heading === "9903.05.38" ||
+      ftaTrack.without_fl_heading === "9903.05.39";
+    pharma_compare = {
+      claimed: true,
+      heading: ftaTrack.pharma_heading,
+      instead_of: ftaTrack.without_fl_heading,
+      kind: ftaTrack.fl_kind,
+      cap_pct: capPct,
+      col1_pct: col1Pct,
+      additional_pct: addPct,
+      additional_duty: addDuty,
+      eu_cap: isEuCap,
+      with_claim: {
+        fl_heading: ftaTrack.pharma_heading,
+        fl_duty: 0,
+        fl_rate_pct: 0,
+        col1_duty: ftaTrack.col1_without_spi_duty,
+        line_duty: withDuty,
+        effective_duty_rate_pct: pctOf(withDuty),
+      },
+      without_claim: {
+        fl_heading: ftaTrack.without_fl_heading,
+        fl_duty: addDuty,
+        fl_rate_pct: addPct,
+        col1_duty: ftaTrack.col1_without_spi_duty,
+        line_duty: withoutDuty,
+        effective_duty_rate_pct: pctOf(withoutDuty),
+      },
+      extra_without_exception: addDuty,
+    };
+  }
+
   let fta_compare: Record<string, unknown> | null = null;
   const hasFtaStory =
-    Boolean(ftaTrack.available && ftaTrack.without_fl_heading) || ftaTrack.spi_applied;
+    !ftaTrack.pharma_applied &&
+    (Boolean(ftaTrack.available && ftaTrack.without_fl_heading) || ftaTrack.spi_applied);
   if (hasFtaStory) {
     const flClaimed = Boolean(ftaTrack.claimed);
     const spiOn = ftaTrack.spi_applied;
@@ -1227,7 +1393,6 @@ export function assessLine(line: LineIn, index: number) {
           (spiEligible && !spiOn ? col1Duty : 0),
       ),
     );
-    const pctOf = (d: number) => (entered > 0 ? money2((d / entered) * 100) : 0);
     const claimLabel =
       spiPref?.label ||
       ftaTrack.claimed?.label ||
@@ -1295,6 +1460,7 @@ export function assessLine(line: LineIn, index: number) {
     diagnostics,
     ch99_sequence: ch99_sequence_unique,
     fta_compare,
+    pharma_compare,
     fta_claim: resolveFtaClaim(line),
     spi_preference: spiPref,
     mpf_exempt: Boolean(spiPref),
@@ -1521,6 +1687,10 @@ function add301Fl(
     without_fl_heading: string | null;
     without_fl_rate_pct: number;
     without_fl_duty: number;
+    pharma_applied: boolean;
+    pharma_heading: string | null;
+    fl_kind: AppliedFl["kind"] | null;
+    fl_cap_pct: number | null;
   },
 ) {
   if (rateDay && !s301flAppliesOn(rateDay)) {
@@ -1613,9 +1783,13 @@ function add301Fl(
   }
 
   // Note 52(e) pharmaceutical applications — claim-gated; does NOT zero Col-1 / MPF (R10).
+  // Replaces 301-FL EU combined-to-cap (9903.05.38/.39) and other FL headings.
   if (pharmaClaim) {
     const heading = pharmaHit?.heading || flPharmaMeta().heading;
-    if (!pharmaHit) {
+    const digits = String(line?.hts || "").replace(/\D/g, "");
+    const ch = Number(digits.slice(0, 2));
+    const allowClaim = Boolean(pharmaHit) || ch === 29 || ch === 30;
+    if (!allowClaim) {
       diagnostics.push({
         severity: "WARNING",
         code: "FL_PHARMA_OFF_LIST",
@@ -1623,13 +1797,20 @@ function add301Fl(
         remediation: "Clear the Pharma use claim, or confirm the HTS appears under U.S. Note 52(e) on the CBP Forced Labor HTS List.",
       });
     } else {
+      const copy = pharmaVsFlCopy(fl, money2(col1 * 100), wouldDuty, heading);
+      if (ftaTrack) {
+        ftaTrack.pharma_applied = true;
+        ftaTrack.pharma_heading = heading;
+        ftaTrack.fl_kind = fl.kind;
+        ftaTrack.fl_cap_pct = "cap_pct" in fl ? fl.cap_pct : null;
+      }
       layers.push(
         layer({
           slot: "3.2",
           program: "SEC_301_FL",
           ch99: heading,
           label: "301-FL exempt — pharmaceutical applications",
-          reason: `${pharmaHit.basis}. HTS stem ${pharmaHit.matched_stem} is on the Note 52(e) list and pharmaceutical use is claimed — report ${heading} @ 0% instead of ${fl.heading}. Column-1 and MPF still apply (R10).`,
+          reason: `${pharmaHit?.basis || flPharmaMeta().basis}. ${copy.layerReason}`,
           source_ref: "CSMS #69326983 — U.S. Note 52(e)",
           basis_amount: entered,
           rate_pct: 0,
@@ -1641,19 +1822,26 @@ function add301Fl(
           program: "SEC_301_FL",
           ch99: fl.heading,
           label: `${fl.label} (pharma exempt)`,
-          reason: `Superseded by pharmaceutical-use claim (${heading}). Would otherwise assess $${wouldDuty.toFixed(2)}. ${fl.reason}`,
+          reason: copy.suppressed,
           source_ref: "CSMS #69326983",
           basis_amount: entered,
           rate_pct: wouldRate,
         }),
-        reason: `Not applied — pharmaceutical use (${heading}). Would otherwise assess $${wouldDuty.toFixed(2)}.`,
+        reason: copy.suppressed,
       });
+      if (!pharmaHit) {
+        diagnostics.push({
+          severity: "WARNING",
+          code: "FL_PHARMA_OFF_LIST_APPLIED",
+          message: `Note 52(e) list seed does not yet include this HTS. Pharma use is claimed, so ${heading} @ 0% is reported instead of ${fl.heading}. Confirm membership on the CBP Forced Labor HTS List before filing.`,
+        });
+      }
       diagnostics.push({
         severity: "INFO",
         code: "FL_PHARMA_APPLIED",
-        message: `Pharmaceutical applications (Note 52(e)): 301-FL reports ${heading} @ 0%. Without this claim (and without USMCA), ${fl.heading} would add $${wouldDuty.toFixed(2)}.`,
+        message: copy.diagnostic,
         remediation:
-          "Actual use must be pharmaceutical. This does not suppress Column-1 or MPF — only USMCA/CAFTA SPI does that (R10).",
+          "Actual use must be pharmaceutical. This does not suppress Column-1 or MPF — only USMCA/CAFTA SPI does that (R10). Do not also claim 232 patented pharma (9903.04.62 EU 15%) unless that program applies.",
       });
       return;
     }

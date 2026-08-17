@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "as_of": "2026-07-31",
+  "as_of": "2026-08-14",
   "programs": [
     {
       "id": "IEEPA",
@@ -26,10 +26,32 @@
     },
     {
       "id": "SEC_232_AUTOS",
-      "ch99_family": "9903.94.xx (per 2026-07-27 framing) / 9903.74.xx exclusions",
+      "ch99_family": "9903.94.01–.04 vehicles / 9903.94.05+ parts / 9903.74.xx MHDV (separate program)",
       "status": "ACTIVE",
-      "detail": "Proclamation 10908. Unaffected by IEEPA ruling. Japan: col-1 under 15% topped up to 15% (9903.94.43), 15% on Ch.99 line, zero on Ch.1-97 line. Annex is 10-digit specific — chapter-level triage is NOT a determination. 232 auto-part status is the master switch for the whole stack.",
+      "detail": "Proclamation 10908. Passenger vehicles/light trucks auto-apply 9903.94.01 @ 25% from the CSMS #64624801 list. Auto-parts annex (U.S. note 33) auto-applies 9903.94.05; Japan parts top-up 9903.94.43. MHDV is a separate program (Proclamation 10984).",
       "compute": true
+    },
+    {
+      "id": "SEC_232_MHDV",
+      "ch99_family": "9903.74.01–.11",
+      "status": "ACTIVE",
+      "detail": "Proclamation 10984 / CSMS #66665333, effective 2025-11-01. MHDV vehicles 9903.74.01 @ 25%, buses 9903.74.02 @ 10% from the published HTS lists. MHDV parts 9903.74.08 is claim-gated (9903.74.11 exists for listed articles that are not MHDV parts). Not subject to 232 metals or wood when MHDV applies.",
+      "compute": true
+    },
+    {
+      "id": "SEC_232_WOOD",
+      "ch99_family": "9903.76.xx",
+      "status": "ACTIVE",
+      "detail": "Proclamation 10976 / CSMS #66492057, effective 2025-10-14. Softwood 9903.76.01 @ 10%. Upholstered furniture and kitchen cabinets 25% (UK 10% / JP 15% / EU 15%). Autos 232 wins if both apply.",
+      "compute": true
+    },
+    {
+      "id": "SEC_232_SEMI",
+      "ch99_family": "9903.79.01–.09",
+      "status": "ACTIVE",
+      "detail": "January 14, 2026 proclamation / CSMS #67400472, effective 2026-01-15. 9903.79.01 @ 25% only when HTS is 8471.50 / 8471.80 / 8473.30 AND Note 39(b) TPP/DRAM params are claimed (flags.s232_semiconductor). 0% headings .02–.09 are claim-gated exclusions. Claimed .01 wins over autos/MHDV/metals.",
+      "compute": true,
+      "compute_caveat": "Do not infer TPP/DRAM bandwidth from HTS — duty path is claim-gated"
     },
     {
       "id": "SEC_232_METALS",

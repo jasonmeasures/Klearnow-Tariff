@@ -1,0 +1,89 @@
+{
+  "version": "1.0.0",
+  "as_of": "2026-08-14",
+  "program": {
+    "id": "s232_semiconductors",
+    "proclamation": "2026-01-14",
+    "title": "Section 232 — semiconductors and derivative products",
+    "effective": "2026-01-15",
+    "source_csms": ["67400472"],
+    "ch99_family": "9903.79.01–.09",
+    "detail": "25% additional only when the article is classifiable in 8471.50 / 8471.80 / 8473.30 AND meets U.S. note 39(b) TPP + DRAM bandwidth bands (logic IC). All other listed headings are 0% use/exclusion codes. Duty path is claim-gated (flags.s232_semiconductor)."
+  },
+  "source": "CSMS #67400472 — GUIDANCE: Section 232 Import Duties on Semiconductors and their Derivative Products",
+  "source_url": "https://content.govdelivery.com/accounts/USDHSCBP/bulletins/4047318",
+  "hts": ["8471.50", "8471.80", "8473.30"],
+  "technical_parameters": [
+    "Logic integrated circuit, or article containing one, with (1) TPP > 14,000 and < 17,500 and total DRAM bandwidth > 4,500 GB/s and < 5,000 GB/s; or (2) TPP > 20,800 and < 21,100 and total DRAM bandwidth > 5,800 GB/s and < 6,200 GB/s."
+  ],
+  "headings": [
+    {
+      "code": "9903.79.01",
+      "rate_pct": 25,
+      "rate_kind": "additional",
+      "label": "232 semiconductors — subject articles (Note 39(b) params)",
+      "claim_flag": "s232_semiconductor"
+    },
+    {
+      "code": "9903.79.02",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 semiconductors — on HTS list, params not met",
+      "claim_flag": "s232_semiconductor_params_not_met"
+    },
+    {
+      "code": "9903.79.03",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 semiconductors — U.S. data center (>100 MW AI load)",
+      "claim_flag": "s232_semiconductor_data_center"
+    },
+    {
+      "code": "9903.79.04",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 semiconductors — repair or replacement in the U.S.",
+      "claim_flag": "s232_semiconductor_repair"
+    },
+    {
+      "code": "9903.79.05",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 semiconductors — U.S. research and development",
+      "claim_flag": "s232_semiconductor_rd"
+    },
+    {
+      "code": "9903.79.06",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 semiconductors — U.S. startup / emerging growth company",
+      "claim_flag": "s232_semiconductor_startup"
+    },
+    {
+      "code": "9903.79.07",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 semiconductors — non-data-center consumer electronics in the U.S.",
+      "claim_flag": "s232_semiconductor_consumer"
+    },
+    {
+      "code": "9903.79.08",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 semiconductors — non-data-center civil industrial use in the U.S.",
+      "claim_flag": "s232_semiconductor_industrial"
+    },
+    {
+      "code": "9903.79.09",
+      "rate_pct": 0,
+      "rate_kind": "additional",
+      "label": "232 semiconductors — U.S. public-sector applications",
+      "claim_flag": "s232_semiconductor_public"
+    }
+  ],
+  "notes": [
+    "8471 is also on the Proclamation 10908 auto-parts annex. Semiconductor claim (9903.79.01) wins over auto-parts for 8471.50 / 8471.80 when asserted.",
+    "Properly filed 9903.79.01 is not subject to 232 autos, MHDV, metals, or IEEPA reciprocal additional duties (CSMS #67400472).",
+    "Do not auto-assess 25% from HTS alone — TPP / DRAM bandwidth cannot be inferred from classification."
+  ]
+}

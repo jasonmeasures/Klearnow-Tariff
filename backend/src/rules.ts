@@ -14,7 +14,7 @@ import { rulepackPublic, STATE } from "./state.ts";
 
 export const rulesRouter = Router();
 
-function materializeRules() {
+export function materializeRules() {
   const codes = listCh99().map((c) => ({
     id: `ch99.${c.code}`,
     program: uiProg(c.program),

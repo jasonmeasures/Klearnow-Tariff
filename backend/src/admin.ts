@@ -245,8 +245,14 @@ function openApiDoc(serverUrl: string) {
       },
       "/v1/chat": {
         post: {
-          summary: "Conversational CSMS / rule authoring (Anthropic + tools)",
-          responses: { "200": { description: "Reply + pending actions" } },
+          summary: "Ask about an HTS or live-pack rule (Anthropic + table tools)",
+          responses: { "200": { description: "Reply + optional pending admin actions" } },
+        },
+      },
+      "/v1/csms": {
+        get: {
+          summary: "Recent CBP CSMS bulletins (GovDelivery RSS)",
+          responses: { "200": { description: "Messages" } },
         },
       },
       "/v1/chat/apply": {

@@ -1,0 +1,234 @@
+{
+  "_comment": "Regression catalog. After a stack/copy/UI change: add or update a scenario, run `cd backend && npm test`, then `npm run qa:dump -- <id>` if you need expected numbers. Quick Check chips must match `examples`.",
+  "examples": [
+    {
+      "id": "vn",
+      "name": "VN apparel",
+      "meta": "6203.42.0711 · Vietnam",
+      "hts": "6203.42.0711",
+      "coo": "VN",
+      "value": "25000",
+      "date": "2026-07-25",
+      "flags": {}
+    },
+    {
+      "id": "cn",
+      "name": "CN auto parts",
+      "meta": "8708.10.3050 · China · 232",
+      "hts": "8708.10.3050",
+      "coo": "CN",
+      "value": "10000",
+      "date": "2026-07-25",
+      "flags": { "s232_auto_part": true }
+    },
+    {
+      "id": "de",
+      "name": "DE pharma",
+      "meta": "2933.99.2200 · Germany",
+      "hts": "2933.99.2200",
+      "coo": "DE",
+      "value": "10000",
+      "date": "2026-08-07",
+      "flags": { "s301fl_pharma": true }
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "qc-vn-apparel",
+      "title": "Quick Check: VN apparel",
+      "example": "vn",
+      "expect": {
+        "effective_duty_rate_pct": 29.1,
+        "duty": 7275,
+        "col1_rate_pct": 16.6,
+        "ch99_includes": ["9903.05.84"],
+        "codes": ["FL301_APPLIED"]
+      }
+    },
+    {
+      "id": "qc-cn-auto-parts",
+      "title": "Quick Check: CN auto parts (232 annex)",
+      "example": "cn",
+      "expect": {
+        "effective_duty_rate_pct": 27.5,
+        "duty": 2750,
+        "col1_rate_pct": 2.5,
+        "ch99_includes": ["9903.94.05", "9903.05.90"],
+        "ch99_excludes": ["9903.05.31"],
+        "codes": ["S232_ANNEX_HIT"]
+      }
+    },
+    {
+      "id": "qc-de-pharma",
+      "title": "Quick Check: DE pharma use vs EU cap",
+      "example": "de",
+      "expect": {
+        "effective_duty_rate_pct": 6.5,
+        "duty": 650,
+        "col1_rate_pct": 6.5,
+        "ch99_includes": ["9903.05.89"],
+        "ch99_excludes": ["9903.05.39", "9903.05.38", "9903.04.62"],
+        "codes": ["FL_PHARMA_APPLIED"],
+        "mpf_exempt": false,
+        "pharma_compare": {
+          "additional_pct": 3.5,
+          "additional_duty": 350,
+          "cap_pct": 10
+        },
+        "copy": [
+          {
+            "where": "diagnostics.FL_PHARMA_APPLIED",
+            "includes": ["skipped this EU cap", "capped at 10%", "extra 3.5%", "not a second 10%"]
+          },
+          {
+            "where": "suppressed.9903.05.39",
+            "includes": ["skipped this EU cap", "Column-1 6.5%", "extra 3.5%", "$350.00"]
+          }
+        ]
+      }
+    },
+    {
+      "id": "de-eu-cap",
+      "title": "DE 2933.99.2200 without pharma → EU 10% cap",
+      "line": {
+        "hts": "2933992200",
+        "coo": "DE",
+        "entered_value": 10000,
+        "entry_date": "2026-08-07",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 10,
+        "duty": 1000,
+        "col1_rate_pct": 6.5,
+        "ch99_includes": ["9903.05.39"],
+        "ch99_excludes": ["9903.05.89"],
+        "codes": ["FL301_APPLIED", "FL_PHARMA_AVAILABLE"]
+      }
+    },
+    {
+      "id": "s232-wood-ca-lumber",
+      "title": "232 wood: CA softwood lumber → 9903.76.01 @ 10%",
+      "line": {
+        "hts": "4407110001",
+        "coo": "CA",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 10,
+        "duty": 1000,
+        "col1_rate_pct": 0,
+        "ch99_includes": ["9903.76.01", "9903.05.90"],
+        "ch99_excludes": ["9903.05.93"]
+      }
+    },
+    {
+      "id": "s232-wood-de-furniture",
+      "title": "232 wood: DE upholstered furniture → 9903.76.22 @ 15%",
+      "line": {
+        "hts": "9401614011",
+        "coo": "DE",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 15,
+        "duty": 1500,
+        "col1_rate_pct": 0,
+        "ch99_includes": ["9903.76.22", "9903.05.90"]
+      }
+    },
+    {
+      "id": "s232-pv-jp",
+      "title": "232 passenger vehicle JP → 9903.94.01 not parts top-up",
+      "line": {
+        "hts": "8703230140",
+        "coo": "JP",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 27.5,
+        "duty": 2750,
+        "col1_rate_pct": 2.5,
+        "ch99_includes": ["9903.94.01", "9903.05.90"],
+        "ch99_excludes": ["9903.94.43", "9903.94.05"]
+      }
+    },
+    {
+      "id": "s232-mhdv-vehicle",
+      "title": "232 MHDV dump truck → 9903.74.01 @ 25%",
+      "line": {
+        "hts": "8704230100",
+        "coo": "DE",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 50,
+        "duty": 5000,
+        "col1_rate_pct": 25,
+        "ch99_includes": ["9903.74.01", "9903.05.90"]
+      }
+    },
+    {
+      "id": "s232-mhdv-bus",
+      "title": "232 MHDV bus → 9903.74.02 @ 10%",
+      "line": {
+        "hts": "8702103100",
+        "coo": "KR",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 12,
+        "duty": 1200,
+        "col1_rate_pct": 2,
+        "ch99_includes": ["9903.74.02", "9903.05.90"]
+      }
+    },
+    {
+      "id": "s232-mhdv-parts-claim",
+      "title": "232 MHDV parts claim → 9903.74.08",
+      "line": {
+        "hts": "8709900090",
+        "coo": "DE",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": { "s232_mhdv_part": true }
+      },
+      "expect": {
+        "effective_duty_rate_pct": 25,
+        "duty": 2500,
+        "col1_rate_pct": 0,
+        "ch99_includes": ["9903.74.08", "9903.05.90"],
+        "ch99_excludes": ["9903.94.05"]
+      }
+    },
+    {
+      "id": "s232-semi-claim",
+      "title": "232 semiconductor Note 39 claim → 9903.79.01",
+      "line": {
+        "hts": "8473305100",
+        "coo": "TW",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": { "s232_semiconductor": true }
+      },
+      "expect": {
+        "effective_duty_rate_pct": 25,
+        "duty": 2500,
+        "col1_rate_pct": 0,
+        "ch99_includes": ["9903.79.01", "9903.05.90"],
+        "ch99_excludes": ["9903.94.05"],
+        "codes": ["S232_SEMI_APPLIED"]
+      }
+    }
+  ]
+}

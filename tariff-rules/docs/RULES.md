@@ -11,7 +11,10 @@ Version 1.0.0 · as of 2026-07-31 · machine tables live in `../data/`
 | IEEPA | 9903.01.xx | **Struck down** — SCOTUS 2026-02-20 held IEEPA does not authorize tariffs. Whole layer gone prospectively, incl. 9903.01.33 auto-parts carve-out. Ruling did not touch 232 or 301. |
 | Section 122 | 9903.03.01 (as surcharge) | **Sunset** 12:01 a.m. 2026-07-24 (150-day statutory limit, no extension). |
 | 301-FL | 9903.05.xx | **Live** 2026-07-24 (CSMS #69326983). Functional replacement for 122 — no sunset. |
-| 232 autos/parts | Procl. 10908 | **Live.** Master switch for the whole stack. |
+| 232 autos/parts | Procl. 10908 | **Live.** Parts annex + passenger vehicles (`9903.94.01`). |
+| 232 MHDV | Procl. 10984 | **Live.** Vehicles/buses auto; parts claim-gated. |
+| 232 wood | Procl. 10976 | **Live.** Softwood / furniture / cabinets (`9903.76`). |
+| 232 semiconductors | Jan 2026 proc. | **Live, claim-gated** Note 39(b) (`9903.79.01`). |
 | 232 metals | 9903.03.xx / .85.xx | **Live.** Separate entry line, metal-content value. |
 | Legacy China 301 | 9903.88.xx | **Live.** Not suppressed by 232. |
 | Brazil 301 | 9903.05.01 | **Live** from 2026-07-22 @ 25% (CSMS #69302472). Exemptions `.02`–`.09`. Stacks with 301-FL `.27`. |

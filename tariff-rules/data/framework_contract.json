@@ -1,7 +1,7 @@
 {
   "id": "klearnow-tariff-rules-framework",
-  "version": "1.3.1",
-  "as_of": "2026-08-06",
+  "version": "1.4.0",
+  "as_of": "2026-08-14",
   "jurisdiction": "US",
   "status": "SHAREABLE_PACK — interim until core engine is published as a shared API",
   "owner": "KlearNow Tariff (tariff-rules/)",
@@ -72,7 +72,7 @@
   "stacking_rules": [
     {
       "id": "R1",
-      "text": "232 autos/parts/metals and 301-FL are mutually exclusive. 232 wins via 9903.05.90.",
+      "text": "232 (autos/parts/vehicles/MHDV/metals/wood/semiconductors/pharma) and 301-FL are mutually exclusive. 232 wins via 9903.05.90.",
       "status": "CONFIRMED"
     },
     {
@@ -233,6 +233,11 @@
     "s301fl_pack.json": "301-FL 60 economies + exemptions (CSMS #69326983)",
     "s301_brazil.json": "Brazil country Section 301 9903.05.01–.09 (CSMS #69302472)",
     "s232_auto_parts_annex.json": "Proclamation 10908 auto-parts HTS stems",
+    "s232_autos_vehicles.json": "Proclamation 10908 passenger vehicles / light trucks (CSMS #64624801)",
+    "s232_mhdv.json": "Proclamation 10984 MHDV / buses / parts (CSMS #66665333)",
+    "s232_wood.json": "Proclamation 10976 timber/lumber/wood derivatives (CSMS #66492057)",
+    "s232_semiconductors.json": "Semiconductor 232 Note 39 (CSMS #67400472)",
+    "s232_pharma.json": "Proclamation 11020 patented pharma 9903.04.xx",
     "s301_china_lists.json": "Legacy China 301 list membership",
     "ch99_rules.json": "Ch99 reciprocal seed (~83 rules)",
     "hts_rates.json": "Column-1 baseline table",

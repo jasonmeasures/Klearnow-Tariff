@@ -5,9 +5,9 @@
   "rules": [
     {
       "id": "R1_232_VS_301FL",
-      "rule": "Section 232 autos/parts and 301-FL are MUTUALLY EXCLUSIVE. 232 wins. When 232 applies, report 9903.05.90 to suppress 301-FL.",
+      "rule": "Section 232 (autos/parts, vehicles, MHDV, metals, wood, semiconductors, patented pharma) and 301-FL are MUTUALLY EXCLUSIVE. 232 wins. When 232 applies, report 9903.05.90 to suppress 301-FL.",
       "status": "CONFIRMED",
-      "dependency": "Valid 10-digit 232 auto-part determination (Proclamation 10908 annex). Chapter-level match is triage only."
+      "dependency": "Valid 232 determination: auto-parts annex, passenger-vehicle list, MHDV vehicle/bus list or claimed MHDV part, wood HTS list, claimed semiconductor Note 39(b), metals chapter/claim, or patented-pharma claim. Chapter-level match is triage only for auto-parts."
     },
     {
       "id": "R2_CHINA_301_NOT_SUPPRESSED",

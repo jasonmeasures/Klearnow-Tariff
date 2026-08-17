@@ -21,6 +21,7 @@ import {
   rpsUrl,
   setDemoRole,
 } from "./auth.js";
+import goldens from "../tariff-rules/data/qa_goldens.json";
 
 let KEY = apiKeyFromQuery();
 
@@ -112,6 +113,7 @@ function show(view) {
   if (view === "lookup") initLookup();
   if (view === "audit") initEs003Audit();
   if (view === "chat") initChat();
+  if (view === "csms") initCsms();
   if (view === "users") loadUsers();
 }
 $$("nav.side button").forEach(b => b.onclick = () => show(b.dataset.view));
@@ -158,8 +160,8 @@ async function boot() {
     renderQuota(S.me.quota);
     if (!isEmbed()) {
       const notes = {
-        admin: "You are Admin: sidebar shows Manage + Rule chat.",
-        user: "You are User: Duty stack only — Manage and Rule chat are hidden.",
+        admin: "You are Admin: sidebar shows Manage. Chat answers from the live tables; pack writes stay a preview.",
+        user: "You are User: Duty stack, HTS list, Chat, CSMS, and Audit.",
         guest: "You are Guest: same chrome as User, with daily stack/extract caps.",
       };
       banner("#calcbanner", "info", notes[role] || "Signed in",
@@ -241,9 +243,9 @@ function renderRoleChip(me) {
   const role = me.role || "user";
   el.className = `chip role-chip role-${role}`;
   const labels = {
-    admin: "Admin — Manage + Rule chat",
-    user: "User — Duty stack · no admin",
-    guest: "Guest — limited tries · no admin",
+    admin: "Admin — Manage + Chat",
+    user: "User — Duty stack · Chat · CSMS",
+    guest: "Guest — limited tries · Chat · CSMS",
   };
   el.textContent = labels[role] || role;
   el.title = me.auth === "api_key"
@@ -322,36 +324,44 @@ function applyScopes() {
   const isAdmin = Boolean(can.admin || S.me?.role === "admin");
   const canManage = Boolean(can.write_rules || isAdmin);
   const canBrowseRules = Boolean(can.read_rules && canManage); // browse pack only with Manage
-
   const hideManage = !canManage || isEmbed() || SURFACE === "external";
+  const hideUserSurface = isEmbed() || SURFACE === "external";
+
   $$("[data-admin-only]").forEach((el) => el.classList.toggle("hide", hideManage));
   $$("[data-rules-browse]").forEach((el) =>
     el.classList.toggle("hide", hideManage),
   );
+  $$("[data-user-surface]").forEach((el) => el.classList.toggle("hide", hideUserSurface));
+  $$("[data-admin-write]").forEach((el) => el.classList.toggle("hide", hideManage));
 
-  // Non-admin / external: Use nav only (Duty stack, HTS list, Audit)
+  const manageViews = new Set(["rules", "upload", "history", "insights", "reference", "users"]);
   if (hideManage) {
-    ["rules", "upload", "history", "insights", "chat", "reference"].forEach((v) => {
+    manageViews.forEach((v) => {
       const b = document.querySelector(`nav.side button[data-view="${v}"]`);
       if (b) b.classList.add("hide");
     });
     $$("nav.side .navgroup").forEach((g) => {
       if (/manage|understand/i.test(g.textContent || "")) g.classList.add("hide");
     });
-    const fab = $("#chatfab");
-    if (fab) fab.hidden = true;
-    // If they were on an admin view, bounce to Duty stack
-    const adminViews = new Set(["rules", "upload", "history", "insights", "chat", "reference"]);
     const cur = document.querySelector("nav.side button[aria-current='page']");
-    if (cur && adminViews.has(cur.dataset.view)) show("calc");
+    if (cur && manageViews.has(cur.dataset.view)) show("calc");
   } else {
-    ["rules", "upload", "history", "insights", "chat", "reference"].forEach((v) => {
+    manageViews.forEach((v) => {
       const b = document.querySelector(`nav.side button[data-view="${v}"]`);
       if (b) b.classList.remove("hide");
     });
     $$("nav.side .navgroup").forEach((g) => g.classList.remove("hide"));
-    const fab = $("#chatfab");
-    if (fab) fab.hidden = false;
+  }
+
+  const fab = $("#chat-fab");
+  if (fab) fab.hidden = hideUserSurface;
+  if (hideUserSurface) {
+    ["chat", "csms"].forEach((v) => {
+      const b = document.querySelector(`nav.side button[data-view="${v}"]`);
+      if (b) b.classList.add("hide");
+    });
+    const cur = document.querySelector("nav.side button[aria-current='page']");
+    if (cur && (cur.dataset.view === "chat" || cur.dataset.view === "csms")) show("calc");
   }
 
   const pub = $("#publishcard");
@@ -423,6 +433,18 @@ function initQuickCheck() {
   }
   syncFtaClaimUi();
   syncPharmaClaimUi();
+  const pharmaBox = $("#qc-pharma");
+  const s232Box = $("#qc-s232-pharma");
+  if (pharmaBox) {
+    pharmaBox.addEventListener("change", () => {
+      if (pharmaBox.checked && s232Box) s232Box.checked = false;
+    });
+  }
+  if (s232Box) {
+    s232Box.addEventListener("change", () => {
+      if (s232Box.checked && pharmaBox) pharmaBox.checked = false;
+    });
+  }
 }
 
 function metalInputMode() {
@@ -497,6 +519,7 @@ async function previewHtsMeta() {
     if (wrap) wrap.hidden = true;
     if (metalWrap) metalWrap.hidden = true;
     syncPharmaClaimUi();
+    syncS232ClaimUi();
     return;
   }
   syncPharmaClaimUi();
@@ -535,6 +558,29 @@ async function previewHtsMeta() {
         `<span class="pill pill-metals">232 ${esc(r.metals.metal)} → ${esc(r.metals.duty_ch99)} @ ${esc(String(r.metals.rate_pct))}%</span>`,
       );
     }
+    const uni = r.s232_universe || {};
+    if (uni.passenger_vehicle) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #64624801">232 passenger vehicle → ${esc(uni.passenger_vehicle.ch99)}</span>`,
+      );
+    }
+    if (uni.mhdv_vehicle) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #66665333">232 MHDV → ${esc(uni.mhdv_vehicle.ch99)}</span>`,
+      );
+    }
+    if (uni.mhdv_bus) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #66665333">232 bus → ${esc(uni.mhdv_bus.ch99)}</span>`,
+      );
+    }
+    if (uni.wood) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #66492057">232 wood ${esc(uni.wood.bucket)} → ${esc(uni.wood.ch99)}</span>`,
+      );
+    }
+    syncS232ClaimUi(uni);
+
     const annex = r.s232_auto_parts;
     const box232 = $("#qc-232");
     const hint232 = $("#qc-232-hint");
@@ -686,6 +732,9 @@ function applyQuickToLines() {
   if (cn === "list_3") flags.s301_list_3 = true;
   if (cn === "list_4a") flags.s301_list_4a = true;
   if ($("#qc-232")?.checked) flags.s232_auto_part = true;
+  if ($("#qc-s232-mhdv")?.checked) flags.s232_mhdv_part = true;
+  if ($("#qc-s232-semi")?.checked) flags.s232_semiconductor = true;
+  if ($("#qc-s232-vintage")?.checked) flags.s232_vehicle_vintage = true;
   const ftaWrap = $("#qc-fta-wrap");
   const ftaClaimId = ftaWrap?.dataset?.claimId || "";
   if ($("#qc-fta")?.checked && ftaClaimId) {
@@ -750,42 +799,38 @@ async function runQuickCheck() {
   previewHtsMeta();
 }
 
+const QC_EXAMPLES = Object.fromEntries(
+  (goldens.examples || []).map((ex) => [ex.id, ex]),
+);
+
+async function loadQuickExample(id) {
+  const ex = QC_EXAMPLES[id];
+  if (!ex) return;
+  $("#qc-hts").value = ex.hts;
+  $("#qc-coo").value = ex.coo;
+  $("#qc-value").value = ex.value;
+  $("#qc-date").value = ex.date;
+  if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
+  if ($("#qc-qty")) $("#qc-qty").value = "";
+  $("#qc-232").checked = Boolean(ex.flags?.s232_auto_part);
+  if ($("#qc-fta")) $("#qc-fta").checked = Boolean(ex.flags?.fta_usmca || ex.flags?.fta_note_52);
+  if ($("#qc-s232-pharma")) $("#qc-s232-pharma").checked = Boolean(ex.flags?.s232_pharma_patented);
+  if ($("#qc-pharma")) $("#qc-pharma").checked = Boolean(ex.flags?.s301fl_pharma);
+  if ($("#qc-s232-mhdv")) $("#qc-s232-mhdv").checked = Boolean(ex.flags?.s232_mhdv_part);
+  if ($("#qc-s232-semi")) $("#qc-s232-semi").checked = Boolean(ex.flags?.s232_semiconductor);
+  if ($("#qc-s232-vintage")) $("#qc-s232-vintage").checked = Boolean(ex.flags?.s232_vehicle_vintage);
+  await syncFtaClaimUi();
+  await syncPharmaClaimUi();
+  if (ex.flags?.s301fl_pharma && $("#qc-pharma")) $("#qc-pharma").checked = true;
+  previewHtsMeta();
+  await runQuickCheck();
+}
+
 const qcRun = $("#qc-run");
 if (qcRun) qcRun.onclick = () => runQuickCheck();
-const qcEx = $("#qc-example");
-if (qcEx) qcEx.onclick = () => {
-  $("#qc-hts").value = "6203.42.0711";
-  $("#qc-coo").value = "VN";
-  $("#qc-value").value = "25000";
-  $("#qc-date").value = "2026-07-25";
-  if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
-  if ($("#qc-qty")) $("#qc-qty").value = "";
-  $("#qc-232").checked = false;
-  if ($("#qc-fta")) $("#qc-fta").checked = false;
-  if ($("#qc-pharma")) $("#qc-pharma").checked = false;
-  if ($("#qc-s232-pharma")) $("#qc-s232-pharma").checked = false;
-  syncFtaClaimUi();
-  syncPharmaClaimUi();
-  previewHtsMeta();
-  runQuickCheck();
-};
-const qcCn = $("#qc-example-cn");
-if (qcCn) qcCn.onclick = () => {
-  $("#qc-hts").value = "8708.10.3050";
-  $("#qc-coo").value = "CN";
-  $("#qc-value").value = "10000";
-  $("#qc-date").value = "2026-07-25";
-  if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
-  if ($("#qc-qty")) $("#qc-qty").value = "";
-  $("#qc-232").checked = true;
-  if ($("#qc-fta")) $("#qc-fta").checked = false;
-  if ($("#qc-pharma")) $("#qc-pharma").checked = false;
-  if ($("#qc-s232-pharma")) $("#qc-s232-pharma").checked = false;
-  syncFtaClaimUi();
-  syncPharmaClaimUi();
-  previewHtsMeta();
-  runQuickCheck();
-};
+document.querySelectorAll(".qc-example[data-example]").forEach((btn) => {
+  btn.onclick = () => loadQuickExample(btn.dataset.example);
+});
 
 /** Show FTA / USMCA claim when origin has a Note 52 economy exemption. */
 async function syncFtaClaimUi() {
@@ -810,10 +855,14 @@ async function syncFtaClaimUi() {
     }
     wrap.hidden = false;
     wrap.dataset.claimId = r.claim_id || "";
-    label.innerHTML =
-      `Claim <b>${esc(r.label)}</b> <span class="cap">(Free Col-1 + MPF${
-        r.heading ? `; ${esc(r.heading)} for 301-FL` : ""
-      })</span>`;
+    const spi = Boolean(r.zeros_col1_and_mpf);
+    label.innerHTML = spi
+      ? `Claim <b>${esc(r.label)}</b> <span class="cap">(Free Col-1 + MPF${
+          r.heading ? `; ${esc(r.heading)} for 301-FL` : ""
+        })</span>`
+      : `Claim <b>${esc(r.label)}</b> <span class="cap">(301-FL only${
+          r.heading ? ` — ${esc(r.heading)}` : ""
+        }; Col-1 and MPF still apply)</span>`;
     wrap.title =
       r.hint ||
       `${r.label}: SPI preference zeros Column-1 and MPF. Other programs need their own ${r.label} Chapter 99 exception.`;
@@ -823,32 +872,39 @@ async function syncFtaClaimUi() {
   }
 }
 
-/** Show Pharma use claim when HTS is on the seeded Note 52(e) list. */
+/** Show Pharma use claim when HTS is on the seeded Note 52(e) list or Ch.29/30 (claim-gated). */
 async function syncPharmaClaimUi() {
   const wrap = $("#qc-pharma-wrap");
   const label = $("#qc-pharma-label");
   const box = $("#qc-pharma");
   if (!wrap || !label || !box) return;
   const hts = ($("#qc-hts")?.value || "").trim();
-  if (!hts || hts.replace(/\D/g, "").length < 6) {
+  const digits = hts.replace(/\D/g, "");
+  const ch = digits.length >= 2 ? Number(digits.slice(0, 2)) : 0;
+  const userOn = Boolean(box.checked);
+  if (!hts || digits.length < 6) {
     wrap.hidden = true;
-    box.checked = false;
+    if (!userOn) box.checked = false;
     syncS232PharmaClaimUi();
     return;
   }
   try {
     const r = await api(`/v1/reference/fl-pharma/${encodeURIComponent(hts)}`);
-    if (!r.available) {
+    const chPharma = ch === 29 || ch === 30;
+    if (!r.available && !chPharma && !userOn) {
       wrap.hidden = true;
-      if (!wrap.dataset.keepOfflist) box.checked = false;
+      box.checked = false;
     } else {
       wrap.hidden = false;
-      label.innerHTML =
-        `Pharma use <span class="cap">(${esc(r.heading)} — 301-FL only)</span>`;
-      wrap.title = r.hint || r.basis || "";
+      const heading = r.heading || "9903.05.89";
+      label.innerHTML = r.available
+        ? `Pharma use <span class="cap">(${esc(heading)} — 301-FL only; not the EU cap)</span>`
+        : `Pharma use <span class="cap">(${esc(heading)} — 301-FL only; confirm Note 52(e) list)</span>`;
+      wrap.title = r.hint
+        || "Claim when actual use is pharmaceutical. Reports 9903.05.89 @ 0% instead of 301-FL EU combined-to-cap (9903.05.38/.39). Does not zero Column-1 or MPF. Do not check 232 patented pharma unless filing 9903.04.xx.";
     }
   } catch {
-    wrap.hidden = true;
+    if (!userOn) wrap.hidden = true;
   }
   syncS232PharmaClaimUi();
 }
@@ -878,6 +934,38 @@ function syncS232PharmaClaimUi() {
   }
   wrap.title =
     "Claim when goods are patented pharmaceuticals / ingredients under U.S. note 40. UK additional duty is 0% from 2026-07-31. Suppresses 301-FL via 9903.05.90.";
+}
+
+function syncS232ClaimUi(uni = {}) {
+  const mhdvWrap = $("#qc-s232-mhdv-wrap");
+  const mhdvBox = $("#qc-s232-mhdv");
+  const mhdvLabel = $("#qc-s232-mhdv-label");
+  if (mhdvWrap && mhdvBox) {
+    const show = Boolean(uni.mhdv_part_list);
+    mhdvWrap.hidden = !show;
+    if (!show) mhdvBox.checked = false;
+    if (mhdvLabel && uni.mhdv_part_list) {
+      mhdvLabel.innerHTML = `232 MHDV part <span class="cap">(list stem ${esc(uni.mhdv_part_list.matched_stem)} → 9903.74.08 @ 25%)</span>`;
+    }
+    if (mhdvWrap) {
+      mhdvWrap.title = "Claim when the article is a part of a medium- or heavy-duty vehicle. On-list goods that are not MHDV parts use 9903.74.11 @ 0%.";
+    }
+  }
+  const semiWrap = $("#qc-s232-semi-wrap");
+  const semiBox = $("#qc-s232-semi");
+  if (semiWrap && semiBox) {
+    const show = Boolean(uni.semiconductor);
+    semiWrap.hidden = !show;
+    if (!show) semiBox.checked = false;
+    semiWrap.title = "Claim only if the article is a logic IC (or contains one) meeting U.S. note 39(b) TPP and DRAM bandwidth bands. HTS 8471.50 / 8471.80 / 8473.30 alone is not enough.";
+  }
+  const vinWrap = $("#qc-s232-vintage-wrap");
+  const vinBox = $("#qc-s232-vintage");
+  if (vinWrap && vinBox) {
+    const show = Boolean(uni.passenger_vehicle || uni.mhdv_vehicle || uni.mhdv_bus);
+    vinWrap.hidden = !show;
+    if (!show) vinBox.checked = false;
+  }
 }
 
 /* ================================================================ CALCULATOR */
@@ -1487,6 +1575,41 @@ function ftaCompareHtml(fc) {
   </div>`;
 }
 
+function pharmaCompareHtml(pc) {
+  if (!pc || !pc.claimed) return "";
+  const withC = pc.with_claim || {};
+  const without = pc.without_claim || {};
+  const cap = pc.kind === "threshold_topup" || pc.kind === "threshold_no_add";
+  const capLabel = pc.eu_cap ? "EU cap" : "301-FL";
+  const expl = pc.kind === "threshold_topup"
+    ? `Pharma use skipped this ${esc(capLabel)}. Without it, this line would have been capped at ${pct(pc.cap_pct)}% — that's Column-1 ${pct(pc.col1_pct)}% plus an extra ${pct(pc.additional_pct)}% ($${money(pc.additional_duty)}), not a second ${pct(pc.cap_pct)}%.`
+    : pc.kind === "threshold_no_add"
+      ? `Pharma use skipped <span class="mono">${esc(pc.instead_of)}</span>. Column-1 is already at ${pct(pc.col1_pct)}%, so the ${esc(capLabel)} would not have added extra duty.`
+      : `Pharma use skipped <span class="mono">${esc(pc.instead_of)}</span>. Without it, 301-FL would have added a flat ${pct(pc.additional_pct)}% ($${money(pc.additional_duty)}) on top of Column-1 ${pct(pc.col1_pct)}%.`;
+  return `<div class="fta-compare">
+    <div class="eyebrow">Pharma use vs ${esc(capLabel)}</div>
+    <p class="cap" style="margin:0 0 var(--sp-2)">
+      ${expl}
+      Difference: <b>${pct(pc.additional_pct)}% / $${money(pc.additional_duty)}</b>. Column-1 and MPF still apply.
+    </p>
+    <div class="fta-compare-grid">
+      <div class="fta-col">
+        <div class="k">Without Pharma use</div>
+        <div class="v">${pct(without.effective_duty_rate_pct)}%</div>
+        <div class="cap">$${money(without.line_duty)} duty
+          ${cap
+            ? ` · Col-1 ${pct(pc.col1_pct)}% + extra ${pct(pc.additional_pct)}%`
+            : ` · Col-1 ${pct(pc.col1_pct)}% + ${esc(pc.instead_of)} ${pct(pc.additional_pct)}%`}</div>
+      </div>
+      <div class="fta-col is-active">
+        <div class="k">With Pharma use</div>
+        <div class="v">${pct(withC.effective_duty_rate_pct)}%</div>
+        <div class="cap">$${money(withC.line_duty)} duty · Column-1 ${pct(pc.col1_pct)}% only · MPF still due</div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderLedger(L) {
   const layers = L.layers || [], supp = L.suppressed || [];
   const diag = L.diagnostics || [];
@@ -1561,7 +1684,9 @@ function renderLedger(L) {
       ${L.china_301?.list
         ? `<span class="pill pill-301">301 ${esc(L.china_301.list.replace(/_/g, " "))} → ${esc(L.china_301.ch99)}</span>`
         : ""}
-      ${L.fta_compare?.claimed
+      ${L.pharma_compare?.claimed
+        ? `<span class="pill" style="background:var(--color-green-50);color:var(--color-green-700)">Pharma use claimed</span>`
+        : L.fta_compare?.claimed
         ? `<span class="pill" style="background:var(--color-green-50);color:var(--color-green-700)">${esc(L.fta_compare.label)} claimed</span>`
         : L.fta_compare?.available
           ? `<span class="pill" style="background:var(--color-blue-50);color:var(--color-blue-700)">${esc(L.fta_compare.label)} available</span>`
@@ -1575,7 +1700,8 @@ function renderLedger(L) {
       <span class="cap">${esc(L.rate_date_basis || "")}</span>
       ${L.col1_rate_label ? `<span class="cap"> · Column 1 <b class="mono">${esc(L.col1_rate_label)}</b></span>` : ""}
     </div>
-    ${ftaCompareHtml(L.fta_compare)}
+    ${pharmaCompareHtml(L.pharma_compare)}
+    ${L.pharma_compare ? "" : ftaCompareHtml(L.fta_compare)}
     <table class="ledger"><thead><tr><th style="width:52px">Slot</th>
       <th>Chapter 99 / provision</th><th class="r" style="width:126px">Basis</th>
       <th class="r" style="width:148px">Rate</th><th class="r" style="width:108px">Duty</th>
@@ -2783,13 +2909,17 @@ const Chat = {
 
 function initChat() {
   refreshChatStatus();
+  const canWrite = Boolean(S.me?.can?.write_rules || S.me?.can?.admin);
+  $$("[data-admin-write]").forEach((el) => el.classList.toggle("hide", !canWrite));
   if (Chat.inited) { renderChatThread(); renderChatPending(); return; }
   Chat.inited = true;
   if (!Chat.messages.length) {
     Chat.messages.push({
       role: "assistant",
-      content: "Tell me about a CSMS or tariff change and I’ll draft the pack update. " +
-        "Writes land only after you click Apply — no rebuild.",
+      content: "Ask about an HTS, origin, value, or pack rule — stacks run from the live tables, no API key required. " +
+        (canWrite
+          ? "Loading a new rule is still an admin preview if you want a draft upsert."
+          : "Loading a new rule into the pack is coming later for admins."),
     });
   }
   renderChatThread();
@@ -2814,10 +2944,10 @@ async function refreshChatStatus() {
   if (!el) return;
   try {
     const s = await api("/v1/chat/status");
-    el.className = "chat-status " + (s.configured ? "ok" : "bad");
-    el.textContent = s.configured
-      ? `Claude ready · ${s.model}`
-      : "Set ANTHROPIC_API_KEY in backend/.env";
+    el.className = "chat-status ok";
+    el.textContent = s.anthropic
+      ? `Live pack · ${s.model}`
+      : "Live pack — no API key";
   } catch (e) {
     el.className = "chat-status bad";
     el.textContent = "Chat API unreachable";
@@ -2837,7 +2967,8 @@ function renderChatThread() {
 function renderChatPending() {
   const box = $("#chat-pending");
   if (!box) return;
-  if (!Chat.pending.length) { box.hidden = true; box.innerHTML = ""; return; }
+  const canWrite = Boolean(S.me?.can?.write_rules || S.me?.can?.admin);
+  if (!canWrite || !Chat.pending.length) { box.hidden = true; box.innerHTML = ""; return; }
   box.hidden = false;
   box.innerHTML = Chat.pending.map(p => `<div class="pending-card">
     <div class="spacer"><span class="eyebrow">Pending pack write</span><br>
@@ -2918,6 +3049,82 @@ async function discardPending(id) {
   } catch { /* ignore */ }
   Chat.pending = (Chat.pending || []).filter(p => p.id !== id);
   renderChatPending();
+}
+
+/* ================================================================ CSMS */
+const Csms = { inited: false, last: null };
+
+function initCsms() {
+  if (!Csms.inited) {
+    Csms.inited = true;
+    const q = $("#csms-q");
+    const cams = $("#csms-cams");
+    const refresh = $("#csms-refresh");
+    if (q) q.oninput = debounceCsms;
+    if (cams) cams.onchange = () => loadCsms();
+    if (refresh) refresh.onclick = () => loadCsms({ refresh: true });
+  }
+  loadCsms();
+}
+
+let csmsTimer = 0;
+function debounceCsms() {
+  clearTimeout(csmsTimer);
+  csmsTimer = setTimeout(() => loadCsms(), 280);
+}
+
+function fmtCsmsDate(iso) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      year: "numeric", month: "short", day: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  } catch { return iso; }
+}
+
+async function loadCsms(opts = {}) {
+  const out = $("#csms-out");
+  if (!out) return;
+  const q = ($("#csms-q")?.value || "").trim();
+  const cams = Boolean($("#csms-cams")?.checked);
+  const refresh = Boolean(opts.refresh);
+  out.innerHTML = `<div class="empty"><span class="busy"></span> Loading CSMS…</div>`;
+  try {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (cams) params.set("include_cams", "true");
+    if (refresh) params.set("refresh", "1");
+    params.set("limit", "50");
+    const data = await api("/v1/csms?" + params.toString());
+    Csms.last = data;
+    const sub = $("#csms-subscribe");
+    if (sub && data.subscribe_url) sub.href = data.subscribe_url;
+    banner("#csmsbanner", "", "", "");
+    const rows = data.messages || [];
+    if (!rows.length) {
+      out.innerHTML = `<div class="empty">No CSMS in the recent GovDelivery feed${q ? " matching that search" : ""}.
+        See the <a href="${esc(data.official_url || "https://www.cbp.gov/trade/automated/cargo-systems-messaging-service")}" target="_blank" rel="noopener noreferrer">official CSMS archive</a>.</div>`;
+      return;
+    }
+    out.innerHTML = `<div class="csms-meta cap">Updated ${esc(fmtCsmsDate(data.fetched_at))} · ${rows.length} message${rows.length === 1 ? "" : "s"}
+      · <a href="${esc(data.official_url)}" target="_blank" rel="noopener noreferrer">Official CSMS page</a></div>
+      <table class="data sticky-head csms-table">
+        <thead><tr><th>Number</th><th>Message</th><th>Published</th></tr></thead>
+        <tbody>${rows.map((m) => `<tr>
+          <td class="mono"><span class="csms-kind ${esc(m.kind)}">${esc((m.kind || "csms").toUpperCase())}</span>
+            ${m.number ? esc(m.number) : "—"}</td>
+          <td><a href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${esc(m.title)}</a>
+            ${m.summary ? `<div class="cap csms-sum">${esc(m.summary)}</div>` : ""}</td>
+          <td class="nowrap">${esc(fmtCsmsDate(m.published_at))}</td>
+        </tr>`).join("")}</tbody>
+      </table>`;
+  } catch (e) {
+    banner("#csmsbanner", "err", "Could not load CSMS", e.message);
+    out.innerHTML = `<div class="empty">Open the
+      <a href="https://www.cbp.gov/trade/automated/cargo-systems-messaging-service" target="_blank" rel="noopener noreferrer">official CSMS page</a>
+      on CBP.gov.</div>`;
+  }
 }
 
 /* ================================================================ ES-003 AUDIT */

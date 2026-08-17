@@ -26,6 +26,11 @@
   </div>
   <span class="chip juris" title="Jurisdiction. Other customs territories are not yet modelled.">US</span>
   <div class="spacer"></div>
+  <a class="tool-link" id="csms-link" href="https://www.cbp.gov/trade/automated/cargo-systems-messaging-service"
+     target="_blank" rel="noopener noreferrer"
+     title="CBP Cargo Systems Messaging Service">
+    CSMS <span aria-hidden="true">↗</span>
+  </a>
   <a class="tool-link" id="rps-link" href="http://localhost:3002" target="_blank" rel="noopener noreferrer"
      title="Restricted Party Screening (applications/RPS)">
     RPS <span aria-hidden="true">↗</span>
@@ -51,7 +56,8 @@
     <div class="navgroup eyebrow">Use</div>
     <button data-view="calc" aria-current="page">Duty stack</button>
     <button data-view="lookup">HTS list</button>
-    <button data-view="chat" data-admin-only>Rule chat</button>
+    <button data-view="chat" data-user-surface>Chat</button>
+    <button data-view="csms" data-user-surface>CSMS</button>
     <button data-view="audit">Audit</button>
     <div class="navgroup eyebrow" data-admin-only>Manage</div>
     <button data-view="rules" data-admin-only data-rules-browse>Rules <span class="badge" id="nav-rules">—</span></button>
@@ -171,6 +177,18 @@
               <input type="checkbox" id="qc-s232-pharma" />
               <span id="qc-s232-pharma-label">232 patented pharma</span>
             </label>
+            <label class="check" id="qc-s232-mhdv-wrap" hidden>
+              <input type="checkbox" id="qc-s232-mhdv" />
+              <span id="qc-s232-mhdv-label">232 MHDV part</span>
+            </label>
+            <label class="check" id="qc-s232-semi-wrap" hidden>
+              <input type="checkbox" id="qc-s232-semi" />
+              <span id="qc-s232-semi-label">232 semiconductor (Note 39 params)</span>
+            </label>
+            <label class="check" id="qc-s232-vintage-wrap" hidden>
+              <input type="checkbox" id="qc-s232-vintage" />
+              <span>25-year vehicle (0% 232)</span>
+            </label>
             <details class="adv-override" id="qc-cn-adv">
               <summary class="cap">Advanced: override China 301 list</summary>
               <div class="field" style="margin:var(--sp-2) 0 0;min-width:200px">
@@ -189,8 +207,21 @@
           </div>
           <div class="actions quick-actions">
             <button class="btn-primary btn-lg" id="qc-run" type="button">Run the stack</button>
-            <button class="btn-ghost btn-sm" id="qc-example" type="button">VN apparel</button>
-            <button class="btn-ghost btn-sm" id="qc-example-cn" type="button">CN parts</button>
+          </div>
+          <div class="qc-examples" role="group" aria-label="Example stacks">
+            <span class="qc-examples-label">Try an example</span>
+            <button type="button" class="qc-example" id="qc-example" data-example="vn">
+              <span class="qc-ex-name">VN apparel</span>
+              <span class="qc-ex-meta">6203.42.0711 · Vietnam</span>
+            </button>
+            <button type="button" class="qc-example" id="qc-example-cn" data-example="cn">
+              <span class="qc-ex-name">CN auto parts</span>
+              <span class="qc-ex-meta">8708.10.3050 · China · 232</span>
+            </button>
+            <button type="button" class="qc-example" id="qc-example-de" data-example="de">
+              <span class="qc-ex-name">DE pharma</span>
+              <span class="qc-ex-meta">2933.99.2200 · Germany</span>
+            </button>
           </div>
           <div class="qc-meta" id="qc-htsmeta"></div>
         </div>
@@ -199,13 +230,32 @@
       <div id="calcbanner"></div>
 
       <div class="cols c2 calc-body">
-        <div>
+        <div class="calc-result">
+          <div class="card result-card">
+            <header><h5 id="resulttitle">Stack result</h5><div class="spacer"></div>
+              <span class="chip-inline" id="resultengine" hidden></span>
+              <button class="btn-ghost btn-sm" id="exportcsv" hidden>Export CSV</button>
+              <button class="btn-ghost btn-sm" id="copyall" hidden>Copy</button></header>
+            <div id="results">
+              <div class="empty"><h4>Stack is empty</h4>
+                <p class="cap" style="max-width:40ch;margin:0 auto">Drop in an HTS, origin, value, and rate date—
+                  then <b>Run the stack</b>. Rates, application order, and suppressions show here.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="calc-tools">
           <details class="adv-panel" id="adv-panel">
             <summary>
               <span class="adv-title">Multi-line &amp; scenarios</span>
-              <span class="cap">Batch paste · engine · A/B compare</span>
+              <span class="cap">Optional — full entry, paste, or A/B compare</span>
             </summary>
             <div class="adv-body">
+              <p class="adv-howto cap">
+                <b>One HTS?</b> Stay on <b>Run the stack</b> above.
+                Open this when you need several lines on one entry, a paste from Excel,
+                or to pin two runs and compare (for example with vs without a claim).
+              </p>
               <div class="card">
                 <header><h5>Rule set</h5><div class="spacer"></div>
                   <span class="cap" id="enginehint">select before assess</span></header>
@@ -221,6 +271,9 @@
                 <header><h5>Scenarios</h5><div class="spacer"></div>
                   <button class="btn-ghost btn-sm" id="clearscenarios" type="button">Clear</button></header>
                 <div class="body">
+                  <p class="cap" style="margin:0 0 var(--sp-3)">
+                    After <b>Run the stack</b>, pin the result to A. Change a claim or origin, run again, pin to B, then compare.
+                  </p>
                   <div class="scenario-slots">
                     <div class="scenario-slot" data-slot="A">
                       <div class="scenario-slot-hd"><span class="eyebrow">A</span>
@@ -307,32 +360,18 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
               </div>
             </div>
           </details>
-        </div>
-
-        <div>
-          <div class="card result-card">
-            <header><h5 id="resulttitle">Stack result</h5><div class="spacer"></div>
-              <span class="chip-inline" id="resultengine" hidden></span>
-              <button class="btn-ghost btn-sm" id="exportcsv" hidden>Export CSV</button>
-              <button class="btn-ghost btn-sm" id="copyall" hidden>Copy</button></header>
-            <div id="results">
-              <div class="empty"><h4>Stack is empty</h4>
-                <p class="cap" style="max-width:40ch;margin:0 auto">Drop in an HTS, origin, value, and rate date—
-                  then <b>Run the stack</b>. Rates, application order, and suppressions show here.</p></div>
-            </div>
-          </div>
-        </div>
+        </aside>
       </div>
     </section>
 
-    <!-- ============================ RULE CHAT ============================ -->
+    <!-- ============================ CHAT (HTS / rules Q&A) ============================ -->
     <section class="view hide" id="view-chat">
       <div class="chat-hero">
         <div>
           <p class="eyebrow">Live pack</p>
-          <h2 class="display">Update rules when CSMS lands</h2>
-          <p class="hero-lead">Describe the notice in plain language. Claude proposes the pack
-            change; you confirm — hot-reload, no rebuild.</p>
+          <h2 class="display">Ask about an HTS or a rule</h2>
+          <p class="hero-lead">Answers come from the Column-1 table and Chapter&nbsp;99 pack—
+            rates, stacking, and which headings apply.</p>
         </div>
         <div class="chat-status" id="chat-status">
           <span class="busy"></span> Checking Anthropic…
@@ -343,19 +382,49 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
         <div class="chat-thread" id="chat-thread" aria-live="polite"></div>
         <div class="chat-pending" id="chat-pending" hidden></div>
         <div class="chat-suggest" id="chat-suggest">
-          <button type="button" data-prompt="A new CSMS updated Section 301 Forced Labor: country XX is now flat 12.5% under heading 9903.05.NN. Draft the pack upsert and wait for my confirmation.">New 301-FL flat rate</button>
+          <button type="button" data-prompt="tariff stack for 3907.69.0050, COO MX, USMCA, entered value 47000">MX USMCA plastics</button>
+          <button type="button" data-prompt="Look up HTS 8708.40.7580 Column-1 and show which Chapter 99 rules apply for COO BR on 2026-07-27.">HTS + Brazil</button>
+          <button type="button" data-prompt="Which rules apply to 6109.10.0012 from VN on 2026-08-01?">VN apparel</button>
           <button type="button" data-prompt="Explain how 301-FL and Section 232 interact for Japan auto parts after 2026-07-24.">JP 232 vs 301-FL</button>
-          <button type="button" data-prompt="Look up HTS 8708.40.7580 Column-1 and show which Chapter 99 rules apply for COO BR on 2026-07-27.">Sample HTS + BR</button>
-          <button type="button" data-prompt="List the live 301-FL economies and call out anything unusual.">List 301-FL pack</button>
+          <button type="button" data-prompt="What is the live 301-FL rate and heading for Vietnam?">301-FL VN</button>
+          <button type="button" data-admin-write data-prompt="A new CSMS updated Section 301 Forced Labor: country XX is now flat 12.5% under heading 9903.05.NN. Draft the pack upsert and wait for my confirmation.">Load a rule (admin)</button>
         </div>
         <form class="chat-composer" id="chat-form">
           <textarea id="chat-input" rows="2"
-            title="Describe the rule change to propose (CSMS, country, rate, heading)"
+            placeholder="Ask about an HTS, origin, date, or pack rule…"
+            title="Ask about an HTS or a live-pack rule"
             required></textarea>
           <button class="btn-primary" type="submit" id="chat-send">Send</button>
         </form>
-        <p class="cap chat-footnote">Requires <code class="mono">ANTHROPIC_API_KEY</code> on the backend.
-          Writes need author key (<code class="mono">dev-internal</code>). Claude Desktop MCP still works in parallel.</p>
+        <p class="cap chat-footnote">Stacks and HTS lookups use the live tables — no Anthropic key.
+          Loading a new rule is an upcoming admin feature (API key).</p>
+      </div>
+    </section>
+
+    <!-- ============================ CSMS ============================ -->
+    <section class="view hide" id="view-csms">
+      <div class="viewhead">
+        <h2>CSMS</h2>
+        <p class="cap">Recent Cargo Systems Messaging Service bulletins from CBP GovDelivery.
+          Official archive:
+          <a href="https://www.cbp.gov/trade/automated/cargo-systems-messaging-service" target="_blank" rel="noopener noreferrer">cbp.gov CSMS</a>.</p>
+      </div>
+      <div id="csmsbanner"></div>
+      <div class="card">
+        <header>
+          <h5>Recent messages</h5>
+          <div class="spacer"></div>
+          <label class="flex gap cap" style="align-items:center">
+            <input type="checkbox" id="csms-cams" /> Include CAMS
+          </label>
+          <input type="search" id="csms-q" class="input-sm" placeholder="Search title or number" />
+          <button type="button" class="btn-ghost btn-sm" id="csms-refresh">Refresh</button>
+          <a class="btn-ghost btn-sm" id="csms-subscribe" href="https://public.govdelivery.com/accounts/USDHSCBP/subscriber/new?topic_id=USDHSCBP_3"
+             target="_blank" rel="noopener noreferrer">Subscribe</a>
+        </header>
+        <div class="body flush" id="csms-out">
+          <div class="empty"><span class="busy"></span> Loading CSMS…</div>
+        </div>
       </div>
     </section>
 
@@ -721,7 +790,7 @@ placeholder="hts,coo
 </div>
 
 <script type="module" src="/app.js"></script>
-<button type="button" class="chat-fab" id="chat-fab" title="Rule chat">
+<button type="button" class="chat-fab" id="chat-fab" title="Ask about an HTS or a rule">
   <span class="fab-pulse" aria-hidden="true"></span>
   Chat
 </button>

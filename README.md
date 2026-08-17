@@ -131,3 +131,20 @@ cd backend && npm test
 4. Engine framework reuses the same Auth0 apps / admin claim.
 
 Also see [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+## Regression QA
+
+Duty math, copy, and Quick Check chips are locked in `tariff-rules/data/qa_goldens.json`. CI runs this on every push/PR (`.github/workflows/qa.yml`).
+
+```bash
+cd backend && npm test          # all unit + golden + UI contract tests
+cd backend && npm run qa:dump -- qc-de-pharma   # print current numbers after a stack change
+```
+
+When you change a stack, a claim, or the wording on a result:
+
+1. Re-run the scenario in Quick Check and confirm it looks right.
+2. If numbers or copy changed on purpose, update the matching `expect` in `qa_goldens.json` (or dump it).
+3. If you add a Try-an-example chip, add it to `examples` **and** `frontend/index.html` — the UI contract test requires both.
+4. `npm test` must pass before merge.
+

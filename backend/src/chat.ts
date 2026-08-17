@@ -1,20 +1,36 @@
 /**
- * Conversational rule authoring via Anthropic Messages API + tools.
- * Reads/assess freely; pack writes require apply=true (or /v1/chat/apply).
+ * Conversational HTS / rules Q&A via Anthropic Messages API + tools.
+ * Answers from core tables (Column-1, Ch.99, 301-FL, stacking).
+ * Pack writes (load a new rule) stay admin-only with write_rules / API key —
+ * treated as a preview, not the default chat job.
  */
 import { Router } from "express";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  getCh99,
+  INTERACTION_RULES,
+  listCh99,
+  PROGRAMS,
+} from "../../tariff-rules/src/tariffRules.ts";
+import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
+import { previewS232Universe } from "../../tariff-rules/src/s232Resolve.ts";
 import {
   listS301flCountries,
+  lookupS301fl,
   reloadS301fl,
   s301flDataPath,
   s301flMeta,
   type FlCountry,
 } from "../../tariff-rules/src/s301fl.ts";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { assessEntry } from "./assess.ts";
 import { requireScope } from "./auth.ts";
-import { coverRows, parseCoverageInput } from "./coverage.ts";
-import { htsTableMeta, resolveCol1 } from "./htsLookup.ts";
+import { listCsms } from "./csms.ts";
+import { answerFromTables, TABLES_HELP } from "./chatLocal.ts";
+import { coverOne, coverRows, parseCoverageInput } from "./coverage.ts";
+import { htsTableMeta, lookupHts } from "./htsLookup.ts";
+import { filingEra, filingEraLabel } from "./programEras.ts";
+import { STACKING_CONTRACT } from "./rulesContract.ts";
+import { materializeRules } from "./rules.ts";
 import { refreshRulepackState, rulepackPublic } from "./state.ts";
 
 export const chatRouter = Router();
@@ -37,8 +53,10 @@ function anthropicKey(): string | null {
   return process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || null;
 }
 
-function tools() {
-  return [
+const WRITE_TOOL_NAMES = new Set(["propose_s301fl_upsert", "reload_pack"]);
+
+function tools(canWrite: boolean) {
+  const read = [
     {
       name: "health",
       description: "Pack version, hash, engines, HTS table meta",
@@ -46,7 +64,8 @@ function tools() {
     },
     {
       name: "lookup_hts",
-      description: "Baseline Column-1 rate for an HTS on a date",
+      description:
+        "Column-1 table lookup for an HTS on a date (window, replacement, 232 auto-parts annex)",
       input_schema: {
         type: "object",
         properties: {
@@ -57,8 +76,22 @@ function tools() {
       },
     },
     {
+      name: "explain_hts",
+      description:
+        "Which live-pack rules apply to one HTS + origin + date (Column-1 + Chapter 99). Prefer this for 'what applies to …' questions.",
+      input_schema: {
+        type: "object",
+        properties: {
+          hts: { type: "string" },
+          coo: { type: "string", description: "ISO2 country of origin" },
+          as_of: { type: "string", description: "YYYY-MM-DD rate date" },
+        },
+        required: ["hts"],
+      },
+    },
+    {
       name: "assess_entry",
-      description: "Duty stack for lines (engine auto or ch99)",
+      description: "Duty stack for lines with entered value (engine auto or ch99)",
       input_schema: {
         type: "object",
         properties: {
@@ -81,14 +114,72 @@ function tools() {
       },
     },
     {
-      name: "list_s301fl",
-      description: "List live 301-FL economies in the pack",
-      input_schema: { type: "object", properties: {} },
+      name: "search_rules",
+      description:
+        "Search materialized pack rules (program, Ch.99 heading, COO, free text)",
+      input_schema: {
+        type: "object",
+        properties: {
+          q: { type: "string" },
+          program: { type: "string" },
+          ch99: { type: "string" },
+          coo: { type: "string" },
+          limit: { type: "number" },
+        },
+      },
     },
+    {
+      name: "lookup_ch99",
+      description: "Look up a Chapter 99 code or list codes for a program",
+      input_schema: {
+        type: "object",
+        properties: {
+          code: { type: "string" },
+          program: { type: "string" },
+          q: { type: "string" },
+        },
+      },
+    },
+    {
+      name: "lookup_program",
+      description:
+        "Program status, filing era for a date, and confirmed stacking rules from the core tables",
+      input_schema: {
+        type: "object",
+        properties: {
+          as_of: { type: "string" },
+          q: { type: "string", description: "Filter program id or stacking rule text" },
+        },
+      },
+    },
+    {
+      name: "lookup_s301fl",
+      description: "301-FL pack: one economy by ISO2, or list live economies",
+      input_schema: {
+        type: "object",
+        properties: { iso2: { type: "string" } },
+      },
+    },
+    {
+      name: "search_csms",
+      description: "Recent CBP CSMS bulletins pulled from GovDelivery (not the full archive)",
+      input_schema: {
+        type: "object",
+        properties: {
+          q: { type: "string" },
+          include_cams: { type: "boolean" },
+          limit: { type: "number" },
+        },
+      },
+    },
+  ];
+  if (!canWrite) return read;
+  return [
+    ...read,
     {
       name: "propose_s301fl_upsert",
       description:
-        "Draft a 301-FL country upsert (flat or threshold) for review. Does NOT write until apply_pending is used or apply=true.",
+        "ADMIN PREVIEW only — draft a 301-FL country upsert. Does NOT write until Apply. Do not use unless the user explicitly asks to load/update a pack rule.",
       input_schema: {
         type: "object",
         properties: {
@@ -111,7 +202,7 @@ function tools() {
     },
     {
       name: "reload_pack",
-      description: "Hot-reload 301-FL + HTS caches after file edits",
+      description: "Admin — hot-reload 301-FL + HTS caches after file edits",
       input_schema: { type: "object", properties: {} },
     },
   ];
@@ -168,6 +259,9 @@ async function runTool(
   sessionId: string,
   canWrite: boolean,
 ) {
+  if (WRITE_TOOL_NAMES.has(name) && !canWrite) {
+    return { error: "write_rules scope required — pack writes are an admin preview" };
+  }
   switch (name) {
     case "health":
       return {
@@ -177,9 +271,27 @@ async function runTool(
       };
     case "lookup_hts": {
       const asOf = String(input.as_of || new Date().toISOString().slice(0, 10));
-      const hit = resolveCol1(String(input.hts), asOf);
-      if (!hit) return { error: `No Column-1 for ${input.hts} on ${asOf}` };
-      return { ...hit, as_of: asOf };
+      const hts = String(input.hts || "");
+      const look = lookupHts(hts, asOf);
+      const annex = match232AutoPartsAnnex(hts);
+      return {
+        ...look,
+        table: htsTableMeta(),
+        s232_auto_parts: annex
+          ? { in_annex: true, matched_stem: annex.matched_stem, ch99: annex.ch99_duty }
+          : { in_annex: false },
+        s232_universe: previewS232Universe(hts),
+      };
+    }
+    case "explain_hts": {
+      const asOf = String(input.as_of || new Date().toISOString().slice(0, 10));
+      const hts = String(input.hts || "");
+      const coo = String(input.coo || "").trim().toUpperCase() || null;
+      const row = coverOne(
+        { hts, coo: coo || undefined, as_of: asOf },
+        { as_of: asOf, default_coo: coo },
+      );
+      return { row, rulepack: rulepackPublic(), table: htsTableMeta() };
     }
     case "assess_entry": {
       const engine = String(input.engine || "auto");
@@ -202,8 +314,98 @@ async function runTool(
         rows,
       });
     }
-    case "list_s301fl":
+    case "lookup_s301fl": {
+      const iso2 = String(input.iso2 || "").trim().toUpperCase();
+      if (iso2) {
+        const row = lookupS301fl(iso2);
+        return { meta: s301flMeta(), iso2, hit: row };
+      }
       return { meta: s301flMeta(), countries: listS301flCountries() };
+    }
+    case "search_rules": {
+      let rules = materializeRules();
+      const program = String(input.program || "").trim();
+      const ch99 = String(input.ch99 || "").replace(/\D/g, "");
+      const coo = String(input.coo || "").trim().toUpperCase();
+      const q = String(input.q || "").trim().toLowerCase();
+      if (program) rules = rules.filter((r) => r.program === program || r.program_raw === program);
+      if (ch99) rules = rules.filter((r) => (r.ch99 || "").replace(/\D/g, "").includes(ch99));
+      if (coo) {
+        rules = rules.filter((r) => {
+          const w = r.when as { coo_in?: string[] };
+          return Array.isArray(w.coo_in) && w.coo_in.includes(coo);
+        });
+      }
+      if (q) rules = rules.filter((r) => JSON.stringify(r).toLowerCase().includes(q));
+      const limit = Math.min(Number(input.limit) || 25, 80);
+      return {
+        count: rules.length,
+        rules: rules.slice(0, limit).map((r) => ({
+          id: r.id,
+          program: r.program,
+          action: r.action,
+          ch99: r.ch99,
+          label: r.label,
+          rate: r.rate,
+          notes: r.notes,
+          source_ref: r.source_ref,
+          status: r.status,
+        })),
+      };
+    }
+    case "lookup_ch99": {
+      const code = String(input.code || "").trim();
+      if (code) {
+        const hit = getCh99(code);
+        return hit ? { hit } : { error: `Unknown Ch.99 ${code}` };
+      }
+      const program = String(input.program || "").trim().toLowerCase();
+      const q = String(input.q || "").trim().toLowerCase();
+      let codes = listCh99();
+      if (program) codes = codes.filter((c) => c.program.toLowerCase().includes(program));
+      if (q) {
+        codes = codes.filter(
+          (c) =>
+            c.code.toLowerCase().includes(q) ||
+            c.notes.toLowerCase().includes(q) ||
+            c.program.toLowerCase().includes(q),
+        );
+      }
+      return { count: codes.length, codes: codes.slice(0, 40) };
+    }
+    case "lookup_program": {
+      const asOf = String(input.as_of || new Date().toISOString().slice(0, 10));
+      const q = String(input.q || "").trim().toLowerCase();
+      const programs = q
+        ? (PROGRAMS as Array<Record<string, unknown>>).filter((p) =>
+            JSON.stringify(p).toLowerCase().includes(q),
+          )
+        : PROGRAMS;
+      const stacking = q
+        ? (INTERACTION_RULES as Array<Record<string, unknown>>).filter((r) =>
+            JSON.stringify(r).toLowerCase().includes(q),
+          )
+        : INTERACTION_RULES;
+      return {
+        as_of: asOf,
+        era: filingEra(asOf),
+        era_label: filingEraLabel(filingEra(asOf)),
+        programs,
+        stacking,
+        contract: STACKING_CONTRACT,
+      };
+    }
+    case "search_csms": {
+      try {
+        return await listCsms({
+          q: String(input.q || ""),
+          include_cams: Boolean(input.include_cams),
+          limit: Number(input.limit) || 12,
+        });
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : String(e) };
+      }
+    }
     case "propose_s301fl_upsert": {
       if (!canWrite) return { error: "write_rules scope required" };
       const apply = Boolean(input.apply);
@@ -246,26 +448,37 @@ async function runTool(
   }
 }
 
-const SYSTEM = `You are KlearNow Tariff — an expert US Chapter 99 / CSMS rule assistant embedded in the Tariff product.
+const SYSTEM = `You are KlearNow Tariff — a US Chapter 99 / HTS assistant embedded in the product.
 
-Goals:
-- Help brokers and authors understand which duties/rules apply.
-- When a new CSMS, Federal Register notice, or tariff change takes effect, draft precise pack updates.
-- Prefer tools over guessing. For 301-FL country changes use propose_s301fl_upsert.
-- NEVER set apply=true on propose_s301fl_upsert until the user clearly confirms (e.g. "apply", "confirm", "ship it").
+Primary job:
+- Answer questions about an HTS or a live-pack rule using tools (core tables), not memory.
+- Prefer explain_hts for "what applies to this code / origin / date".
+- Use lookup_hts for Column-1 / replacements; search_rules / lookup_ch99 / lookup_s301fl / lookup_program for pack tables.
+- Cite heading, program, rate, and source (CSMS # / note) from tool output.
 - Explain stacking (301, 301-FL, 232), suppressions, and claim flags briefly.
-- If ANTHROPIC is configuring rates, cite the CSMS / heading / mechanic (flat vs threshold).
-- Keep answers concise. Use short bullets for proposed changes.
-- Jurisdiction is US only.`;
+- If a code is unknown or ended, say so and surface replacements / related statistical lines from the tool — never invent Column-1.
+
+CSMS:
+- search_csms is recent GovDelivery items only. Point users to the official CSMS page for the full archive.
+- Do not treat a CSMS title as a pack change unless it is already in the tables.
+
+Pack writes (future / admin):
+- Loading a new rule into the pack is an admin preview (write_rules / API key). Do not offer it unless the user is an admin and explicitly asks to draft or load a pack update.
+- NEVER set apply=true on propose_s301fl_upsert until the user clearly confirms.
+
+Keep answers concise. Short bullets. Jurisdiction is US only.`;
 
 chatRouter.get("/chat/status", requireScope("calculate"), (_req, res) => {
+  const key = Boolean(anthropicKey());
   res.json({
-    provider: "anthropic",
-    configured: Boolean(anthropicKey()),
-    model: MODEL,
-    hint: anthropicKey()
-      ? "Rule chat ready"
-      : "Set ANTHROPIC_API_KEY in backend/.env and restart",
+    provider: key ? "anthropic+tables" : "tables",
+    configured: true,
+    tables: true,
+    anthropic: key,
+    model: key ? MODEL : "live-pack",
+    hint: key
+      ? "Live pack + Claude"
+      : "Live pack tables — stacks and HTS lookups need no API key",
   });
 });
 
@@ -310,15 +523,6 @@ chatRouter.post("/chat/discard", requireScope("write_rules"), (req, res) => {
 });
 
 chatRouter.post("/chat", requireScope("calculate"), async (req, res) => {
-  const key = anthropicKey();
-  if (!key) {
-    res.status(503).json({
-      detail:
-        "ANTHROPIC_API_KEY is not set. Add it to backend/.env and restart the API to enable rule chat.",
-    });
-    return;
-  }
-
   const sessionId = String(req.body?.session_id || "default");
   const incoming = Array.isArray(req.body?.messages) ? (req.body.messages as ChatMsg[]) : [];
   if (!incoming.length) {
@@ -326,7 +530,47 @@ chatRouter.post("/chat", requireScope("calculate"), async (req, res) => {
     return;
   }
 
+  const lastUser = [...incoming].reverse().find((m) => m.role === "user");
   const canWrite = Boolean(req.principal?.can.write_rules);
+  let pending: PendingAction[] = pendingBySession.get(sessionId) || [];
+
+  if (lastUser?.content) {
+    try {
+      const local = await answerFromTables(String(lastUser.content));
+      if (local) {
+        res.json({
+          ok: true,
+          reply: local.reply,
+          model: "live-pack",
+          provider: "tables",
+          session_id: sessionId,
+          tool_trace: local.tool_trace,
+          pending,
+          can_write: canWrite,
+        });
+        return;
+      }
+    } catch (e) {
+      res.status(500).json({ detail: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+  }
+
+  const key = anthropicKey();
+  if (!key) {
+    res.json({
+      ok: true,
+      reply: TABLES_HELP,
+      model: "live-pack",
+      provider: "tables",
+      session_id: sessionId,
+      tool_trace: [],
+      pending,
+      can_write: canWrite,
+    });
+    return;
+  }
+
   const apiMessages: Array<{ role: "user" | "assistant"; content: unknown }> = incoming.map(
     (m) => ({
       role: m.role === "assistant" ? "assistant" : "user",
@@ -335,7 +579,6 @@ chatRouter.post("/chat", requireScope("calculate"), async (req, res) => {
   );
 
   const toolTrace: Array<{ name: string; input: unknown; output: unknown }> = [];
-  let pending: PendingAction[] = pendingBySession.get(sessionId) || [];
 
   try {
     for (let round = 0; round < 8; round++) {
@@ -349,8 +592,12 @@ chatRouter.post("/chat", requireScope("calculate"), async (req, res) => {
         body: JSON.stringify({
           model: MODEL,
           max_tokens: 4096,
-          system: SYSTEM + (canWrite ? "" : "\nUser cannot write rules — propose only, do not apply."),
-          tools: tools(),
+          system:
+            SYSTEM +
+            (canWrite
+              ? "\nThis user is admin (write_rules). Pack upserts are a preview — only draft when they explicitly ask to load/update a rule."
+              : "\nThis user cannot write rules. Answer from tables only. Do not propose pack writes."),
+          tools: tools(canWrite),
           messages: apiMessages,
         }),
       });

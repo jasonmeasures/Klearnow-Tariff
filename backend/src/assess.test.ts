@@ -697,6 +697,66 @@ describe("program era routing", () => {
     assert.ok(both.diagnostics.some((d) => d.code === "FL_PHARMA_SUPERSEDED"));
   });
 
+  it("DE 2933.99.2200 pharma use → 9903.05.89 instead of EU 301-FL cap; Col-1 stays", () => {
+    const base = {
+      hts: "2933992200",
+      coo: "DE",
+      entered_value: 10000,
+      entry_date: "2026-08-07",
+    };
+    const cap = assessLine({ ...base, flags: {} }, 0);
+    assert.ok(
+      cap.ch99_sequence.includes("9903.05.38") || cap.ch99_sequence.includes("9903.05.39"),
+      `expected EU FL cap, got ${cap.ch99_sequence.join(",")}`,
+    );
+    assert.ok(!cap.ch99_sequence.includes("9903.05.89"));
+
+    const pharma = assessLine({ ...base, flags: { s301fl_pharma: true } }, 0);
+    assert.ok(pharma.ch99_sequence.includes("9903.05.89"));
+    assert.ok(!pharma.ch99_sequence.includes("9903.05.38"));
+    assert.ok(!pharma.ch99_sequence.includes("9903.05.39"));
+    assert.ok(!pharma.ch99_sequence.includes("9903.04.62"));
+    assert.ok(pharma.diagnostics.some((d) => d.code === "FL_PHARMA_APPLIED"));
+    assert.equal(pharma.totals.effective_duty_rate_pct, 6.5);
+    assert.equal(pharma.mpf_exempt, false);
+    assert.ok(!pharma.fta_compare, "Note 52 compare should not replace the pharma vs EU-cap story");
+    const pc = pharma.pharma_compare;
+    assert.ok(pc?.claimed);
+    assert.equal(pc.heading, "9903.05.89");
+    assert.equal(pc.instead_of, "9903.05.39");
+    assert.equal(pc.kind, "threshold_topup");
+    assert.equal(pc.eu_cap, true);
+    assert.equal(pc.cap_pct, 10);
+    assert.equal(pc.col1_pct, 6.5);
+    assert.equal(pc.additional_pct, 3.5);
+    assert.equal(pc.additional_duty, 350);
+    assert.equal(pc.with_claim.effective_duty_rate_pct, 6.5);
+    assert.equal(pc.without_claim.effective_duty_rate_pct, 10);
+    assert.equal(pc.without_claim.line_duty, 1000);
+    const msg = pharma.diagnostics.find((d) => d.code === "FL_PHARMA_APPLIED")?.message || "";
+    assert.match(msg, /skipped this EU cap/);
+    assert.match(msg, /capped at 10%/);
+    assert.match(msg, /Column-1 6\.5%/);
+    assert.match(msg, /extra 3\.5%/);
+    assert.match(msg, /\$350\.00/);
+    assert.match(msg, /not a second 10%/);
+    const suppressedEu = pharma.suppressed.find((s) => s.ch99 === "9903.05.39");
+    assert.ok(suppressedEu);
+    assert.match(suppressedEu.reason, /skipped this EU cap/);
+    assert.match(suppressedEu.reason, /capped at 10%/);
+    assert.match(suppressedEu.reason, /Column-1 6\.5%/);
+    assert.match(suppressedEu.reason, /extra 3\.5%/);
+    assert.match(suppressedEu.reason, /\$350\.00/);
+    assert.match(suppressedEu.reason, /not a second 10%/);
+
+    const both232 = assessLine(
+      { ...base, flags: { s301fl_pharma: true, s232_pharma_patented: true } },
+      0,
+    );
+    assert.ok(both232.ch99_sequence.includes("9903.05.89"));
+    assert.ok(!both232.ch99_sequence.includes("9903.04.62"));
+  });
+
   it("GB patented pharma Ch.29 → 9903.04.63 @ 0% + FL suppress; 3907 off-scope for 232 pharma", () => {
     const gb = assessLine(
       {

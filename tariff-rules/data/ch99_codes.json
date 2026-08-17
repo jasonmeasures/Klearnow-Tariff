@@ -1,7 +1,7 @@
 {
   "$schema_note": "Chapter 99 code registry — KlearNow Tariff stacking. Source: confirmed corrections (session 2026-07-30) + full-stack build (session 2026-07-27). status: CONFIRMED = safe to compute; TBC = do NOT compute, surface for review. 301-FL headings expanded from s301fl_pack.json (CSMS #69326983). Brazil Section 301 9903.05.01–.09 from CSMS #69302472 (2026-08-06).",
-  "version": "1.2.0",
-  "as_of": "2026-08-06",
+  "version": "1.3.0",
+  "as_of": "2026-08-14",
   "codes": [
     {
       "code": "9903.03.06",
@@ -121,13 +121,238 @@
       "notes": "Proclamation 11020 — Ch.29/30 goods that are not pharmaceutical articles 0%."
     },
     {
-      "code": "9903.74.11",
-      "program": "SEC_232_AUTOS",
+      "code": "9903.74.01",
+      "program": "SEC_232_MHDV",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 MHDV — 25% additional (Proclamation 10984 / CSMS #66665333). U.S. note 38 vehicle list. Mutually exclusive with 301-FL → 9903.05.90."
+    },
+    {
+      "code": "9903.74.02",
+      "program": "SEC_232_MHDV",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 buses and other vehicles — 10% additional (CSMS #66665333)."
+    },
+    {
+      "code": "9903.74.03",
+      "program": "SEC_232_MHDV",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 MHDV USMCA non-U.S. content — 25% on non-U.S. content after Commerce approval. Do not auto-report until CBP issues further guidance."
+    },
+    {
+      "code": "9903.74.05",
+      "program": "SEC_232_MHDV",
       "kind": "EXCLUSION",
       "rate": 0.0,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "Medium/heavy vehicle parts exclusion — 0%."
+      "notes": "On MHDV vehicle HTS list but not an MHDV — 0% additional (CSMS #66665333)."
+    },
+    {
+      "code": "9903.74.06",
+      "program": "SEC_232_MHDV",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "U.S. content of MHDV after Commerce approval for 9903.74.03 — 0%. Do not auto-report until further guidance."
+    },
+    {
+      "code": "9903.74.07",
+      "program": "SEC_232_MHDV",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "MHDV / bus manufactured ≥25 years before entry — 0% additional (CSMS #66665333)."
+    },
+    {
+      "code": "9903.74.08",
+      "program": "SEC_232_MHDV",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 MHDV parts — 25% additional when the article is a part of an MHDV (Note 38(i) list). Claim-gated vs 9903.74.11."
+    },
+    {
+      "code": "9903.74.09",
+      "program": "SEC_232_MHDV",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "MHDV parts certified for U.S. MHDV production or repair — 25% additional (CSMS #66665333). Claim-gated."
+    },
+    {
+      "code": "9903.74.10",
+      "program": "SEC_232_MHDV",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "USMCA-qualifying MHDV parts (not knock-down kits) — 0% additional (CSMS #66665333)."
+    },
+    {
+      "code": "9903.74.11",
+      "program": "SEC_232_MHDV",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "On MHDV parts HTS list but not a part of an MHDV — 0% additional (CSMS #66665333)."
+    },
+    {
+      "code": "9903.76.01",
+      "program": "SEC_232_WOOD",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 softwood timber and lumber — 10% additional all countries (Proclamation 10976 / CSMS #66492057). Mutually exclusive with 301-FL → 9903.05.90. Autos 232 wins if both apply."
+    },
+    {
+      "code": "9903.76.02",
+      "program": "SEC_232_WOOD",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 upholstered wooden furniture — 25% additional except UK/JP/EU (CSMS #66492057)."
+    },
+    {
+      "code": "9903.76.03",
+      "program": "SEC_232_WOOD",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 completed kitchen cabinets/vanities and parts — 25% additional except UK/JP/EU (CSMS #66492057)."
+    },
+    {
+      "code": "9903.76.04",
+      "program": "SEC_232_WOOD",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "On cabinet HTS list but not completed kitchen cabinets/vanities or parts — 0% additional (CSMS #66492057)."
+    },
+    {
+      "code": "9903.76.20",
+      "program": "SEC_232_WOOD",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 wood furniture/cabinets of the United Kingdom — 10% additional (CSMS #66492057)."
+    },
+    {
+      "code": "9903.76.21",
+      "program": "SEC_232_WOOD",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 wood furniture/cabinets of Japan — 15% additional (CSMS #66492057)."
+    },
+    {
+      "code": "9903.76.22",
+      "program": "SEC_232_WOOD",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 wood furniture/cabinets of EU member countries — 15% additional (CSMS #66492057)."
+    },
+    {
+      "code": "9903.79.01",
+      "program": "SEC_232_SEMI",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 semiconductors meeting U.S. note 39(b) TPP/DRAM parameters — 25% additional (CSMS #67400472). Claim-gated. Suppresses autos/MHDV/metals additional duties when properly filed."
+    },
+    {
+      "code": "9903.79.02",
+      "program": "SEC_232_SEMI",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "On semiconductor 232 HTS list but does not meet Note 39(b) technical parameters — 0% (CSMS #67400472)."
+    },
+    {
+      "code": "9903.79.03",
+      "program": "SEC_232_SEMI",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Semiconductor articles for U.S. data centers (>100 MW AI load) — 0% (CSMS #67400472)."
+    },
+    {
+      "code": "9903.79.04",
+      "program": "SEC_232_SEMI",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Semiconductor articles for repair or replacement in the United States — 0% (CSMS #67400472)."
+    },
+    {
+      "code": "9903.79.05",
+      "program": "SEC_232_SEMI",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Semiconductor articles for U.S. research and development — 0% (CSMS #67400472)."
+    },
+    {
+      "code": "9903.79.06",
+      "program": "SEC_232_SEMI",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Semiconductor articles for U.S. startups (emerging growth companies) — 0% (CSMS #67400472)."
+    },
+    {
+      "code": "9903.79.07",
+      "program": "SEC_232_SEMI",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Semiconductor articles for non-data-center consumer electronics in the U.S. — 0% (CSMS #67400472)."
+    },
+    {
+      "code": "9903.79.08",
+      "program": "SEC_232_SEMI",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Semiconductor articles for non-data-center civil industrial use in the U.S. — 0% (CSMS #67400472)."
+    },
+    {
+      "code": "9903.79.09",
+      "program": "SEC_232_SEMI",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Semiconductor articles for U.S. public-sector applications — 0% (CSMS #67400472)."
     },
     {
       "code": "9903.82.01",
@@ -209,6 +434,42 @@
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
       "notes": "Legacy China 301 List 4A — 7.5% (U.S. note 20(r)/(s)). Stacks with 232 (both report; 301 first)."
+    },
+    {
+      "code": "9903.94.01",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 passenger vehicles and light trucks — 25% additional (Proclamation 10908 / CSMS #64624801). Distinct from auto-parts 9903.94.05. Mutually exclusive with 301-FL → 9903.05.90."
+    },
+    {
+      "code": "9903.94.02",
+      "program": "SEC_232_AUTOS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "On passenger-vehicle HTS list but not a passenger vehicle/light truck, or U.S. content after Commerce approval — 0% (CSMS #64624801)."
+    },
+    {
+      "code": "9903.94.03",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "USMCA passenger vehicle non-U.S. content — 25% after Commerce approval. Do not auto-report until further CBP guidance (CSMS #64624801)."
+    },
+    {
+      "code": "9903.94.04",
+      "program": "SEC_232_AUTOS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Passenger vehicle / light truck manufactured ≥25 years before entry — 0% additional (CSMS #64624801)."
     },
     {
       "code": "9903.94.05",
