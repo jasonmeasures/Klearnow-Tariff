@@ -188,6 +188,7 @@ referenceRouter.get("/reference/claim-flags", (_req, res) => {
         headings: ["9903.92.80"],
         rule_count: 1,
       },
+      {
         flag: "s232_uk_auto_trq",
         label: "UK passenger vehicle TRQ (9903.94.31)",
         kind: "claim",
