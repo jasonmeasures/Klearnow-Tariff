@@ -143,10 +143,97 @@
     },
     {
       "id": "s232-pv-jp",
-      "title": "232 passenger vehicle JP → 9903.94.01 not parts top-up",
+      "title": "232 passenger vehicle JP → 9903.94.41 combined 15% (not .01, not parts .43)",
       "line": {
         "hts": "8703230140",
         "coo": "JP",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 15,
+        "duty": 1500,
+        "col1_rate_pct": 2.5,
+        "ch99_includes": ["9903.94.41", "9903.05.90"],
+        "ch99_excludes": ["9903.94.01", "9903.94.43", "9903.94.05"]
+      }
+    },
+    {
+      "id": "s232-pv-jp-8703230120",
+      "title": "232 passenger vehicle JP 8703.23.0120 → 9903.94.41 combined 15%",
+      "line": {
+        "hts": "8703230120",
+        "coo": "JP",
+        "entered_value": 10000,
+        "entry_date": "2026-08-18",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 15,
+        "duty": 1500,
+        "col1_rate_pct": 2.5,
+        "ch99_includes": ["9903.94.41", "9903.05.90"],
+        "ch99_excludes": ["9903.94.01", "9903.94.43"]
+      }
+    },
+    {
+      "id": "s232-pv-jp-before-split",
+      "title": "232 JP vehicle before 2025-09-16 still 9903.94.01 (not origin split .41)",
+      "line": {
+        "hts": "8703230120",
+        "coo": "JP",
+        "entered_value": 10000,
+        "entry_date": "2025-09-15",
+        "flags": {}
+      },
+      "expect": {
+        "ch99_includes": ["9903.94.01"],
+        "ch99_excludes": ["9903.94.41"]
+      }
+    },
+    {
+      "id": "s232-pv-de",
+      "title": "232 passenger vehicle DE → 9903.94.51 combined 15%",
+      "line": {
+        "hts": "8703230120",
+        "coo": "DE",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 15,
+        "duty": 1500,
+        "col1_rate_pct": 2.5,
+        "ch99_includes": ["9903.94.51", "9903.05.90"],
+        "ch99_excludes": ["9903.94.01", "9903.94.41"]
+      }
+    },
+    {
+      "id": "s232-pv-kr",
+      "title": "232 passenger vehicle KR → 9903.94.61 combined 15%",
+      "line": {
+        "hts": "8703230120",
+        "coo": "KR",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 15,
+        "duty": 1500,
+        "col1_rate_pct": 2.5,
+        "ch99_includes": ["9903.94.61", "9903.05.90"],
+        "ch99_excludes": ["9903.94.01"]
+      }
+    },
+    {
+      "id": "s232-pv-th",
+      "title": "232 passenger vehicle TH → default 9903.94.01 @ 25% additional",
+      "line": {
+        "hts": "8703230120",
+        "coo": "TH",
         "entered_value": 10000,
         "entry_date": "2026-08-01",
         "flags": {}
@@ -156,7 +243,95 @@
         "duty": 2750,
         "col1_rate_pct": 2.5,
         "ch99_includes": ["9903.94.01", "9903.05.90"],
-        "ch99_excludes": ["9903.94.43", "9903.94.05"]
+        "ch99_excludes": ["9903.94.41", "9903.94.51"]
+      }
+    },
+    {
+      "id": "s232-pv-gb",
+      "title": "232 passenger vehicle GB without TRQ → 9903.94.01",
+      "line": {
+        "hts": "8703230120",
+        "coo": "GB",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 27.5,
+        "duty": 2750,
+        "col1_rate_pct": 2.5,
+        "ch99_includes": ["9903.94.01", "9903.05.90"],
+        "ch99_excludes": ["9903.94.31"],
+        "codes": ["S232_UK_VEHICLE_TRQ"]
+      }
+    },
+    {
+      "id": "s232-pv-gb-trq",
+      "title": "232 UK vehicle TRQ claim → 9903.94.31 stacks to 10%",
+      "line": {
+        "hts": "8703230120",
+        "coo": "GB",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": { "s232_uk_auto_trq": true }
+      },
+      "expect": {
+        "effective_duty_rate_pct": 10,
+        "duty": 1000,
+        "col1_rate_pct": 2.5,
+        "ch99_includes": ["9903.94.31", "9903.05.90"],
+        "ch99_excludes": ["9903.94.01"]
+      }
+    },
+    {
+      "id": "s232-pv-jp-vintage",
+      "title": "232 JP vintage claim still 9903.94.04 (beats origin split)",
+      "line": {
+        "hts": "8703230120",
+        "coo": "JP",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": { "s232_vehicle_vintage": true }
+      },
+      "expect": {
+        "ch99_includes": ["9903.94.04", "9903.05.90"],
+        "ch99_excludes": ["9903.94.41", "9903.94.01"]
+      }
+    },
+    {
+      "id": "s232-parts-jp",
+      "title": "232 JP auto part → 9903.94.43 combined 15% (not vehicle .41)",
+      "line": {
+        "hts": "8708103050",
+        "coo": "JP",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 15,
+        "duty": 1500,
+        "col1_rate_pct": 2.5,
+        "ch99_includes": ["9903.94.43", "9903.05.90"],
+        "ch99_excludes": ["9903.94.41", "9903.94.05"]
+      }
+    },
+    {
+      "id": "s232-parts-de",
+      "title": "232 DE auto part → 9903.94.53 combined 15% (not .05)",
+      "line": {
+        "hts": "8708103050",
+        "coo": "DE",
+        "entered_value": 10000,
+        "entry_date": "2026-08-01",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 15,
+        "duty": 1500,
+        "col1_rate_pct": 2.5,
+        "ch99_includes": ["9903.94.53", "9903.05.90"],
+        "ch99_excludes": ["9903.94.05", "9903.94.51"]
       }
     },
     {

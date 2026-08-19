@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupChina301List } from "../../tariff-rules/src/s301China.ts";
+import { lookupChina301Note31 } from "../../tariff-rules/src/s301ChinaNote31.ts";
 import { classify232Metals } from "../../tariff-rules/src/s232Metals.ts";
 
 export type HtsRate = {
@@ -164,6 +165,7 @@ export type ResolvedCol1 = HtsRate & {
   rate_label: string;
   needs_quantity: boolean;
   china_301: ReturnType<typeof lookupChina301List>;
+  china_301_fy: ReturnType<typeof lookupChina301Note31>["hit"];
   metals: ReturnType<typeof classify232Metals>;
   needs_metal_content: boolean;
   usitc_url: string;
@@ -197,6 +199,7 @@ function enrich(pick: HtsRate, day: string): ResolvedCol1 {
     rate_label: formatCol1Rate(pick),
     needs_quantity,
     china_301: lookupChina301List(pick.hts),
+    china_301_fy: lookupChina301Note31({ hts: pick.hts, date: day }).hit,
     metals,
     needs_metal_content: Boolean(metals),
     usitc_url: usitcSearchUrl(pick.hts),

@@ -1,7 +1,7 @@
 {
-  "$schema_note": "Chapter 99 code registry — KlearNow Tariff stacking. Source: confirmed corrections (session 2026-07-30) + full-stack build (session 2026-07-27). status: CONFIRMED = safe to compute; TBC = do NOT compute, surface for review. 301-FL headings expanded from s301fl_pack.json (CSMS #69326983). Brazil Section 301 9903.05.01–.09 from CSMS #69302472 (2026-08-06).",
-  "version": "1.3.0",
-  "as_of": "2026-08-14",
+  "$schema_note": "Chapter 99 code registry — KlearNow Tariff stacking. Source: confirmed corrections (session 2026-07-30) + full-stack build (session 2026-07-27). status: CONFIRMED = safe to compute; TBC = do NOT compute, surface for review. 301-FL headings expanded from s301fl_pack.json (CSMS #69326983). Brazil Section 301 9903.05.01–.09 from CSMS #69302472 (2026-08-06). China 301 four-year review 9903.91.xx / 9903.92.10 from 89 FR 76581 / CSMS #62411889.",
+  "version": "1.5.0",
+  "as_of": "2026-08-19",
   "codes": [
     {
       "code": "9903.03.06",
@@ -436,6 +436,114 @@
       "notes": "Legacy China 301 List 4A — 7.5% (U.S. note 20(r)/(s)). Stacks with 232 (both report; 301 first)."
     },
     {
+      "code": "9903.91.01",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "China 301 four-year review — U.S. note 31(b) / 9903.91.01 +25% from 2024-09-27 (steel/aluminum, critical minerals, battery parts, etc.). Products of China. CSMS #62411889 / 89 FR 76581. Stacks with 232 (R2); replaces 9903.88.xx for the same HTS."
+    },
+    {
+      "code": "9903.91.02",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "DUTY",
+      "rate": 0.5,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "China 301 four-year review — U.S. note 31(c) / 9903.91.02 +50% from 2024-09-27 (solar cells 8541.42.00 / 8541.43.00). CSMS #62411889."
+    },
+    {
+      "code": "9903.91.03",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "DUTY",
+      "rate": 1.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "China 301 four-year review — U.S. note 31(d) / 9903.91.03 +100% from 2024-09-27 (electric vehicles; syringes/needles). Enteral syringes used 9903.91.10 through 2025-12-31. CSMS #62411889."
+    },
+    {
+      "code": "9903.91.04",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "China 301 four-year review — U.S. note 31(e) / 9903.91.04 +25% from 2025-01-01 through 2025-12-31 (disposable textile facemasks 6307.90.9870). Then 9903.91.07 from 2026-01-01."
+    },
+    {
+      "code": "9903.91.05",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "DUTY",
+      "rate": 0.5,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "China 301 four-year review — U.S. note 31(f) / 9903.91.05 +50% from 2025-01-01 (semiconductors). Medical gloves 4015.12.10 used this heading in 2025 only, then 9903.91.08."
+    },
+    {
+      "code": "9903.91.06",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "China 301 four-year review — U.S. note 31(g) / 9903.91.06 +25% from 2026-01-01 (natural graphite, permanent magnets, lithium-ion batteries 8507.60.00)."
+    },
+    {
+      "code": "9903.91.07",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "DUTY",
+      "rate": 0.5,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "China 301 four-year review — U.S. note 31(h) / 9903.91.07 +50% from 2026-01-01 (respirators and textile facemasks)."
+    },
+    {
+      "code": "9903.91.08",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "DUTY",
+      "rate": 1.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "China 301 four-year review — U.S. note 31(i) / 9903.91.08 +100% from 2026-01-01 (medical gloves 4015.12.10). CSMS #62411889."
+    },
+    {
+      "code": "9903.91.09",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Ship-to-shore gantry crane contract exclusion (notwithstanding 9903.92.10). Claim-gated; Annex D certification in ACE DIS. 2024-09-27 through 2026-05-13."
+    },
+    {
+      "code": "9903.91.10",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Enteral syringes exclusion (notwithstanding 9903.91.03) for 9018.31.0080. 2024-09-27 through 2025-12-31."
+    },
+    {
+      "code": "9903.92.10",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Ship-to-shore gantry cranes of China under 8426.19.00 +25% from 2024-09-27 (U.S. note 31 / CSMS #62411889). Claim-gated vs other cranes 9903.92.80."
+    },
+    {
+      "code": "9903.92.80",
+      "program": "SEC_301_CHINA_FY",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Other 8426.19.00 cranes of China — not covered by the four-year review additional duties. Claim-gated."
+    },
+    {
       "code": "9903.94.01",
       "program": "SEC_232_AUTOS",
       "kind": "DUTY",
@@ -490,13 +598,58 @@
       "notes": "25%, MFN capped. Cap mechanic itself is TBC — see mfn_cap_rule in interaction_rules.json. Same program-label ambiguity as 9903.94.05."
     },
     {
-      "code": "9903.94.43",
-      "program": "TRADE_DEAL_JP",
+      "code": "9903.94.31",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.075,
+      "mfn_interaction": "STACKS",
+      "status": "CONFIRMED",
+      "notes": "UK passenger-vehicle TRQ (claim s232_uk_auto_trq) from 2025-06-30 — Column 1 + 7.5% additional (typically 10% combined). Quota 100,000 vehicles/year. Over-quota remains 9903.94.01. EO 14309 / HTS 9903.94.31."
+    },
+    {
+      "code": "9903.94.32",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "UK automobile parts of GB — combined Column 1 + 232 = 10% when col-1 < 10% (CSMS #66319804). CSMS default: 10% on Ch.99, $0 on Ch.1–97."
+    },
+    {
+      "code": "9903.94.40",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Japan passenger vehicles when Column 1 ≥ 15% — 0% additional (CSMS #66242844 / #66319804, from 2025-09-16)."
+    },
+    {
+      "code": "9903.94.41",
+      "program": "SEC_232_AUTOS",
       "kind": "DUTY",
       "rate": 0.15,
       "mfn_interaction": "CAPPED",
-      "status": "CONFIRMED_RATE_TBC_MECHANIC",
-      "notes": "Japan trade-deal heading, 15%. 2026-07-27 framing: 232 top-up — col-1 under 15% is brought up to 15%, with 15% reported on the Ch.99 line and ZERO on the Ch.1-97 line. 2026-07-30 framing: MFN 'removed/capped (mostly 0 for auto)'. MFN cap mechanic (zeroed vs conditional cap) is the open blocking question."
+      "status": "CONFIRMED",
+      "notes": "Japan passenger vehicles when Column 1 < 15% — combined 15% (CSMS #66242844 / #66319804, from 2025-09-16). CSMS default: 15% on Ch.99, $0 on Ch.1–97. Not the parts heading 9903.94.43."
+    },
+    {
+      "code": "9903.94.42",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Japan auto parts when Column 1 ≥ 15% — 0% additional (CSMS #66242844 / #66319804, from 2025-09-16)."
+    },
+    {
+      "code": "9903.94.43",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "Japan auto parts when Column 1 < 15% — combined 15% (CSMS #66242844 / #66319804 / R3). CSMS default: 15% on Ch.99, $0 on Ch.1–97. Distinct from leftover R6-blocked trade-deal flags (9903.94.45/.55)."
     },
     {
       "code": "9903.94.45",
@@ -505,7 +658,43 @@
       "rate": 0.15,
       "mfn_interaction": "CAPPED",
       "status": "CONFIRMED_RATE_TBC_MECHANIC",
-      "notes": "EU trade-deal heading, 15%. Same open MFN cap mechanic."
+      "notes": "Legacy EU trade-deal heading assignment — do not auto-assess. EU 232 autos use 9903.94.50/.51 (vehicles) and 9903.94.52/.53 (parts) per CSMS #66336270. Explicit trade_deal_eu flag still blocks totals (R6)."
+    },
+    {
+      "code": "9903.94.50",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "EU passenger vehicles when Column 1 ≥ 15% — 0% additional (CSMS #66336270, from 2025-08-01)."
+    },
+    {
+      "code": "9903.94.51",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "EU passenger vehicles when Column 1 < 15% — combined 15% (CSMS #66336270, from 2025-08-01). CSMS default: 15% on Ch.99, $0 on Ch.1–97."
+    },
+    {
+      "code": "9903.94.52",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "EU auto parts when Column 1 ≥ 15% — 0% additional (CSMS #66336270, from 2025-08-01)."
+    },
+    {
+      "code": "9903.94.53",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "EU auto parts when Column 1 < 15% — combined 15% (CSMS #66336270, from 2025-08-01). CSMS default: 15% on Ch.99, $0 on Ch.1–97."
     },
     {
       "code": "9903.94.55",
@@ -514,16 +703,61 @@
       "rate": 0.15,
       "mfn_interaction": "CAPPED",
       "status": "CONFIRMED_RATE_TBC_MECHANIC",
-      "notes": "Japan trade-deal heading, 15%. Same open MFN cap mechanic."
+      "notes": "Legacy Japan trade-deal heading assignment — do not auto-assess. JP 232 autos use 9903.94.40/.41 (vehicles) and 9903.94.42/.43 (parts)."
     },
     {
-      "code": "9903.94.63",
-      "program": "TRADE_DEAL_KR",
+      "code": "9903.94.60",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Korea passenger vehicles when Column 1 ≥ 15% — 0% additional (CSMS #66987366, from 2025-11-01)."
+    },
+    {
+      "code": "9903.94.61",
+      "program": "SEC_232_AUTOS",
       "kind": "DUTY",
       "rate": 0.15,
       "mfn_interaction": "CAPPED",
-      "status": "CONFIRMED_RATE_TBC_MECHANIC",
-      "notes": "Korea trade-deal heading, 15%. Same open MFN cap mechanic. KR/TW bilateral heading assignment among 9903.94.33/.53/.55/.63/.65/.67/.69 not fully confirmed."
+      "status": "CONFIRMED",
+      "notes": "Korea passenger vehicles when Column 1 < 15% — combined 15% (CSMS #66987366, from 2025-11-01). CSMS default: 15% on Ch.99, $0 on Ch.1–97."
+    },
+    {
+      "code": "9903.94.62",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Korea annex auto parts when Column 1 ≥ 15% — 0% additional (CSMS #66987366, from 2025-11-01)."
+    },
+    {
+      "code": "9903.94.63",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "Korea annex auto parts when Column 1 < 15% — combined 15% (CSMS #66987366, from 2025-11-01). CSMS default: 15% on Ch.99, $0 on Ch.1–97. Self-certified off-annex parts use 9903.94.64/.65."
+    },
+    {
+      "code": "9903.94.64",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Korea self-certified auto parts (off annex) when Column 1 ≥ 15% — 0% additional. Claim s232_kr_self_cert. Do not use when 9903.94.62/63 apply (CSMS #66987366)."
+    },
+    {
+      "code": "9903.94.65",
+      "program": "SEC_232_AUTOS",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED",
+      "notes": "Korea self-certified auto parts (off annex) when Column 1 < 15% — combined 15%. Claim s232_kr_self_cert (CSMS #66987366)."
     },
     {
       "code": "9903.05.01",

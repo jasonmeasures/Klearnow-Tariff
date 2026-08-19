@@ -1,6 +1,6 @@
 {
   "id": "klearnow-tariff-rules-framework",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "as_of": "2026-08-14",
   "jurisdiction": "US",
   "status": "SHAREABLE_PACK — interim until core engine is published as a shared API",
@@ -77,7 +77,7 @@
     },
     {
       "id": "R2",
-      "text": "Legacy China 301 (9903.88.xx) is NOT suppressed by 232 or Sec 122. Reports first; stacks with both when applicable.",
+      "text": "China 301 (legacy 9903.88.xx and four-year review 9903.91.xx / 9903.92.10) is NOT suppressed by 232 or Sec 122. Reports first; stacks with both when applicable. Note 31 replaces 9903.88.xx on the same HTS.",
       "status": "CONFIRMED"
     },
     {
@@ -92,7 +92,7 @@
     },
     {
       "id": "R3",
-      "text": "Japan 232 auto parts: top-up to 15% via 9903.94.43 when col-1 < 15%; Ch.1–97 line zeroed for that path.",
+      "text": "232 automobiles are origin-driven. JP/EU/KR combined-cap headings when col-1 is under 15%; Ch.1–97 line zeroed for that path. Default other origins: 9903.94.01 / .05 @ 25% additional.",
       "status": "CONFIRMED"
     },
     {
@@ -117,7 +117,7 @@
     },
     {
       "id": "R6",
-      "text": "Trade-deal MFN cap mechanic unresolved — block totals for 9903.94.43/.45/.55/.63 trade-deal paths.",
+      "text": "Trade-deal MFN cap mechanic unresolved — block totals for leftover 9903.94.45/.55 and trade_deal_* flags. JP/EU/KR CSMS origin splits compute under R3.",
       "status": "TBC_BLOCKING"
     },
     {

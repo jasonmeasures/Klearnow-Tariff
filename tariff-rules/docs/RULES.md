@@ -63,14 +63,15 @@ It does **not** classify the product, invent Column 1 for an unknown 10-digit li
 | **301-FL** | `9903.05.20+` | **Live** from 2026-07-24 (CSMS #69326983). Functional replacement for 122 — no sunset. | Yes |
 | Brazil country 301 | `9903.05.01`–`.09` | **Live** from 2026-07-22 @ 25% (CSMS #69302472). Distinct from 301-FL Brazil `.27`. | Yes |
 | Legacy China 301 | `9903.88.xx` | **Live.** Not suppressed by 232 or 122. | Yes |
-| 232 auto parts | `9903.94.05` (+ JP top-up `.43`) | **Live.** Proclamation 10908 annex. | Yes (in-annex auto) |
-| 232 passenger vehicles / light trucks | `9903.94.01`–`.04` | **Live.** CSMS #64624801. | Yes (list auto) |
+| **China 301 four-year review** | `9903.91.xx` / `9903.92.10` | **Live.** U.S. note 31 / [89 FR 76581](https://www.federalregister.gov/documents/2024/09/18/2024-21217/notice-of-modification-chinas-acts-policies-and-practices-related-to-technology-transfer) / [CSMS #62411889](https://content.govdelivery.com/accounts/USDHSCBP/bulletins/3b85471). Products of China. Replaces `9903.88.xx` on the same HTS. | Yes (HTS + date) |
+| 232 auto parts | `9903.94.05` (+ origin splits `.43`/`.53`/`.63`/`.32`) | **Live.** Proclamation 10908 annex. COO may change the heading. | Yes (in-annex auto) |
+| 232 passenger vehicles / light trucks | `9903.94.01`–`.04` (+ origin splits `.41`/`.51`/`.61`) | **Live.** CSMS #64624801. COO drives the heading. | Yes (list auto) |
 | 232 MHDV / buses / parts | `9903.74.01`–`.11` | **Live.** Proclamation 10984 / CSMS #66665333. | Vehicles/buses auto; **parts claim-gated** |
 | 232 wood | `9903.76.xx` | **Live.** Proclamation 10976 / CSMS #66492057. | Yes (list auto) |
 | 232 semiconductors | `9903.79.01`–`.09` | **Live.** CSMS #67400472. | **Claim-gated** Note 39(b) |
 | 232 metals | `9903.82.xx` | **Live.** Separate line; metal-content or entered-value derivative. | Yes (chapter triage + content) |
 | 232 patented pharma | `9903.04.60`–`.67` | **Live.** Proclamation 11020 / CSMS #69395344, #69415934. | **Claim-gated** Ch.29/30 |
-| JP / EU / KR trade-deal caps | `9903.94.43/.45/.55/.63` | Rate known; **MFN mechanic TBC (R6)** | Rate yes; **totals blocked** |
+| JP / EU leftover trade-deal flags | `9903.94.45/.55` | Rate known; **MFN mechanic TBC (R6)** | Rate yes; **totals blocked** |
 
 ---
 
@@ -97,8 +98,8 @@ Section 232 programs have their own effective dates (vehicles 2025-04-03, auto p
 flowchart TD
   A[HTS + origin + rate date + claims] --> B{On a Section 232 list or valid 232 claim?}
   B -->|Yes — pick the 232 winner by precedence| C[Report 232 Ch.99 + 9903.05.90]
-  C --> D{China 301 list?}
-  D -->|Yes| E[Also report 9903.88.xx first]
+  C --> D{China 301 note 31 or legacy list?}
+  D -->|Yes| E[Also report 9903.91.xx or 9903.88.xx first]
   D -->|No| F[Done with remedies]
   B -->|No| G{Rate date ≥ 2026-07-24?}
   G -->|Yes| H[301-FL by origin — flat or threshold]
@@ -128,11 +129,13 @@ When a line is a valid 232 determination (any family in §6), report **`9903.05.
 
 A valid 232 determination is **list + (auto or claim)** — not “this chapter looks automotive.”
 
-### R2 — Legacy China 301 is not suppressed
+### R2 — China 301 is not suppressed
 
-`9903.88.xx` reports **in addition to** 232 (and in addition to historical Sec 122). China 301 reports **first**.
+Legacy `9903.88.xx` **and** four-year review `9903.91.xx` / `9903.92.10` report **in addition to** 232 (and historical Sec 122). China 301 reports **first**. Note 31 **replaces** `9903.88.xx` on the same HTS — do not stack both 301 headings.
 
 Worked: CN `8708` List 3 @ 2.5% col-1 → 25% (301) + 25% (232) + 2.5% = **52.5%**.
+
+Worked: CN `7601.10.30` on/after 2024-09-27 → `9903.91.01` 25% + `9903.82.02` 50% metal-content + 2.6% col-1.
 
 ### R2b — Section 122 does not stack with 232
 
@@ -142,14 +145,25 @@ When 232 applies in the 122 window, report `9903.03.06` and suppress `9903.03.01
 
 Brazil `9903.05.01` @ 25% (from 2026-07-22) **and** 301-FL Brazil `9903.05.27` @ 12.5% (from 2026-07-24) both apply when the line is not in the 232 universe. In the 232 universe: Brazil exemption `.07` + FL `.90`.
 
-### R3 — Japan 232 auto-parts top-up
+### R3 — 232 automobiles are origin-driven
 
-For **auto parts only** (not passenger vehicles): if col-1 &lt; 15%, 232 tops up to 15% via `9903.94.43` (15% on the Ch.99 line; **zero** on the Ch.1–97 line).
+Default (most COO): passenger vehicles `9903.94.01` @ 25% additional; auto parts `9903.94.05` @ 25% additional. Column 1 stacks.
 
-Worked: JP part @ 2.5% col-1 → 232 of 12.5% → **15.0%** total.
-Same part *not* a 232 auto part → 301-FL threshold (e.g. `9903.05.49` +10%) → **12.5%** total.
+When Column 1 is under the cap, CSMS default reports the **cap on the Ch.99 line** and **$0 on Ch.1–97** (drawback split is `s232_drawback_col1`).
 
-A JP **passenger vehicle** uses `9903.94.01` @ 25% additional — **not** the 15% parts top-up.
+| Origin | From | Vehicles (col-1 &lt; cap / ≥ cap) | Parts (col-1 &lt; cap / ≥ cap) | Cap |
+|--------|------|-----------------------------------|--------------------------------|-----|
+| Japan | 2025-09-16 | `9903.94.41` / `.40` | `9903.94.43` / `.42` | 15% |
+| EU | 2025-08-01 | `9903.94.51` / `.50` | `9903.94.53` / `.52` | 15% |
+| Korea | 2025-11-01 | `9903.94.61` / `.60` | `9903.94.63` / `.62` | 15% |
+| UK parts | 2025-06-30 | (vehicles stay `.01` unless TRQ) | `9903.94.32` | 10% |
+
+Worked: JP `8703.23.01` @ 2.5% col-1 → `9903.94.41`, **15.0%** total (not `.01` @ 27.5%, not parts `.43`).
+JP part @ 2.5% → `9903.94.43`, **15.0%**. Same JP part *not* a 232 auto part → 301-FL `9903.05.49` +10% → **12.5%**.
+
+UK passenger-vehicle TRQ `9903.94.31` is **claim-gated** (`s232_uk_auto_trq`): +7.5% additional stacking with Column 1 (typically 10% combined). Over-quota stays `9903.94.01`.
+
+Vintage `9903.94.04` still beats origin splits when claimed.
 
 ### R4 — Metals on a separate line / basis
 
@@ -163,9 +177,9 @@ Do not fold metals duty into the parts TOTAL.
 
 Conflicting published guidance. Engine currently lets chapter metals win over auto-parts on those chapters. **Do not treat as signed off.**
 
-### R6 — Trade-deal MFN cap — **BLOCKING**
+### R6 — Leftover trade-deal flags — **BLOCKING**
 
-Unresolved whether MFN is zeroed or conditionally capped on `9903.94.43/.45/.55/.63`. Engine **refuses a total** on those paths until resolved.
+Explicit `trade_deal_*` flags and leftover headings `9903.94.45` / `.55` still refuse a total. JP/EU/KR CSMS origin-split 232 headings are computed under R3.
 
 ### R7 — `9903.94.xx` program label — **TBC**
 
@@ -203,7 +217,10 @@ Membership is **prefix / stem** match against the published list (8-digit or 10-
 | Duty | **`9903.94.05` @ 25% additional** (auto if in annex) |
 | 301-FL | Suppressed via `9903.05.90` |
 | Off-list | No auto-232. Optional claim `s232_auto_part` with evidence (claim-gated warning). |
-| Japan | Top-up `9903.94.43` (R3) — parts only |
+| Japan | Origin split `9903.94.43` / `.42` (R3) — parts only |
+| EU | Origin split `9903.94.53` / `.52` from 2025-08-01 |
+| Korea | Origin split `9903.94.63` / `.62` from 2025-11-01 |
+| UK | Origin split `9903.94.32` combined 10% |
 
 **In annex (examples):** `8544.30.00`, `8708.10.30`, `8708.29`, `8471` (whole heading).  
 **Not in annex (examples):** `8544.42.90`, `8544.49`, sign plates `8310…`.
@@ -217,7 +234,11 @@ Chapter membership (e.g. “it's Ch.87”) is **triage, not a determination**.
 | Pack | `data/s232_autos_vehicles.json` |
 | Proclamation | 10908 (U.S. note 33 subdiv. (a)–(e)) |
 | Effective | 2025-04-03 |
-| Duty | **`9903.94.01` @ 25% additional** — **auto from HTS list** |
+| Duty (default) | **`9903.94.01` @ 25% additional** — **auto from HTS list** |
+| Japan (from 2025-09-16) | **`9903.94.41`** combined 15% if col-1 &lt; 15%; **`9903.94.40`** @ 0% if col-1 ≥ 15% |
+| EU (from 2025-08-01) | **`9903.94.51`** / **`.50`** (same 15% cap) |
+| Korea (from 2025-11-01) | **`9903.94.61`** / **`.60`** (same 15% cap) |
+| UK TRQ | **`9903.94.31`** @ 7.5% additional — **claim** `s232_uk_auto_trq` |
 | Not a PV / light truck | `9903.94.02` @ 0% (claim `s232_auto_not_pv`) |
 | 25-year vehicle | `9903.94.04` @ 0% (claim `s232_vehicle_vintage`) |
 | USMCA non-U.S. content | `9903.94.03` — Commerce approval; **not auto-assessed** |
@@ -232,9 +253,9 @@ Chapter membership (e.g. “it's Ch.87”) is **triage, not a determination**.
 8704.21.01  8704.31.01  8704.41.00  8704.51.00  8704.60.00
 ```
 
-`8704.60.00` also appears on the MHDV vehicle list. **Default = passenger `9903.94.01`** unless `flags.s232_mhdv`.
+`8704.60.00` also appears on the MHDV vehicle list. **Default = passenger heading** (origin-split or `9903.94.01`) unless `flags.s232_mhdv`.
 
-Japan 15% top-up **does not** apply to this heading.
+Japan **vehicles** use `9903.94.41`, not the parts heading `9903.94.43`.
 
 ### 6.3 MHDV, buses, and MHDV parts — Proclamation 10984 / CSMS #66665333
 
@@ -372,6 +393,8 @@ Related exclusions in pack: `9903.05.85`, `9903.05.87`, pharma-use `9903.05.89` 
 
 **Legacy China 301** — `data/s301_china_lists.json`. Membership is 8-digit HTS, not a checkbox. Lists map to `9903.88.01` / `.02` / `.03` / `.15`. Stacks with 232 (R2).
 
+**China 301 four-year review** — `data/s301_china_note31.json`. U.S. note 31 / CSMS #62411889 / 89 FR 76581. Products of China. Auto from 8-digit HTS (or 10-digit stats for masks/EV batteries). `9903.91.01` @ 25% from 2024-09-27 covers steel/aluminum (including `7601.10.30`) plus listed minerals and battery parts. Later headings: `.02` solar 50%, `.03` EVs/syringes 100%, `.05` semiconductors 50% (2025-01-01), `.06`–`.08` 2026 waves. Replaces `9903.88.xx` on the same HTS; still stacks with 232. Ship-to-shore cranes (`8426.19.00`) are claim-gated (`s301_sts_crane` / `_exclusion` / `_other_crane`).
+
 **Brazil country 301** — `data/s301_brazil.json`. `9903.05.01` @ 25% from 2026-07-22; exemptions `.02`–`.09`. Stacks with 301-FL Brazil `.27` when 232 does not apply (R2c).
 
 ---
@@ -393,6 +416,9 @@ The UI only shows a checkbox when the HTS is on the relevant list. Spreadsheet /
 | `s232_pharma_patented` / `_generic` | Ch.29/30 patented vs generic | `9903.04.60`–`.67` |
 | `s301fl_pharma` | Pharmaceutical **use** Note 52(e) | `9903.05.89` |
 | `fta_usmca` | SPI S/S+ | Col-1 + MPF; FL `.93`/`.94` if Note 52 |
+| `s301_sts_crane` | `8426.19.00` is a ship-to-shore gantry crane | `9903.92.10` |
+| `s301_sts_exclusion` | STS crane with pre-May 14 2024 contract (through 2026-05-13) | `9903.91.09` |
+| `s301_sts_other_crane` | `8426.19.00` is **not** an STS gantry crane | `9903.92.80` |
 
 Do not treat a UI checkbox as authority when the annex JSON already auto-applies.
 
@@ -420,7 +446,9 @@ That is the operator check: “is this HTS on a new 232 list, and do I need a cl
 | VN upholstered wood furniture | `9401.61.4011` | VN | `9903.76.02` @ 25% + `.90` |
 | DE same furniture | `9401.61.4011` | DE | `9903.76.22` @ 15% (EU) + `.90` |
 | GB kitchen cabinets | `9403.40.9060` | GB | `9903.76.20` @ 10% + `.90` |
-| JP passenger vehicle | `8703.23.01` | JP | `9903.94.01` @ 25% additional — **not** `.43` |
+| JP passenger vehicle | `8703.23.01` | JP | `9903.94.41` combined 15% — **not** `.01` @ 25% and **not** parts `.43` |
+| DE passenger vehicle | `8703.23.01` | DE | `9903.94.51` combined 15% |
+| TH passenger vehicle | `8703.23.01` | TH | `9903.94.01` @ 25% additional |
 | DE dump truck | `8704.23.01` | DE | `9903.74.01` @ 25% + `.90` |
 | KR bus | `8702.10.31` | KR | `9903.74.02` @ 10% + `.90` |
 | MHDV parts, no claim | `8709.90.00` | DE | Diagnostic only — **no** `.08` |
@@ -444,6 +472,7 @@ Regression lock: `tariff-rules/data/qa_goldens.json` + `cd backend && npm test`.
 | `s301_brazil.json` | Brazil 301 |
 | `s301_china_lists.json` | China 301 HTS membership |
 | `s232_auto_parts_annex.json` | Auto-parts stems |
+| `s232_auto_origin.json` | JP/EU/KR/UK 232 vehicle and parts heading map |
 | `s232_autos_vehicles.json` | Passenger / light truck stems |
 | `s232_mhdv.json` | MHDV / bus / parts stems |
 | `s232_wood.json` | Wood buckets |

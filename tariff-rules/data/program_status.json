@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "as_of": "2026-08-14",
+  "as_of": "2026-08-18",
   "programs": [
     {
       "id": "IEEPA",
@@ -28,7 +28,7 @@
       "id": "SEC_232_AUTOS",
       "ch99_family": "9903.94.01–.04 vehicles / 9903.94.05+ parts / 9903.74.xx MHDV (separate program)",
       "status": "ACTIVE",
-      "detail": "Proclamation 10908. Passenger vehicles/light trucks auto-apply 9903.94.01 @ 25% from the CSMS #64624801 list. Auto-parts annex (U.S. note 33) auto-applies 9903.94.05; Japan parts top-up 9903.94.43. MHDV is a separate program (Proclamation 10984).",
+      "detail": "Proclamation 10908. Passenger vehicles/light trucks auto-apply from the CSMS #64624801 list. Default heading 9903.94.01 @ 25% additional. Origin splits (COO + date + Column 1): JP 9903.94.40/.41 from 2025-09-16; EU 9903.94.50/.51 from 2025-08-01; KR 9903.94.60/.61 from 2025-11-01. Auto-parts annex default 9903.94.05; JP/EU/KR/UK parts use combined-cap headings. MHDV is a separate program (Proclamation 10984).",
       "compute": true
     },
     {
@@ -65,7 +65,14 @@
       "id": "SEC_301_CHINA_LEGACY",
       "ch99_family": "9903.88.xx",
       "status": "ACTIVE",
-      "detail": "Legacy China 301 lists. NOT suppressed by 232 — both report, 301 first. Also stacks with Sec 122 (9903.03.01) when the line is outside the 232 universe. Continues in the 301-FL era alongside 9903.05.xx.",
+      "detail": "Legacy China 301 lists (U.S. note 20). NOT suppressed by 232 — both report, 301 first. Also stacks with Sec 122 (9903.03.01) when the line is outside the 232 universe. Continues in the 301-FL era alongside 9903.05.xx. Superseded on a given HTS by the four-year review heading when U.S. note 31 applies.",
+      "compute": true
+    },
+    {
+      "id": "SEC_301_CHINA_FY",
+      "ch99_family": "9903.91.01–.10 / 9903.92.10/.80",
+      "status": "ACTIVE",
+      "detail": "China 301 four-year review (89 FR 76581 / CSMS #62411889 / U.S. note 31). Products of China. 9903.91.01 +25% from 2024-09-27 covers steel/aluminum (incl. 7601.10.30) and listed minerals/battery parts. Later waves: .02 solar 50% (2024-09-27), .03 EVs/syringes 100% (2024-09-27), .04 facemasks 25% (2025 only), .05 semiconductors 50% (2025-01-01), .06 graphite/magnets/Li-ion 25% (2026-01-01), .07 masks 50% (2026-01-01), .08 gloves 100% (2026-01-01). Stacks with 232 (R2); replaces 9903.88.xx for the same HTS. Ship-to-shore cranes 9903.92.10 are claim-gated.",
       "compute": true
     },
     {
@@ -77,9 +84,9 @@
     },
     {
       "id": "TRADE_DEALS",
-      "ch99_family": "9903.94.43/.45/.55/.63 (+ unassigned .33/.53/.65/.67/.69)",
+      "ch99_family": "9903.94.45/.55 (leftover flags only)",
       "status": "ACTIVE_MECHANIC_TBC",
-      "detail": "JP/EU/KR 15% headings confirmed at rate level. MFN cap mechanic (zeroed vs conditional) unresolved. KR/TW heading assignment unresolved.",
+      "detail": "Explicit trade_deal_eu / trade_deal_kr / trade_deal_tw flags and leftover headings 9903.94.45/.55 still block totals (R6). JP/EU/KR CSMS origin-split 232 headings (9903.94.40–.43, .50–.53, .60–.65) are CONFIRMED and computed. Taiwan vehicle/parts origin headings remain unpublished.",
       "compute": false,
       "compute_caveat": "Rate known; do not compute total duty until MFN_CAP_RULE resolved"
     }

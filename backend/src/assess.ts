@@ -1,9 +1,7 @@
 import {
   assertComputable,
   assertRateKnown,
-  chinaStack,
   getCh99,
-  jp232TopUp,
   normalizeCh99,
 } from "../../tariff-rules/src/tariffRules.ts";
 import {
@@ -28,6 +26,11 @@ import {
   chinaListIdFromFlags,
   lookupChina301List,
 } from "../../tariff-rules/src/s301China.ts";
+import {
+  isChina301Note31Heading,
+  lookupChina301Note31,
+  type Note31Hit,
+} from "../../tariff-rules/src/s301ChinaNote31.ts";
 import { classify232Metals, resolve232Metals } from "../../tariff-rules/src/s232Metals.ts";
 import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
 import { resolveS232EnteredValue } from "../../tariff-rules/src/s232Resolve.ts";
@@ -265,6 +268,7 @@ function rateDate(line: LineIn): { date: string; basis: string } {
 function uiProgram(id: string): string {
   const map: Record<string, string> = {
     SEC_301_CHINA_LEGACY: "s301",
+    SEC_301_CHINA_FY: "s301",
     SEC_301: "s301",
     SEC_301_BRAZIL: "s301br",
     SEC_301_FL: "s301fl",
@@ -386,9 +390,9 @@ function chinaListCode(
     severity: "WARNING",
     code: "S301_LIST_UNKNOWN",
     message:
-      "Country of origin is China, but this HTS is not in the seeded USTR List 1/2/3/4A pack and no China 301 list was claimed or filed. Legacy China 301 (9903.88.xx) was not assessed — only other live layers (e.g. 301-FL) apply.",
+      "Country of origin is China, but this HTS is not on U.S. note 31 (9903.91.xx) or the seeded USTR List 1/2/3/4A pack and no China 301 list was claimed or filed. China 301 was not assessed — only other live layers (e.g. 301-FL) apply.",
     remediation:
-      "Confirm U.S. note 20 list membership, use Advanced → override China 301 list, or file the correct 9903.88.xx heading. List 4A → 9903.88.15 @ 7.5%; Lists 1–3 → 9903.88.01/.02/.03 @ 25%.",
+      "Confirm U.S. note 31 (four-year review) or note 20 list membership. Steel/aluminum of China often report 9903.91.01. Legacy lists: 4A → 9903.88.15 @ 7.5%; Lists 1–3 → 9903.88.01/.02/.03 @ 25%.",
   });
   return null;
 }
@@ -455,6 +459,7 @@ export function assessLine(line: LineIn, index: number) {
       needs_quantity: false,
       metals: null,
       china_301: look.hit?.china_301 || null,
+      china_301_fy: look.hit?.china_301_fy || null,
       usitc_url:
         look.hit?.usitc_url ||
         `https://hts.usitc.gov/search?query=${encodeURIComponent(hts.replace(/\D/g, "") || hts)}`,
@@ -520,6 +525,7 @@ export function assessLine(line: LineIn, index: number) {
         needs_quantity: false,
         metals: null,
         china_301: null,
+        china_301_fy: null,
         usitc_url: `https://hts.usitc.gov/search?query=${encodeURIComponent(hts.replace(/\D/g, "") || hts)}`,
         rate_determination_date: rd.date,
         rate_date_basis: rd.basis,
@@ -798,6 +804,7 @@ export function assessLine(line: LineIn, index: number) {
     rateDay: rd.date,
     flags,
     chapterMetals: Boolean(chapterMetals),
+    col1Rate: col1,
   });
   const s232Hit = s232Res.hit;
   for (const n of s232Res.notes) {
@@ -845,7 +852,7 @@ export function assessLine(line: LineIn, index: number) {
     diagnostics.push({
       severity: "INFO",
       code: "S232_ANNEX_HIT",
-      message: `HTS matches Proclamation 10908 auto-parts annex stem ${annex232.matched_stem} → ${annex232.ch99_duty} (232 supersedes 301-FL via 9903.05.90).`,
+      message: `HTS matches Proclamation 10908 auto-parts annex stem ${annex232.matched_stem} → ${s232Hit.heading} (232 supersedes 301-FL via 9903.05.90).`,
       remediation: annex232.source,
     });
   } else if (claimedAuto232 && !annex232 && is232) {
@@ -943,7 +950,23 @@ export function assessLine(line: LineIn, index: number) {
     });
   }
 
-  const chinaCode = coo === "CN" ? chinaListCode(hts, flags, diagnostics, filed) : null;
+  let chinaNote31: Note31Hit | null = null;
+  let chinaCode: string | null = null;
+  if (coo === "CN") {
+    const n31 = lookupChina301Note31({
+      hts,
+      date: rd.date,
+      flags,
+      filed_ch99: filed,
+    });
+    diagnostics.push(...n31.diagnostics);
+    if (n31.hit) {
+      chinaNote31 = n31.hit;
+      chinaCode = n31.hit.ch99;
+    } else if (!n31.skip_legacy) {
+      chinaCode = chinaListCode(hts, flags, diagnostics, filed);
+    }
+  }
   let partsDuty = 0;
   let metalsDuty = 0;
 
@@ -974,11 +997,12 @@ export function assessLine(line: LineIn, index: number) {
     fl_cap_pct: null,
   };
 
-  // Trade-deal total path (non JP top-up) is blocked by R6
+  // Leftover trade-deal flags / TBC headings (9903.94.45/.55) stay blocked by R6.
+  // JP/EU/KR/UK CSMS origin splits compute via combined_cap and are not R6.
   const tradeDealAttempt =
     Boolean(flags.trade_deal_eu || flags.trade_deal_kr || flags.trade_deal_tw) ||
-    filed.some((c) => ["9903.94.45", "9903.94.55", "9903.94.63"].includes(c));
-  if (tradeDealAttempt && !(is232 && coo === "JP")) {
+    filed.some((c) => ["9903.94.45", "9903.94.55"].includes(c));
+  if (tradeDealAttempt && !s232Hit?.combined_cap) {
     try {
       computeTradeDealBlocked();
     } catch (e) {
@@ -1000,63 +1024,89 @@ export function assessLine(line: LineIn, index: number) {
       (metalsHit.basis === "ENTERED_VALUE" || (metalVal > 0 && metalsReady)),
   );
 
+  let zeroCommodity232 = false;
+
+  const applyEntered232Layer = (): boolean => {
+    if (!s232Hit) return false;
+    if (s232Hit.combined_cap) {
+      layers.push(
+        layer({
+          slot: "3.3",
+          program: s232Hit.program,
+          ch99: s232Hit.heading,
+          label: s232Hit.label,
+          reason: s232Hit.reason,
+          source_ref: s232Hit.source,
+          basis_amount: entered,
+          rate_pct: s232Hit.rate_pct_decimal,
+        }),
+      );
+      return s232Hit.zero_commodity;
+    }
+    if (s232Hit.family === "autos_parts") {
+      const meta = assertRateKnown(s232Hit.heading);
+      if (meta.status !== "CONFIRMED") {
+        diagnostics.push({
+          severity: "WARNING",
+          code: "TBC_PROGRAM_LABEL",
+          message: `${meta.code} rate is confirmed but program labeling is unresolved. ${meta.notes}`,
+          remediation:
+            "Confirm 232 vs trade-deal/IEEPA labeling before relying on drawback/refund treatment.",
+        });
+      }
+      layers.push(
+        layer({
+          slot: "3.3",
+          program: "SEC_232_AUTOS",
+          ch99: meta.code,
+          label: "Section 232 — auto parts (rate known)",
+          reason: s232Hit.reason,
+          source_ref: s232Hit.source || meta.notes,
+          basis_amount: entered,
+          rate_pct: meta.rate,
+        }),
+      );
+      return false;
+    }
+    const meta = assertComputable(s232Hit.heading);
+    layers.push(
+      layer({
+        slot: "3.3",
+        program: s232Hit.program,
+        ch99: meta.code,
+        label: s232Hit.label,
+        reason: s232Hit.reason,
+        source_ref: s232Hit.source,
+        basis_amount: entered,
+        rate_pct: s232Hit.rate_pct_decimal,
+      }),
+    );
+    return false;
+  };
+
   if (!blocked && chinaCode) {
     try {
       const c301 = assertComputable(chinaCode);
+      const note31 = chinaNote31 && chinaNote31.ch99 === c301.code;
       layers.push(
         layer({
           slot: "3.1",
           program: c301.program,
           ch99: c301.code,
-          label: c301.notes.split(".")[0] || "Legacy China 301",
-          reason: "Legacy China 301 is not suppressed by Section 232 (R2). Reports first.",
-          source_ref: c301.notes,
+          label: note31
+            ? chinaNote31!.label
+            : c301.notes.split(".")[0] || "Legacy China 301",
+          reason: note31
+            ? `${chinaNote31!.reason} Not suppressed by Section 232 (R2). Reports first.`
+            : "Legacy China 301 is not suppressed by Section 232 (R2). Reports first.",
+          source_ref: note31 ? chinaNote31!.source : c301.notes,
           basis_amount: entered,
           rate_pct: c301.rate,
         }),
       );
 
       if (s232Hit) {
-        if (s232Hit.family === "autos_parts") {
-          const meta = assertRateKnown(s232Hit.heading);
-          if (meta.status !== "CONFIRMED") {
-            diagnostics.push({
-              severity: "WARNING",
-              code: "TBC_PROGRAM_LABEL",
-              message: `${meta.code} rate is confirmed but program labeling is unresolved. ${meta.notes}`,
-              remediation:
-                "Confirm 232 vs trade-deal/IEEPA labeling before relying on drawback/refund treatment.",
-            });
-          }
-          layers.push(
-            layer({
-              slot: "3.3",
-              program: "SEC_232_AUTOS",
-              ch99: meta.code,
-              label: "Section 232 — auto parts (rate known)",
-              reason: `China stack (R2): effective ${(
-                chinaStack(col1, c301.rate, meta.rate) * 100
-              ).toFixed(1)}% when col-1 is ${col1Pct}%.`,
-              source_ref: meta.notes,
-              basis_amount: entered,
-              rate_pct: meta.rate,
-            }),
-          );
-        } else {
-          const meta = assertComputable(s232Hit.heading);
-          layers.push(
-            layer({
-              slot: "3.3",
-              program: s232Hit.program,
-              ch99: meta.code,
-              label: s232Hit.label,
-              reason: s232Hit.reason,
-              source_ref: s232Hit.source,
-              basis_amount: entered,
-              rate_pct: s232Hit.rate_pct_decimal,
-            }),
-          );
-        }
+        zeroCommodity232 = applyEntered232Layer();
         push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
         applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
       } else if (metalsHit) {
@@ -1072,7 +1122,7 @@ export function assessLine(line: LineIn, index: number) {
         add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
       }
 
-      pushCommodity(false);
+      pushCommodity(zeroCommodity232);
     } catch (e) {
       diagnostics.push({
         severity: "ERROR",
@@ -1081,86 +1131,17 @@ export function assessLine(line: LineIn, index: number) {
       });
       blocked = true;
     }
-  } else if (!blocked && is232 && coo === "JP" && s232Hit?.jp_parts_topup) {
-    // Confirmed JP 232 top-up path (R3) — uses helper, not computeTradeDealTotal
-    const top = jp232TopUp(col1);
-    const heading = "9903.94.43";
-    const meta = getCh99(heading);
-    diagnostics.push({
-      severity: "WARNING",
-      code: "TBC_MFN_MECHANIC_LABEL",
-      message:
-        `${heading} is used for the confirmed Japan 232 top-up path (R3). Full trade-deal MFN-cap totals remain blocked under R6.`,
-      remediation: meta?.notes,
-    });
-    const L232 = layer({
-      slot: "3.3",
-      program: "SEC_232_AUTOS",
-      ch99: heading,
-      label: "Japan 232 auto-part top-up to 15%",
-      reason:
-        col1 < 0.15
-          ? `Column-1 ${col1Pct}% is below 15%; Ch.99 reports 15% and Ch.1–97 reports zero (R3).`
-          : `Column-1 already ≥ 15%; no top-up.`,
-      source_ref: "R3_JP_232_TOPUP",
-      basis_amount: entered,
-      rate_pct: top.ch99Line,
-    });
-    layers.push(L232);
-    addBrazil301(coo, entered, layers, diagnostics, rd.date, {
-      in232Universe: true,
-      flags,
-    });
-    push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
-    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
-    pushCommodity(top.ch1to97Line === 0);
   } else if (!blocked && is232 && s232Hit) {
     // Entered-value 232 (vehicles, parts, MHDV, wood, semiconductors)
     try {
-      if (s232Hit.family === "autos_parts") {
-        const dutyCode = s232Hit.heading || "9903.94.05";
-        const meta = assertRateKnown(dutyCode);
-        if (meta.status !== "CONFIRMED") {
-          diagnostics.push({
-            severity: "WARNING",
-            code: "TBC_PROGRAM_LABEL",
-            message: `${meta.code} rate confirmed; program label unresolved. ${meta.notes}`,
-          });
-        }
-        layers.push(
-          layer({
-            slot: "3.3",
-            program: "SEC_232_AUTOS",
-            ch99: meta.code,
-            label: "Section 232 — auto parts",
-            reason: s232Hit.reason,
-            source_ref: s232Hit.source || meta.notes,
-            basis_amount: entered,
-            rate_pct: meta.rate,
-          }),
-        );
-      } else {
-        const meta = assertComputable(s232Hit.heading);
-        layers.push(
-          layer({
-            slot: "3.3",
-            program: s232Hit.program,
-            ch99: meta.code,
-            label: s232Hit.label,
-            reason: s232Hit.reason,
-            source_ref: s232Hit.source,
-            basis_amount: entered,
-            rate_pct: s232Hit.rate_pct_decimal,
-          }),
-        );
-      }
+      const zero = applyEntered232Layer();
       addBrazil301(coo, entered, layers, diagnostics, rd.date, {
         in232Universe: true,
         flags,
       });
       push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
       applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
-      pushCommodity(false);
+      pushCommodity(zero);
     } catch (e) {
       diagnostics.push({
         severity: "ERROR",
@@ -1306,7 +1287,12 @@ export function assessLine(line: LineIn, index: number) {
   const seq = layers.filter((l) => l.ch99).map((l) => l.ch99 as string);
   const brazil301 = (c: string) => isBrazil301Heading(c);
   const ordered = [
-    ...seq.filter((c) => c.startsWith("9903.88")),
+    ...seq.filter(
+      (c) =>
+        c.startsWith("9903.88") ||
+        c.startsWith("9903.91") ||
+        isChina301Note31Heading(c),
+    ),
     ...seq.filter(brazil301), // Brazil country 301 before other 9903.05 / FL
     ...seq.filter((c) => c === "9903.05.90" || c === "9903.03.06" || c === "9903.03.03"),
     ...seq.filter((c) => c.startsWith("9903.82")),
@@ -1452,6 +1438,7 @@ export function assessLine(line: LineIn, index: number) {
         }
       : null,
     china_301: resolved?.china_301 || lookupChina301List(hts),
+    china_301_fy: chinaNote31,
     usitc_url: resolved?.usitc_url || `https://hts.usitc.gov/search?query=${encodeURIComponent(hts.replace(/\D/g, "") || hts)}`,
     rate_determination_date: rd.date,
     rate_date_basis: rd.basis,
@@ -1478,7 +1465,7 @@ export function assessLine(line: LineIn, index: number) {
 
 function computeTradeDealBlocked(): never {
   throw new Error(
-    "MFN cap mechanic for trade-deal codes (9903.94.43/.45/.55/.63) is unresolved (R6_MFN_CAP_RULE).",
+    "MFN cap mechanic for leftover trade-deal flags (9903.94.45/.55) is unresolved (R6_MFN_CAP_RULE).",
   );
 }
 

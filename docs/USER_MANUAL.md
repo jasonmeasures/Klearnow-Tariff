@@ -163,8 +163,8 @@ Section 232 programs can apply in those windows too, on their own effective date
 **Why did 301-FL disappear?**  
 Section 232 and 301-FL are mutually exclusive. If the HTS is a valid 232 auto part, vehicle, MHDV, wood article, claimed semiconductor, metal, or patented pharma, the stack reports `9903.05.90` and does not assess 301-FL. China 301 (`9903.88`) still stacks.
 
-**Why is a Japan car 25% additional, not 15%?**  
-The 15% Japan top-up (`9903.94.43`) is an **auto-parts** path. Passenger vehicles use `9903.94.01` @ 25% additional.
+**Why is a Japan car 15% combined, not 25% additional?**  
+Country of origin drives the 232 vehicle heading. Japan passenger vehicles from 16 Sep 2025 use `9903.94.41` (combined Column 1 + 232 = 15%) when Column 1 is under 15%. The parts heading `9903.94.43` is not used on a car. Other origins (Thailand, China, Vietnam, …) still use `9903.94.01` @ 25% additional. UK in-quota vehicles need the TRQ claim `s232_uk_auto_trq` for `9903.94.31`.
 
 **Why didn’t MHDV parts add 25%?**  
 The parts list is necessary but not sufficient — CBP also has a 0% heading for listed articles that are *not* MHDV parts. Tick **232 MHDV part** (or a `s232_mhdv_part` column on the spreadsheet) when the article really is an MHDV part.

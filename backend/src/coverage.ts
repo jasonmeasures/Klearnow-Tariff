@@ -96,6 +96,38 @@ function claimed(flags: Record<string, boolean>, ...keys: string[]): boolean {
   return keys.some((k) => Boolean(flags[k]));
 }
 
+function auto232Rate(ch99: string): { rate: string; rate_pct: number | null } {
+  if (
+    [
+      "9903.94.41",
+      "9903.94.43",
+      "9903.94.51",
+      "9903.94.53",
+      "9903.94.61",
+      "9903.94.63",
+      "9903.94.65",
+    ].includes(ch99)
+  ) {
+    return { rate: "combined 15%", rate_pct: 0.15 };
+  }
+  if (ch99 === "9903.94.32") return { rate: "combined 10%", rate_pct: 0.1 };
+  if (ch99 === "9903.94.31") return { rate: "7.5% additional (UK TRQ)", rate_pct: 0.075 };
+  if (
+    [
+      "9903.94.40",
+      "9903.94.42",
+      "9903.94.50",
+      "9903.94.52",
+      "9903.94.60",
+      "9903.94.62",
+      "9903.94.64",
+    ].includes(ch99)
+  ) {
+    return { rate: "0% additional", rate_pct: 0 };
+  }
+  return { rate: "25% additional", rate_pct: 0.25 };
+}
+
 /** Section 232 list membership — auto-apply vs claim-gated — independent of entered value. */
 export function s232MembershipRules(
   uni: S232UniversePreview,
@@ -157,14 +189,19 @@ export function s232MembershipRules(
   }
 
   if (uni.passenger_vehicle) {
+    const heading = uni.passenger_vehicle.ch99;
+    const rt = auto232Rate(heading);
+    const originNote = coo
+      ? ` Origin ${coo} drives the heading.`
+      : " Default heading 9903.94.01 @ 25% additional until origin is set (JP 9903.94.41, EU .51, KR .61).";
     out.push({
       program: "s232",
-      ch99: uni.passenger_vehicle.ch99,
+      ch99: heading,
       label: "232 passenger vehicles / light trucks",
-      rate: "25% additional",
-      rate_pct: 0.25,
-      reason: `On passenger-vehicle / light-truck list stem ${uni.passenger_vehicle.matched_stem} → ${uni.passenger_vehicle.ch99} @ 25% (auto). Japan 15% top-up 9903.94.43 is an auto-parts path, not this heading.`,
-      source_ref: "CSMS #64624801 — Section 232 passenger vehicles",
+      rate: rt.rate,
+      rate_pct: rt.rate_pct,
+      reason: `On passenger-vehicle / light-truck list stem ${uni.passenger_vehicle.matched_stem} → ${heading} (${rt.rate}, auto).${originNote}`,
+      source_ref: "CSMS #64624801 — Section 232 passenger vehicles (origin splits: JP/EU/KR CSMS)",
       status: "applies",
     });
   }
@@ -218,13 +255,15 @@ export function s232MembershipRules(
   }
 
   if (uni.auto_parts) {
+    const heading = uni.auto_parts.ch99;
+    const rt = auto232Rate(heading);
     out.push({
       program: "s232",
-      ch99: uni.auto_parts.ch99,
+      ch99: heading,
       label: "232 auto parts annex",
-      rate: "25% additional",
-      rate_pct: 0.25,
-      reason: `On Proclamation 10908 auto-parts annex stem ${uni.auto_parts.matched_stem} → ${uni.auto_parts.ch99} @ 25% (auto). Chapter membership alone is not a determination.`,
+      rate: rt.rate,
+      rate_pct: rt.rate_pct,
+      reason: `On Proclamation 10908 auto-parts annex stem ${uni.auto_parts.matched_stem} → ${heading} (${rt.rate}, auto). Chapter membership alone is not a determination.`,
       source_ref: "Proclamation 10908 / U.S. note 33 auto-parts annex",
       status: "applies",
     });
@@ -266,7 +305,7 @@ export function coverOne(
   const flags = rowFlags(row);
   const notes: string[] = [];
   const rules: AppliedRule[] = [];
-  const uni = previewS232Universe(htsRaw, coo);
+  const uni = previewS232Universe(htsRaw, coo, { rateDay: asOf, col1Rate: 0, flags });
   const membership = s232MembershipRules(uni, flags, coo);
 
   if (!htsRaw) {
@@ -465,7 +504,7 @@ export function coverOne(
     notes.push("Assumed China 301 List 3 for coverage (API override only).");
   } else if (coo === "CN" && !flags.s301_list_3 && !flags.s301_list_4a) {
     notes.push(
-      "China origin: legacy 301 applies only when this HTS is on a seeded USTR list (HTS membership), or an explicit list flag is set.",
+      "China origin: 301 four-year review (U.S. note 31 / 9903.91.xx) auto-applies by HTS and date. Legacy 9903.88.xx applies only when this HTS is on a seeded USTR list, or an explicit list flag is set.",
     );
   }
 

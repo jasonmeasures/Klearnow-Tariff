@@ -87,7 +87,7 @@ describe("Section 232 new packs (wood / vehicles / MHDV / semiconductors)", () =
     assert.equal(L.totals.duty, 1000);
   });
 
-  it("JP passenger vehicle → 9903.94.01 @ 25% (not JP parts top-up 9903.94.43)", () => {
+  it("JP passenger vehicle → 9903.94.41 combined 15% (not .01, not parts .43)", () => {
     const L = assessLine(
       {
         hts: "8703.23.01",
@@ -99,10 +99,13 @@ describe("Section 232 new packs (wood / vehicles / MHDV / semiconductors)", () =
       },
       0,
     );
-    assert.ok(L.ch99_sequence.includes("9903.94.01"));
+    assert.ok(L.ch99_sequence.includes("9903.94.41"));
+    assert.ok(!L.ch99_sequence.includes("9903.94.01"));
     assert.ok(!L.ch99_sequence.includes("9903.94.43"));
     assert.ok(L.ch99_sequence.includes("9903.05.90"));
-    assert.equal(L.totals.effective_duty_rate_pct, 27.5);
+    assert.equal(L.totals.effective_duty_rate_pct, 15);
+    const commodity = L.layers.find((x) => x.program === "base");
+    assert.equal(commodity?.duty_amount, 0);
   });
 
   it("vintage passenger vehicle claim → 9903.94.04 @ 0%", () => {
@@ -201,8 +204,10 @@ describe("Section 232 new packs (wood / vehicles / MHDV / semiconductors)", () =
       },
       0,
     );
-    assert.ok(L.ch99_sequence.includes("9903.94.05"));
+    assert.ok(L.ch99_sequence.includes("9903.94.53"));
     assert.ok(!L.ch99_sequence.includes("9903.74.08"));
+    assert.ok(!L.ch99_sequence.includes("9903.94.05"));
+    assert.equal(L.totals.effective_duty_rate_pct, 15);
   });
 
   it("semiconductor HTS without claim stays auto-parts for 8471.50; 8473.30 only warns", () => {
@@ -282,5 +287,72 @@ describe("Section 232 new packs (wood / vehicles / MHDV / semiconductors)", () =
       0,
     );
     assert.ok(!L.ch99_sequence.some((c) => c.startsWith("9903.76")));
+  });
+
+  it("DE passenger vehicle → 9903.94.51 combined 15%", () => {
+    const L = assessLine(
+      {
+        hts: "8703.23.0120",
+        coo: "DE",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: DATE,
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.94.51"));
+    assert.ok(!L.ch99_sequence.includes("9903.94.01"));
+    assert.equal(L.totals.effective_duty_rate_pct, 15);
+  });
+
+  it("KR passenger vehicle → 9903.94.61 combined 15%", () => {
+    const L = assessLine(
+      {
+        hts: "8703.23.0120",
+        coo: "KR",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: DATE,
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.94.61"));
+    assert.equal(L.totals.effective_duty_rate_pct, 15);
+  });
+
+  it("TH passenger vehicle stays on 9903.94.01 @ 25% additional", () => {
+    const L = assessLine(
+      {
+        hts: "8703.23.0120",
+        coo: "TH",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: DATE,
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.94.01"));
+    assert.ok(!L.ch99_sequence.includes("9903.94.41"));
+    assert.equal(L.totals.effective_duty_rate_pct, 27.5);
+  });
+
+  it("JP auto part stays 9903.94.43 not vehicle 9903.94.41", () => {
+    const L = assessLine(
+      {
+        hts: "8708.10.3050",
+        coo: "JP",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: DATE,
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.94.43"));
+    assert.ok(!L.ch99_sequence.includes("9903.94.41"));
+    assert.equal(L.totals.effective_duty_rate_pct, 15);
   });
 });

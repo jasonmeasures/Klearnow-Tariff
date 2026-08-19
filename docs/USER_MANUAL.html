@@ -219,7 +219,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <ol><li><strong>HTS</strong> — 10-digit statistical reporting number, with or without dots (<code>8708.10.3050</code> or <code>8708103050</code>).</li><li><strong>Origin</strong> — type a name or ISO-2 (<code>Germany</code> or <code>DE</code>) and Tab.</li><li><strong>Entered value</strong> — customs value in USD.</li><li><strong>Rate date</strong> — Entry Date (or the date you want the stack as of). This picks the era (IEEPA / Section 122 / 301-FL) and whether a 232 program has started.</li></ol>
 <p>Then click <strong>Run the stack</strong>.</p>
 <p>Under the fields, a preview line appears as you type the HTS:</p>
-<ul><li>Column 1 rate and description</li><li>China 301 list membership (from the 8-digit HTS)</li><li><strong>232 list pills</strong> — passenger vehicle, MHDV, bus, wood, auto-parts annex, metals</li><li>USITC link</li></ul>
+<ul><li>Column 1 rate and description</li><li>China 301 list membership (legacy <code>9903.88</code> and four-year review <code>9903.91</code>)</li><li><strong>232 list pills</strong> — passenger vehicle, MHDV, bus, wood, auto-parts annex, metals</li><li>USITC link</li></ul>
 <p>If Column 1 is a specific rate (¢/kg, etc.), a <strong>quantity</strong> field appears. If the HTS is in Chapters 72–74 / 76, a <strong>metals</strong> panel appears (content in USD or % of entered, plus melt/pour country).</p>
 <h3 id="claims-checkboxes-that-appear-only-when-relevant">Claims (checkboxes that appear only when relevant)</h3>
 <div class="table-wrap"><table><thead><tr><th>Checkbox</th><th>When you see it</th><th>When to tick it</th></tr></thead><tbody><tr><td><strong>232 auto part</strong></td><td>Always available; auto-checked if the HTS is on the Proclamation 10908 annex</td><td>Tick only if the part is <strong>off-list</strong> but you have annex evidence</td></tr>
@@ -258,7 +258,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td>Extra Ch.99</td><td>Filed heading the current pack does not produce for that date.</td></tr>
 <tr><td>Duty math</td><td>Computed stack vs filing (entered value from the commodity ordinal).</td></tr>
 <tr><td>Needs inputs</td><td>Metals content is not on ES-003 — those lines cannot finish 232 metals math.</td></tr></tbody></table></div>
-<p>China 301 uses HTS list membership, not a column on the report.</p>
+<p>China 301 uses HTS list membership (legacy note 20 and four-year review note 31), not a column on the report. Origin must be China.</p>
 <hr />
 <h2 id="6-other-screens-authors-admins">6. Other screens (authors / admins)</h2>
 <div class="table-wrap"><table><thead><tr><th>Screen</th><th>Who</th><th>What</th></tr></thead><tbody><tr><td><strong>Chat</strong></td><td>Users</td><td>Ask about an HTS / origin / pack rule. Stacks run from live tables.</td></tr>
@@ -276,8 +276,9 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <p>Section 232 programs can apply in those windows too, on their own effective dates (vehicles from 2025-04-03, wood 2025-10-14, MHDV 2025-11-01, semiconductors 2026-01-15, patented pharma 2026-07-31).</p>
 <hr />
 <h2 id="8-common-questions">8. Common questions</h2>
-<p><strong>Why did 301-FL disappear?</strong> Section 232 and 301-FL are mutually exclusive. If the HTS is a valid 232 auto part, vehicle, MHDV, wood article, claimed semiconductor, metal, or patented pharma, the stack reports <code>9903.05.90</code> and does not assess 301-FL. China 301 (<code>9903.88</code>) still stacks.</p>
-<p><strong>Why is a Japan car 25% additional, not 15%?</strong> The 15% Japan top-up (<code>9903.94.43</code>) is an <strong>auto-parts</strong> path. Passenger vehicles use <code>9903.94.01</code> @ 25% additional.</p>
+<p><strong>Why did 301-FL disappear?</strong> Section 232 and 301-FL are mutually exclusive. If the HTS is a valid 232 auto part, vehicle, MHDV, wood article, claimed semiconductor, metal, or patented pharma, the stack reports <code>9903.05.90</code> and does not assess 301-FL. China 301 (<code>9903.88</code> or four-year review <code>9903.91</code>) still stacks.</p>
+<p><strong>Why didn’t <code>7601.10.30</code> from China pick up <code>9903.91.01</code>?</strong> It should, for entries on or after 27 Sep 2024. That heading is the Section 301 four-year review +25% on listed steel/aluminum of China (U.S. note 31 / CSMS #62411889). It stacks with Section 232 <code>9903.82.02</code>. It does not apply unless origin is China.</p>
+<p><strong>Why is a Japan car 15% combined, not 25% additional?</strong> Country of origin drives the 232 vehicle heading. Japan passenger vehicles from 16 Sep 2025 use <code>9903.94.41</code> (combined Column 1 + 232 = 15%) when Column 1 is under 15%. The parts heading <code>9903.94.43</code> is not used on a car. Other origins still use <code>9903.94.01</code> @ 25% additional. UK in-quota vehicles need the TRQ claim <code>s232_uk_auto_trq</code> for <code>9903.94.31</code>.</p>
 <p><strong>Why didn’t MHDV parts add 25%?</strong> The parts list is necessary but not sufficient — CBP also has a 0% heading for listed articles that are <em>not</em> MHDV parts. Tick <strong>232 MHDV part</strong> (or a <code>s232_mhdv_part</code> column on the spreadsheet) when the article really is an MHDV part.</p>
 <p><strong>Why didn’t semiconductors add 25%?</strong> HTS <code>8471.50</code> / <code>8471.80</code> / <code>8473.30</code> only puts you on the list. 25% requires a Note 39(b) TPP/DRAM claim. <code>8471.50</code> without that claim often follows the <strong>auto-parts annex</strong> instead.</p>
 <p><strong>USMCA is claimed — why is there still 232 / 301-FL?</strong> SPI S/S+ zeros Column 1 and MPF only. Other programs need their own Chapter 99 exception.</p>

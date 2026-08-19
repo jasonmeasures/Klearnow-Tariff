@@ -8,6 +8,11 @@
  *   5. Wood (skipped if autos/parts already won)
  */
 import { match232AutoPartsAnnex } from "./s232Autos.ts";
+import {
+  resolve232PartsOrigin,
+  resolve232VehicleOrigin,
+  ukVehicleTrqNote,
+} from "./s232AutoOrigin.ts";
 import { match232PassengerVehicle, s232VehiclesAppliesOn } from "./s232Vehicles.ts";
 import {
   match232MhdvBus,
@@ -37,7 +42,11 @@ export type S232EnteredHit = {
   reason: string;
   source: string;
   matched_stem?: string;
-  /** JP 9903.94.43 top-up applies only to auto-parts, not vehicles. */
+  /** JP/EU/KR/UK CSMS combined-cap filing (15% or 10% on Ch.99; Ch.1–97 $0 when under the cap). */
+  combined_cap: boolean;
+  cap_pct_decimal: number | null;
+  zero_commodity: boolean;
+  /** @deprecated use combined_cap — kept for JP parts callers. */
   jp_parts_topup: boolean;
   /** MHDV / semiconductor CSMS: do not also assess metals/wood. */
   suppresses_metals: boolean;
@@ -60,7 +69,11 @@ export type S232UniversePreview = {
   auto_parts: { matched_stem: string; ch99: string } | null;
 };
 
-export function previewS232Universe(hts: string, coo = ""): S232UniversePreview {
+export function previewS232Universe(
+  hts: string,
+  coo = "",
+  opts?: { rateDay?: string; col1Rate?: number; flags?: Record<string, boolean> | null },
+): S232UniversePreview {
   const pv = match232PassengerVehicle(hts);
   const mv = match232MhdvVehicle(hts);
   const mb = match232MhdvBus(hts);
@@ -68,14 +81,39 @@ export function previewS232Universe(hts: string, coo = ""): S232UniversePreview 
   const wood = match232Wood(hts, coo);
   const semi = match232SemiconductorHts(hts);
   const annex = match232AutoPartsAnnex(hts);
+  const day = opts?.rateDay || "";
+  const col1 = opts?.col1Rate ?? 0;
+  const flags = opts?.flags || {};
+  const pvHeading = pv
+    ? resolve232VehicleOrigin({
+        coo,
+        rateDay: day || "9999-12-31",
+        col1Rate: col1,
+        flags,
+        matchedStem: pv.matched_stem,
+      }).heading
+    : null;
+  const partsHeading = annex
+    ? resolve232PartsOrigin({
+        coo,
+        rateDay: day || "9999-12-31",
+        col1Rate: col1,
+        flags,
+        matchedStem: annex.matched_stem,
+      }).heading
+    : null;
   return {
-    passenger_vehicle: pv ? { matched_stem: pv.matched_stem, ch99: pv.ch99_duty } : null,
+    passenger_vehicle: pv
+      ? { matched_stem: pv.matched_stem, ch99: pvHeading || pv.ch99_duty }
+      : null,
     mhdv_vehicle: mv ? { matched_stem: mv.matched_stem, ch99: mv.ch99_duty } : null,
     mhdv_bus: mb ? { matched_stem: mb.matched_stem, ch99: mb.ch99_duty } : null,
     mhdv_part_list: mp ? { matched_stem: mp.matched_stem, ch99: mp.ch99_duty } : null,
     wood: wood ? { matched_stem: wood.matched_stem, bucket: wood.bucket, ch99: wood.heading } : null,
     semiconductor: semi ? { matched_stem: semi.matched_stem } : null,
-    auto_parts: annex ? { matched_stem: annex.matched_stem, ch99: annex.ch99_duty } : null,
+    auto_parts: annex
+      ? { matched_stem: annex.matched_stem, ch99: partsHeading || annex.ch99_duty }
+      : null,
   };
 }
 
@@ -84,12 +122,21 @@ function flag(flags: Record<string, boolean> | null | undefined, ...keys: string
   return keys.some((k) => Boolean(f[k]));
 }
 
+const NO_CAP = {
+  combined_cap: false as const,
+  cap_pct_decimal: null as number | null,
+  zero_commodity: false,
+  jp_parts_topup: false,
+};
+
 export function resolveS232EnteredValue(opts: {
   hts: string;
   coo: string;
   rateDay: string;
   flags?: Record<string, boolean> | null;
   chapterMetals?: boolean;
+  /** Decimal Column-1 rate (0.025 = 2.5%). Used to pick JP/EU/KR .40 vs .41 (etc.). */
+  col1Rate?: number;
 }): { hit: S232EnteredHit | null; notes: S232Note[] } {
   const notes: S232Note[] = [];
   const flags = opts.flags || {};
@@ -108,7 +155,7 @@ export function resolveS232EnteredValue(opts: {
         label: semi.label,
         reason: semi.reason,
         source: "CSMS #67400472",
-        jp_parts_topup: false,
+        ...NO_CAP,
         suppresses_metals: semi.heading === "9903.79.01",
         suppresses_wood: true,
       },
@@ -148,7 +195,7 @@ export function resolveS232EnteredValue(opts: {
         reason: `Manufactured ≥25 years before entry — 9903.74.07 @ 0% additional (CSMS #66665333). 301-FL suppressed via 9903.05.90.`,
         source: "CSMS #66665333",
         matched_stem: (mv || mb)!.matched_stem,
-        jp_parts_topup: false,
+        ...NO_CAP,
         suppresses_metals: true,
         suppresses_wood: true,
       },
@@ -166,7 +213,7 @@ export function resolveS232EnteredValue(opts: {
         reason: `Manufactured ≥25 years before entry — 9903.94.04 @ 0% additional (CSMS #64624801). 301-FL suppressed via 9903.05.90.`,
         source: "CSMS #64624801",
         matched_stem: pv.matched_stem,
-        jp_parts_topup: false,
+        ...NO_CAP,
         suppresses_metals: false,
         suppresses_wood: true,
       },
@@ -185,7 +232,7 @@ export function resolveS232EnteredValue(opts: {
         reason: `MHDV bus list stem ${mb.matched_stem} → 9903.74.02 @ 10% additional (CSMS #66665333 / Proclamation 10984). 301-FL suppressed via 9903.05.90.`,
         source: mb.source,
         matched_stem: mb.matched_stem,
-        jp_parts_topup: false,
+        ...NO_CAP,
         suppresses_metals: true,
         suppresses_wood: true,
       },
@@ -205,7 +252,7 @@ export function resolveS232EnteredValue(opts: {
           reason: `On MHDV vehicle list stem ${mv.matched_stem} but claimed not an MHDV — 9903.74.05 @ 0% (CSMS #66665333).`,
           source: mv.source,
           matched_stem: mv.matched_stem,
-          jp_parts_topup: false,
+          ...NO_CAP,
           suppresses_metals: true,
           suppresses_wood: true,
         },
@@ -222,7 +269,7 @@ export function resolveS232EnteredValue(opts: {
         reason: `MHDV vehicle list stem ${mv.matched_stem} → 9903.74.01 @ 25% additional (CSMS #66665333 / Proclamation 10984). 301-FL suppressed via 9903.05.90.`,
         source: mv.source,
         matched_stem: mv.matched_stem,
-        jp_parts_topup: false,
+        ...NO_CAP,
         suppresses_metals: true,
         suppresses_wood: true,
       },
@@ -242,7 +289,7 @@ export function resolveS232EnteredValue(opts: {
           reason: `On MHDV parts list stem ${mp.matched_stem} but claimed not an MHDV part — 9903.74.11 @ 0% (CSMS #66665333). 301-FL suppressed via 9903.05.90.`,
           source: mp.source,
           matched_stem: mp.matched_stem,
-          jp_parts_topup: false,
+          ...NO_CAP,
           suppresses_metals: true,
           suppresses_wood: true,
         },
@@ -267,7 +314,7 @@ export function resolveS232EnteredValue(opts: {
             : `MHDV parts claim on list stem ${mp.matched_stem} → 9903.74.08 @ 25% additional (CSMS #66665333). 301-FL suppressed via 9903.05.90.`,
           source: mp.source,
           matched_stem: mp.matched_stem,
-          jp_parts_topup: false,
+          ...NO_CAP,
           suppresses_metals: true,
           suppresses_wood: true,
         },
@@ -296,23 +343,37 @@ export function resolveS232EnteredValue(opts: {
           reason: `On passenger-vehicle list stem ${pv.matched_stem} but claimed not a PV/light truck — 9903.94.02 @ 0% (CSMS #64624801).`,
           source: pv.source,
           matched_stem: pv.matched_stem,
-          jp_parts_topup: false,
+          ...NO_CAP,
           suppresses_metals: false,
           suppresses_wood: true,
         },
         notes,
       };
     }
+    const origin = resolve232VehicleOrigin({
+      coo,
+      rateDay: day,
+      col1Rate: opts.col1Rate ?? 0,
+      flags,
+      matchedStem: pv.matched_stem,
+    });
+    const ukNote = ukVehicleTrqNote(coo, day, flags);
+    if (ukNote) {
+      notes.push({ severity: "INFO", code: "S232_UK_VEHICLE_TRQ", message: ukNote });
+    }
     return {
       hit: {
         family: "autos_vehicles",
         program: "SEC_232_AUTOS",
-        heading: "9903.94.01",
-        rate_pct_decimal: 0.25,
-        label: "Section 232 — passenger vehicles and light trucks",
-        reason: `Passenger-vehicle / light-truck list stem ${pv.matched_stem} → 9903.94.01 @ 25% additional (CSMS #64624801 / Proclamation 10908). 301-FL suppressed via 9903.05.90.`,
-        source: pv.source,
+        heading: origin.heading,
+        rate_pct_decimal: origin.rate_pct_decimal,
+        label: origin.label,
+        reason: origin.reason,
+        source: origin.source,
         matched_stem: pv.matched_stem,
+        combined_cap: origin.combined_cap,
+        cap_pct_decimal: origin.cap_pct_decimal,
+        zero_commodity: origin.zero_commodity,
         jp_parts_topup: false,
         suppresses_metals: false,
         suppresses_wood: true,
@@ -324,19 +385,31 @@ export function resolveS232EnteredValue(opts: {
   const claimedAuto = flag(flags, "s232_auto_part", "s232_auto", "s232");
   const annex = match232AutoPartsAnnex(hts);
   if (!opts.chapterMetals && (annex || claimedAuto)) {
+    const krSelfCert = Boolean(claimedAuto && !annex && flag(flags, "s232_kr_self_cert"));
+    const origin = resolve232PartsOrigin({
+      coo,
+      rateDay: day,
+      col1Rate: opts.col1Rate ?? 0,
+      flags,
+      krSelfCert,
+      matchedStem: annex?.matched_stem,
+    });
     return {
       hit: {
         family: "autos_parts",
         program: "SEC_232_AUTOS",
-        heading: annex?.ch99_duty || "9903.94.05",
-        rate_pct_decimal: 0.25,
-        label: "Section 232 — auto parts",
+        heading: origin.heading,
+        rate_pct_decimal: origin.rate_pct_decimal,
+        label: origin.label,
         reason: annex
-          ? `Proclamation 10908 annex stem ${annex.matched_stem} → ${annex.ch99_duty} @ 25%.`
-          : "Default 232 auto-parts duty while off-list claim is asserted.",
-        source: annex?.source || "Proclamation 10908",
+          ? origin.reason
+          : `${origin.reason} Off-list claim asserted.`,
+        source: origin.source,
         matched_stem: annex?.matched_stem,
-        jp_parts_topup: true,
+        combined_cap: origin.combined_cap,
+        cap_pct_decimal: origin.cap_pct_decimal,
+        zero_commodity: origin.zero_commodity,
+        jp_parts_topup: origin.combined_cap,
         suppresses_metals: false,
         suppresses_wood: true,
       },
@@ -357,7 +430,7 @@ export function resolveS232EnteredValue(opts: {
           reason: `Wood 232 ${wood.bucket} stem ${wood.matched_stem} → ${wood.heading} @ ${wood.rate_pct}% additional (CSMS #66492057 / Proclamation 10976). 301-FL suppressed via 9903.05.90.`,
           source: wood.source,
           matched_stem: wood.matched_stem,
-          jp_parts_topup: false,
+          ...NO_CAP,
           suppresses_metals: false,
           suppresses_wood: false,
         },

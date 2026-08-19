@@ -553,6 +553,12 @@ async function previewHtsMeta() {
         `<span class="pill pill-301" title="Resolved from 8-digit HTS membership">China 301 ${esc(china.list.replace(/_/g, " "))} → ${esc(china.ch99)}</span>`,
       );
     }
+    const fy = r.china_301_fy;
+    if (fy?.ch99) {
+      bits.push(
+        `<span class="pill pill-301" title="${esc(fy.reason || "U.S. note 31")}">China 301 note 31 → ${esc(fy.ch99)} @ ${esc(String(fy.rate_pct))}%</span>`,
+      );
+    }
     if (r.metals) {
       bits.push(
         `<span class="pill pill-metals">232 ${esc(r.metals.metal)} → ${esc(r.metals.duty_ch99)} @ ${esc(String(r.metals.rate_pct))}%</span>`,
@@ -1690,7 +1696,9 @@ function renderLedger(L) {
       <span class="mono cap">$${money(L.entered_value)} entered</span>
       ${L.quantity != null ? `<span class="mono cap">${esc(String(L.quantity))} ${esc(L.quantity_uom || "")}</span>` : ""}
       <span class="spacer"></span>
-      ${L.china_301?.list
+      ${L.china_301_fy?.ch99
+        ? `<span class="pill pill-301">301 note 31 → ${esc(L.china_301_fy.ch99)}</span>`
+        : L.china_301?.list
         ? `<span class="pill pill-301">301 ${esc(L.china_301.list.replace(/_/g, " "))} → ${esc(L.china_301.ch99)}</span>`
         : ""}
       ${L.pharma_compare?.claimed

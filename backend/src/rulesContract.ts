@@ -52,7 +52,7 @@ export const STACKING_CONTRACT = {
   rules: [
     {
       id: "R2",
-      text: "Legacy China 301 (9903.88.xx) is NOT suppressed by 232 or Sec 122. Reports first; stacks with both when applicable.",
+      text: "China 301 (legacy 9903.88.xx and four-year review 9903.91.xx / 9903.92.10) is NOT suppressed by 232 or Sec 122. Reports first; stacks with both when applicable. Note 31 replaces 9903.88.xx on the same HTS.",
     },
     {
       id: "R2b",

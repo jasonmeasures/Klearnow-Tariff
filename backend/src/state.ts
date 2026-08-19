@@ -40,11 +40,13 @@ function fileHash(): string {
     "s232_pharma.json",
     "s232_auto_parts_annex.json",
     "s232_autos_vehicles.json",
+    "s232_auto_origin.json",
     "s232_mhdv.json",
     "s232_wood.json",
     "s232_semiconductors.json",
     "ch99_rules.json",
     "s301_china_lists.json",
+    "s301_china_note31.json",
   ];
   const parts = files
     .filter((f) => existsSync(join(DATA, f)))

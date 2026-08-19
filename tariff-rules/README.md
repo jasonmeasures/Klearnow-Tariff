@@ -9,7 +9,7 @@ These are not customer- or brand-specific rules — any US entry tool can consum
 | **Code registry** | Confirmed Ch.99 headings, rates, MFN interaction | `src/tariffRules.ts` + `data/ch99_codes.json` |
 | **301-FL** | CSMS #69326983 — 60 origins, flat / combined-to-cap | `src/s301fl.ts` + `data/s301fl_pack.json` |
 | **232 autos/parts** | Procl. 10908 annex — `9903.94.05` | `src/s232Autos.ts` + `data/s232_auto_parts_annex.json` |
-| **232 vehicles** | CSMS #64624801 — passenger vehicles `9903.94.01` | `src/s232Vehicles.ts` + `data/s232_autos_vehicles.json` |
+| **232 vehicles** | CSMS #64624801 — passenger vehicles; COO drives `9903.94.01` vs JP `.41` / EU `.51` / KR `.61` | `src/s232Vehicles.ts` + `src/s232AutoOrigin.ts` |
 | **232 MHDV** | CSMS #66665333 — `9903.74.01/.02/.08` | `src/s232Mhdv.ts` + `data/s232_mhdv.json` |
 | **232 wood** | CSMS #66492057 — `9903.76.xx` | `src/s232Wood.ts` + `data/s232_wood.json` |
 | **232 semiconductors** | CSMS #67400472 — `9903.79.01` claim-gated | `src/s232Semiconductors.ts` + `data/s232_semiconductors.json` |

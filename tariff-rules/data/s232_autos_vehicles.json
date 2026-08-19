@@ -26,7 +26,7 @@
   },
   "notes": [
     "8704.60.00 also appears on the MHDV vehicle list (Proclamation 10984). Default is passenger 9903.94.01 unless flags.s232_mhdv is set.",
-    "Japan 15% top-up 9903.94.43 is an auto-parts path, not the vehicle heading."
+    "Heading depends on country of origin after the JP/EU/KR CSMS modifications. Default remains 9903.94.01 @ 25% additional. Japan vehicles use 9903.94.41 (combined 15%) / 9903.94.40 (0% additional) from 2025-09-16 — not the parts heading 9903.94.43."
   ],
   "hts": [
     "8703.22.01", "8703.23.01", "8703.24.01",

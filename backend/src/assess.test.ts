@@ -25,6 +25,105 @@ describe("golden duty paths", () => {
     assert.ok(L.suppressed.some((s) => s.ch99 === "9903.05.31")); // CN flat FL heading
   });
 
+  it("CN 7601103000 on 2026-08-18 → 9903.91.01 + 232 metals 9903.82.02", () => {
+    const L = assessLine(
+      {
+        hts: "7601103000",
+        coo: "CN",
+        entered_value: 10000,
+        metal_content_value: 10000,
+        country_of_melt_pour: "CN",
+        entry_date: "2026-08-18",
+        flags: { s301_list_3: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.91.01"));
+    assert.ok(L.ch99_sequence.includes("9903.82.02"));
+    assert.ok(L.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!L.ch99_sequence.includes("9903.88.03"));
+    assert.ok(
+      L.ch99_sequence.indexOf("9903.91.01") < L.ch99_sequence.indexOf("9903.82.02"),
+    );
+    assert.equal(L.china_301_fy?.ch99, "9903.91.01");
+    // 2.6% col-1 + 25% note 31 + 50% 232 on metal content
+    assert.equal(L.totals.effective_duty_rate_pct, 77.6);
+    assert.equal(L.totals.duty, 7760);
+  });
+
+  it("VN 7601103000 does not get 9903.91.01", () => {
+    const L = assessLine(
+      {
+        hts: "7601103000",
+        coo: "VN",
+        entered_value: 10000,
+        metal_content_value: 10000,
+        country_of_melt_pour: "VN",
+        entry_date: "2026-08-18",
+      },
+      0,
+    );
+    assert.ok(!L.ch99_sequence.includes("9903.91.01"));
+    assert.ok(L.ch99_sequence.includes("9903.82.02"));
+  });
+
+  it("CN 7601103000 before 2024-09-27 does not get 9903.91.01", () => {
+    const L = assessLine(
+      {
+        hts: "7601103000",
+        coo: "CN",
+        entered_value: 10000,
+        metal_content_value: 10000,
+        country_of_melt_pour: "CN",
+        entry_date: "2024-09-26",
+      },
+      0,
+    );
+    assert.ok(!L.ch99_sequence.includes("9903.91.01"));
+  });
+
+  it("CN 4015.12.10 gloves → 9903.91.05 in 2025 and 9903.91.08 in 2026", () => {
+    const y25 = assessLine(
+      {
+        hts: "4015121000",
+        coo: "CN",
+        entered_value: 1000,
+        col1_rate_pct: 7.5,
+        entry_date: "2025-06-01",
+      },
+      0,
+    );
+    const y26 = assessLine(
+      {
+        hts: "4015121000",
+        coo: "CN",
+        entered_value: 1000,
+        col1_rate_pct: 7.5,
+        entry_date: "2026-08-18",
+      },
+      0,
+    );
+    assert.ok(y25.ch99_sequence.includes("9903.91.05"));
+    assert.ok(!y25.ch99_sequence.includes("9903.91.08"));
+    assert.ok(y26.ch99_sequence.includes("9903.91.08"));
+    assert.ok(!y26.ch99_sequence.includes("9903.91.05"));
+  });
+
+  it("CN enteral syringe 9018310080 exclusion expires 2026-01-01", () => {
+    const y25 = assessLine(
+      { hts: "9018310080", coo: "CN", entered_value: 1000, entry_date: "2025-10-01" },
+      0,
+    );
+    const y26 = assessLine(
+      { hts: "9018310080", coo: "CN", entered_value: 1000, entry_date: "2026-08-18" },
+      0,
+    );
+    assert.ok(y25.ch99_sequence.includes("9903.91.10"));
+    assert.ok(!y25.ch99_sequence.includes("9903.91.03"));
+    assert.ok(y26.ch99_sequence.includes("9903.91.03"));
+    assert.ok(!y26.ch99_sequence.includes("9903.91.10"));
+  });
+
   it("CN lubricating oil 2710193020 → List 2 9903.88.02 even if List 3 claimed", () => {
     const L = assessLine(
       {
@@ -545,7 +644,8 @@ describe("program era routing", () => {
       0,
     );
     assert.ok(L.diagnostics.some((d) => d.code === "S232_ANNEX_HIT"));
-    assert.ok(L.ch99_sequence.includes("9903.94.05"));
+    assert.ok(L.ch99_sequence.includes("9903.94.53"));
+    assert.ok(!L.ch99_sequence.includes("9903.94.05"));
     assert.ok(L.ch99_sequence.includes("9903.05.90"));
     assert.ok(!L.ch99_sequence.includes("9903.05.39"));
   });
@@ -575,7 +675,8 @@ describe("program era routing", () => {
       0,
     );
     assert.ok(claimed.diagnostics.some((d) => d.code === "S232_ANNEX_CLAIM_GATED"));
-    assert.ok(claimed.ch99_sequence.includes("9903.94.05"));
+    assert.ok(claimed.ch99_sequence.includes("9903.94.53"));
+    assert.ok(!claimed.ch99_sequence.includes("9903.94.05"));
     assert.ok(claimed.ch99_sequence.includes("9903.05.90"));
   });
 

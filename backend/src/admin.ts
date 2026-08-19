@@ -10,6 +10,7 @@ import {
   s301flMeta,
   type FlCountry,
 } from "../../tariff-rules/src/s301fl.ts";
+import { reloadS301ChinaNote31 } from "../../tariff-rules/src/s301ChinaNote31.ts";
 import { requireAdmin, requireScope } from "./auth.ts";
 import { htsTableMeta, reloadHtsTable } from "./htsLookup.ts";
 import { importHtsFromBuffer } from "./import_hts.ts";
@@ -19,6 +20,7 @@ export const adminRouter = Router();
 
 adminRouter.post("/admin/reload", requireScope("write_rules"), requireAdmin, (_req, res) => {
   reloadS301fl();
+  reloadS301ChinaNote31();
   reloadHtsTable();
   refreshRulepackState();
   res.json({

@@ -1,0 +1,97 @@
+{
+  "version": "1.0.0",
+  "as_of": "2026-08-19",
+  "notes": [
+    "Passenger vehicles and auto parts are NOT origin-blind after the JP/EU/KR/UK CSMS modifications.",
+    "Default (most COO): vehicles 9903.94.01 @ 25% additional; parts 9903.94.05 @ 25% additional. Column 1 stacks.",
+    "JP / EU / KR combined-cap filing (CSMS default): report the cap on the Ch.99 line and $0 duty on Ch.1–97. Drawback exception is claim-gated (s232_drawback_col1).",
+    "UK vehicles 9903.94.31 is a TRQ claim (s232_uk_auto_trq), not auto. UK parts 9903.94.32 auto-applies on the annex.",
+    "Taiwan vehicle/parts origin headings remain unpublished here — keep default until CSMS assigns them.",
+    "Vintage 9903.94.04 and not-PV 9903.94.02 still beat origin splits when claimed."
+  ],
+  "default_vehicles": {
+    "heading": "9903.94.01",
+    "rate_pct": 25,
+    "kind": "additional"
+  },
+  "default_parts": {
+    "heading": "9903.94.05",
+    "rate_pct": 25,
+    "kind": "additional"
+  },
+  "uk_vehicle_trq": {
+    "from": "2025-06-30",
+    "iso2": ["GB"],
+    "flag": "s232_uk_auto_trq",
+    "heading": "9903.94.31",
+    "additional_pct": 7.5,
+    "source": "EO 14309 / 90 FR 27851 / HTS 9903.94.31 — 7.5% additional stacks with Column 1 (typically 2.5% → combined 10%). Quota 100,000 vehicles/year; over-quota stays on 9903.94.01."
+  },
+  "splits": [
+    {
+      "id": "JP",
+      "match": { "iso2": ["JP"] },
+      "from": "2025-09-16",
+      "vehicles": {
+        "cap_pct": 15,
+        "lt": "9903.94.41",
+        "gte": "9903.94.40"
+      },
+      "parts": {
+        "cap_pct": 15,
+        "lt": "9903.94.43",
+        "gte": "9903.94.42"
+      },
+      "source": "CSMS #66242844 / #66319804 — Japan 232 autos from 2025-09-16"
+    },
+    {
+      "id": "EU",
+      "match": { "group": "EU" },
+      "from": "2025-08-01",
+      "vehicles": {
+        "cap_pct": 15,
+        "lt": "9903.94.51",
+        "gte": "9903.94.50"
+      },
+      "parts": {
+        "cap_pct": 15,
+        "lt": "9903.94.53",
+        "gte": "9903.94.52"
+      },
+      "source": "CSMS #66336270 / 90 FR 18660 — EU 232 autos from 2025-08-01"
+    },
+    {
+      "id": "KR",
+      "match": { "iso2": ["KR"] },
+      "from": "2025-11-01",
+      "vehicles": {
+        "cap_pct": 15,
+        "lt": "9903.94.61",
+        "gte": "9903.94.60"
+      },
+      "parts": {
+        "cap_pct": 15,
+        "lt": "9903.94.63",
+        "gte": "9903.94.62"
+      },
+      "parts_self_cert": {
+        "flag": "s232_kr_self_cert",
+        "lt": "9903.94.65",
+        "gte": "9903.94.64",
+        "note": "Off-annex parts certified for U.S. auto production/repair. Do not use when 9903.94.62/63 already apply."
+      },
+      "source": "CSMS #66987366 — Korea 232 autos from 2025-11-01"
+    },
+    {
+      "id": "GB_parts",
+      "match": { "iso2": ["GB"] },
+      "from": "2025-06-30",
+      "parts": {
+        "cap_pct": 10,
+        "lt": "9903.94.32",
+        "gte": "9903.94.32"
+      },
+      "source": "CSMS #66319804 — UK automobile parts combined 10% via 9903.94.32"
+    }
+  ]
+}

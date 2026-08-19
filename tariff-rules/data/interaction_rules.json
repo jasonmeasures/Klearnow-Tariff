@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "as_of": "2026-07-31",
-  "stacking_order_note": "CBP entry-summary reporting sequence: Ch.99 lines report before the Ch.1-97 line. Where legacy China 301 and 232 both apply, 301 reports first.",
+  "as_of": "2026-08-18",
+  "stacking_order_note": "CBP entry-summary reporting sequence: Ch.99 lines report before the Ch.1-97 line. Where China 301 (9903.88.xx or 9903.91.xx) and 232 both apply, 301 reports first.",
   "rules": [
     {
       "id": "R1_232_VS_301FL",
@@ -11,8 +11,9 @@
     },
     {
       "id": "R2_CHINA_301_NOT_SUPPRESSED",
-      "rule": "Legacy China 301 (9903.88.xx) is NOT suppressed by 232. Both report; 301 first. Worked example: CN 8708 List 3 at 2.5% col-1 = 25% + 25% + 2.5% = 52.5%. Also stacks with Sec 122 when the line is outside the 232 universe. Continues alongside 301-FL (9903.05.31) in the FL era.",
-      "status": "CONFIRMED"
+      "rule": "China 301 — legacy 9903.88.xx (U.S. note 20) and four-year review 9903.91.xx / 9903.92.10 (U.S. note 31, 89 FR 76581 / CSMS #62411889) — is NOT suppressed by 232. Both report; 301 first. Note 31 replaces 9903.88.xx on the same HTS (do not stack both 301 headings). Worked example: CN 8708 List 3 at 2.5% col-1 = 25% + 25% + 2.5% = 52.5%. CN 7601.10.30 note 31(b) = 9903.91.01 25% + 9903.82.02 50% metal-content + 2.6% col-1. Also stacks with Sec 122 when the line is outside the 232 universe. Continues alongside 301-FL in the FL era (232 universe still reports 9903.05.90).",
+      "status": "CONFIRMED",
+      "source": "CSMS #62411889; 89 FR 76581; U.S. note 31"
     },
     {
       "id": "R2c_BRAZIL_301_STACKS_FL",
@@ -28,7 +29,7 @@
     },
     {
       "id": "R3_JP_232_TOPUP",
-      "rule": "Japan 232 auto parts: if col-1 < 15%, 232 duty equals the difference to reach 15% (9903.94.43). 15% reported on Ch.99 line; ZERO on Ch.1-97 line. Validated: JP 2.5% col-1 -> 232 of 12.5% -> total 15.0%. Same part NOT a 232 auto part -> 9903.05.49 +10% -> total 12.5%.",
+      "rule": "Section 232 automobiles are origin-driven. Default (most COO): vehicles 9903.94.01 @ 25% additional and parts 9903.94.05 @ 25% additional (Column 1 stacks). Japan (from 2025-09-16): vehicles 9903.94.41 / .40 and parts 9903.94.43 / .42. EU (from 2025-08-01): vehicles 9903.94.51 / .50 and parts 9903.94.53 / .52. Korea (from 2025-11-01): vehicles 9903.94.61 / .60 and parts 9903.94.63 / .62. When Column 1 is under the cap (15% JP/EU/KR; 10% UK parts 9903.94.32), CSMS default reports the cap on Ch.99 and $0 on Ch.1–97. Validated: JP 8703.23.01 @ 2.5% col-1 → 9903.94.41, total 15.0%. JP part @ 2.5% → 9903.94.43, total 15.0%. Same JP part NOT a 232 auto part → 9903.05.49 +10% → 12.5%.",
       "status": "CONFIRMED"
     },
     {
@@ -44,7 +45,7 @@
     },
     {
       "id": "R6_MFN_CAP_RULE",
-      "rule": "Trade-deal codes (9903.94.43/.45/.55/.63): MFN 'capped/removed'. UNRESOLVED between: (A) MFN zeroed entirely — IEEPA/trade-deal rate IS the total; (B) MFN conditionally capped — reduce if above threshold, keep if already 0. Practical impact small on Ch87 (0-2.5% MFN) but material on Ch39 plastics 5.9% / Ch73 bolts 5.8%.",
+      "rule": "Leftover trade-deal flags (trade_deal_eu / trade_deal_kr / trade_deal_tw) and headings 9903.94.45/.55: MFN 'capped/removed' mechanic still UNRESOLVED — block totals. JP/EU/KR CSMS origin-split 232 headings are computed under R3 and are not this rule.",
       "status": "TBC_BLOCKING",
       "owner": "Jason",
       "blocking": "Total-duty computation for all trade-deal lines"

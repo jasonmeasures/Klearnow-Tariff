@@ -22,6 +22,7 @@ import {
   s301flMeta,
   type FlCountry,
 } from "../../tariff-rules/src/s301fl.ts";
+import { reloadS301ChinaNote31 } from "../../tariff-rules/src/s301ChinaNote31.ts";
 import { assessEntry } from "./assess.ts";
 import { requireScope } from "./auth.ts";
 import { listCsms } from "./csms.ts";
@@ -249,6 +250,7 @@ function upsertS301fl(body: Record<string, unknown>) {
   else pack.countries.push(row);
   writeFileSync(path, JSON.stringify(pack, null, 2) + "\n", "utf8");
   reloadS301fl();
+  reloadS301ChinaNote31();
   refreshRulepackState();
   return { ok: true, upserted: row, economies: s301flMeta().economies, rulepack: rulepackPublic() };
 }
@@ -440,6 +442,7 @@ async function runTool(
     case "reload_pack": {
       if (!canWrite) return { error: "write_rules scope required" };
       reloadS301fl();
+      reloadS301ChinaNote31();
       refreshRulepackState();
       return { ok: true, rulepack: rulepackPublic(), s301fl: s301flMeta() };
     }

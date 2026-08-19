@@ -107,16 +107,32 @@ export function assertRateKnown(code: string): Ch99Code {
 }
 
 /**
- * Japan 232 auto-part top-up (rule R3, CONFIRMED):
- * col-1 under 15% is brought up to 15% via 9903.94.43; the 15% is reported
- * on the Ch.99 line and the Ch.1-97 line reports zero.
+ * Combined Column-1 + 232 cap (CSMS default for JP/EU/KR autos and UK parts):
+ * col-1 under the cap → report the cap on Ch.99 and zero Ch.1–97.
+ * col-1 already ≥ cap → 0 additional; col-1 stays on Ch.1–97.
+ * Drawback exception: keep col-1 on Ch.1–97 and report (cap − col-1) on Ch.99.
+ */
+export function combinedCapTopUp(
+  col1Rate: number,
+  cap: number,
+  drawback = false,
+): {
+  ch99Line: number;
+  ch1to97Line: number;
+} {
+  if (col1Rate >= cap) return { ch99Line: 0, ch1to97Line: col1Rate };
+  if (drawback) return { ch99Line: cap - col1Rate, ch1to97Line: col1Rate };
+  return { ch99Line: cap, ch1to97Line: 0 };
+}
+
+/**
+ * Japan 232 auto-part top-up (rule R3, CONFIRMED).
  */
 export function jp232TopUp(col1Rate: number): {
   ch99Line: number;
   ch1to97Line: number;
 } {
-  if (col1Rate >= 0.15) return { ch99Line: 0, ch1to97Line: col1Rate };
-  return { ch99Line: 0.15, ch1to97Line: 0 };
+  return combinedCapTopUp(col1Rate, 0.15);
 }
 
 /**
@@ -143,7 +159,7 @@ export function chinaStack(
  */
 export function computeTradeDealTotal(_code: string, _col1Rate: number): never {
   throw new Error(
-    "MFN cap mechanic for trade-deal codes (9903.94.43/.45/.55/.63) is unresolved (R6_MFN_CAP_RULE). " +
+    "MFN cap mechanic for leftover trade-deal flags (9903.94.45/.55) is unresolved (R6_MFN_CAP_RULE). " +
       "Resolve in data/interaction_rules.json before computing.",
   );
 }

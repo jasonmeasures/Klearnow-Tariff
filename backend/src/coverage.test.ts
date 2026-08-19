@@ -177,7 +177,7 @@ GO-1002,SKU-B,1806329000,CN`,
     );
     const pv = by("870323");
     assert.ok((pv.s232_universe as { passenger_vehicle?: unknown }).passenger_vehicle);
-    assert.ok((pv.rules as { ch99?: string }[]).some((x) => x.ch99 === "9903.94.01"));
+    assert.ok((pv.rules as { ch99?: string }[]).some((x) => x.ch99 === "9903.94.41"));
     const mhdv = by("870423");
     assert.ok((mhdv.rules as { ch99?: string }[]).some((x) => x.ch99 === "9903.74.01"));
     const bus = by("870210");
