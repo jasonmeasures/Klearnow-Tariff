@@ -84,13 +84,13 @@
             <div class="field"><label class="label" for="qc-hts">HTS</label>
               <input type="text" id="qc-hts" class="mono" spellcheck="false"
                 autocomplete="off" inputmode="decimal"
-                title="10-digit HTS classification (with or without dots)" /></div>
+                title="Type 4+ digits to search 10-digit HTS lines" /></div>
             <div class="field"><label class="label" for="qc-coo">Origin</label>
               <input type="text" id="qc-coo" class="country-field" data-country
                 title="Type ISO-2 and Tab, or search country name" /></div>
             <div class="field"><label class="label" for="qc-value">Entered value (USD)</label>
               <input type="text" id="qc-value" class="num" inputmode="decimal"
-                title="Customs entered value in US dollars" /></div>
+                title="Customs entered value in US dollars (thousands separator on blur)" /></div>
             <div class="field"><label class="label" for="qc-date">Rate date</label>
               <input type="date" id="qc-date" title="Rate-determination / entry date" /></div>
             <div class="field">
@@ -771,6 +771,7 @@ placeholder="hts,coo
             <code class="mono">X-API-Key</code> (local default <code class="mono">dev-internal</code>).</p>
           <ul class="api-list">
             <li><code class="mono">GET /v1/hts/{code}</code> — baseline Column-1 rate</li>
+            <li><code class="mono">GET /v1/hts:suggest</code> — 10-digit HTS typeahead</li>
             <li><code class="mono">POST /v1/hts:coverage</code> — which rules apply to an HTS list (no value)</li>
             <li><code class="mono">POST /v1/entries:assess</code> — duty stack (<code class="mono">engine=auto|ch99</code>)</li>
             <li><code class="mono">GET /v1/rules</code> — browse live rules</li>

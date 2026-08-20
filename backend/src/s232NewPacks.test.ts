@@ -11,6 +11,11 @@ describe("Section 232 new packs (wood / vehicles / MHDV / semiconductors)", () =
     assert.equal(wood.wood?.ch99, "9903.76.01");
     const pv = previewS232Universe("8703230100");
     assert.equal(pv.passenger_vehicle?.ch99, "9903.94.01");
+    const jp = previewS232Universe("8703230120", "JP", {
+      rateDay: "2026-08-18",
+      col1Rate: 0.025,
+    });
+    assert.equal(jp.passenger_vehicle?.ch99, "9903.94.41");
     const mhdv = previewS232Universe("8704230100");
     assert.equal(mhdv.mhdv_vehicle?.ch99, "9903.74.01");
     const bus = previewS232Universe("8702103100");

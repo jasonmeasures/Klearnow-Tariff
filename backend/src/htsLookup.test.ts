@@ -8,6 +8,7 @@ import {
   lookupHts,
   reloadHtsTable,
   resolveCol1,
+  suggestHtsPrefix,
   suggestRelatedHts,
 } from "./htsLookup.ts";
 import {
@@ -155,6 +156,18 @@ describe("HTS ended → replacement", () => {
     const codes = related.map((r) => r.hts);
     assert.ok(codes.includes("1805000010"));
     assert.ok(codes.includes("1805000090"));
+  });
+
+  it("typeahead matches 10-digit lines from 4+ digits", () => {
+    assert.deepEqual(suggestHtsPrefix("87", "2026-08-18"), []);
+    const heading = suggestHtsPrefix("8703", "2026-08-18", 12);
+    assert.ok(heading.length >= 1 && heading.length <= 12);
+    assert.ok(heading.every((h) => h.hts.startsWith("8703")));
+    assert.ok(heading[0].hts_display.startsWith("8703."));
+    const stem = suggestHtsPrefix("87032301", "2026-08-18", 12);
+    assert.ok(stem.some((h) => h.hts === "8703230120" || h.hts.startsWith("87032301")));
+    const exact = suggestHtsPrefix("8703230120", "2026-08-18");
+    assert.equal(exact[0]?.hts, "8703230120");
   });
 
   it("coverage blocks unknown HTS and returns plain-text help + related", () => {

@@ -72,6 +72,7 @@ function tools(canWrite: boolean) {
         properties: {
           hts: { type: "string" },
           as_of: { type: "string", description: "YYYY-MM-DD" },
+          coo: { type: "string", description: "ISO-2 origin for 232 heading preview" },
         },
         required: ["hts"],
       },
@@ -274,15 +275,24 @@ async function runTool(
     case "lookup_hts": {
       const asOf = String(input.as_of || new Date().toISOString().slice(0, 10));
       const hts = String(input.hts || "");
+      const coo = String(input.coo || "").trim().toUpperCase();
       const look = lookupHts(hts, asOf);
       const annex = match232AutoPartsAnnex(hts);
+      const s232_universe = previewS232Universe(hts, coo, {
+        rateDay: asOf,
+        col1Rate: (Number(look.hit?.col1_pct) || 0) / 100,
+      });
       return {
         ...look,
         table: htsTableMeta(),
         s232_auto_parts: annex
-          ? { in_annex: true, matched_stem: annex.matched_stem, ch99: annex.ch99_duty }
+          ? {
+              in_annex: true,
+              matched_stem: annex.matched_stem,
+              ch99: s232_universe.auto_parts?.ch99 || annex.ch99_duty,
+            }
           : { in_annex: false },
-        s232_universe: previewS232Universe(hts),
+        s232_universe,
       };
     }
     case "explain_hts": {

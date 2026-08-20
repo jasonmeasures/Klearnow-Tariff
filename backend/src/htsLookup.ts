@@ -51,6 +51,8 @@ let pack: Pack | null = null;
 let byHts: Map<string, HtsRate[]> | null = null;
 /** 8-digit legal-line index → 10-digit HTS keys (for sibling suggestions). */
 let byStem8: Map<string, string[]> | null = null;
+/** Sorted 10-digit keys for prefix typeahead. */
+let sortedHtsKeys: string[] | null = null;
 let replPack: ReplacementPack | null = null;
 let byFrom: Map<string, HtsReplacement> | null = null;
 
@@ -60,6 +62,7 @@ function load(): Pack {
     pack = { version: "0", as_of: "", source: "", row_count: 0, rates: [] };
     byHts = new Map();
     byStem8 = new Map();
+    sortedHtsKeys = [];
     return pack;
   }
   pack = JSON.parse(readFileSync(DATA, "utf8")) as Pack;
@@ -76,6 +79,7 @@ function load(): Pack {
     sibs.push(hts);
     byStem8.set(stem, sibs);
   }
+  sortedHtsKeys = [...byHts.keys()].sort();
   return pack;
 }
 
@@ -102,6 +106,7 @@ export function reloadHtsTable(): ReturnType<typeof htsTableMeta> {
   pack = null;
   byHts = null;
   byStem8 = null;
+  sortedHtsKeys = null;
   replPack = null;
   byFrom = null;
   load();
@@ -257,6 +262,49 @@ export function suggestRelatedHts(hts: string, asOf: string, limit = 8): Related
     if (out.length >= limit) break;
   }
   return out.sort((a, b) => a.hts.localeCompare(b.hts));
+}
+
+function firstKeyIndex(keys: string[], prefix: string): number {
+  let lo = 0;
+  let hi = keys.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (keys[mid] < prefix) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Active 10-digit statistical lines whose HTS starts with the typed digits.
+ * Used by Duty stack typeahead once the user has entered 4+ digits.
+ */
+export function suggestHtsPrefix(q: string, asOf: string, limit = 12): RelatedHts[] {
+  load();
+  const digits = String(q || "").replace(/\D/g, "");
+  if (digits.length < 4 || !byHts || !sortedHtsKeys?.length) return [];
+  const prefix = digits.slice(0, 10);
+  const day = (asOf || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const cap = Math.min(40, Math.max(1, Number(limit) || 12));
+  const out: RelatedHts[] = [];
+  for (let i = firstKeyIndex(sortedHtsKeys, prefix); i < sortedHtsKeys.length; i++) {
+    const code = sortedHtsKeys[i];
+    if (!code.startsWith(prefix)) break;
+    const list = byHts.get(code);
+    if (!list?.length) continue;
+    const inWindow = list.filter((r) => r.start <= day && day <= r.end);
+    if (!inWindow.length) continue;
+    const pick = sortWindowsNewestFirst(inWindow)[0];
+    out.push({
+      hts: code,
+      hts_display: formatHtsDisplay(code),
+      desc: pick.desc || null,
+      col1_pct: pick.col1_pct,
+      rate_label: formatCol1Rate(pick),
+    });
+    if (out.length >= cap) break;
+  }
+  return out;
 }
 
 /**

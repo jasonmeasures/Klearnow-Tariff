@@ -4,6 +4,7 @@
    ========================================================================== */
 
 import { bindCountryField, countryIsoFrom, formatCountry, resolveCountryIso } from "./countries.js";
+import { bindHtsSuggest } from "./htsSuggest.js";
 import {
   SURFACE,
   apiKeyFromQuery,
@@ -392,6 +393,32 @@ function applyScopes() {
 }
 
 /* ================================================================ QUICK CHECK */
+const QC_DEFAULT_VALUE = 10000;
+
+function parseEnteredValue(raw) {
+  const n = Number(String(raw ?? "").replace(/[$,\s]/g, ""));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function formatEnteredValue(n) {
+  if (!Number.isFinite(n)) return "";
+  const cents = Math.round(n * 100) % 100 !== 0;
+  return n.toLocaleString("en-US", {
+    maximumFractionDigits: cents ? 2 : 0,
+    minimumFractionDigits: cents ? 2 : 0,
+  });
+}
+
+function syncEnteredValueField(el, { defaultIfEmpty = false } = {}) {
+  if (!el) return;
+  const parsed = parseEnteredValue(el.value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    if (defaultIfEmpty) el.value = formatEnteredValue(QC_DEFAULT_VALUE);
+    return;
+  }
+  el.value = formatEnteredValue(parsed);
+}
+
 function initCountryFields(root = document) {
   root.querySelectorAll("input.country-field, input[data-country]").forEach((el) => {
     bindCountryField(el);
@@ -404,11 +431,26 @@ function initQuickCheck() {
   if (d) d.addEventListener("change", () => previewHtsMeta());
   const hts = $("#qc-hts");
   if (hts) {
+    bindHtsSuggest(hts, {
+      fetchSuggestions: async (q) => {
+        const asOf = $("#qc-date")?.value || new Date().toISOString().slice(0, 10);
+        const r = await api(
+          `/v1/hts:suggest?q=${encodeURIComponent(q)}&as_of=${encodeURIComponent(asOf)}&limit=12`,
+        );
+        return r.hits || [];
+      },
+      onCommit: () => previewHtsMeta(),
+    });
     let t = null;
     hts.addEventListener("input", () => {
       clearTimeout(t);
       t = setTimeout(previewHtsMeta, 350);
     });
+  }
+  const valueEl = $("#qc-value");
+  if (valueEl) {
+    syncEnteredValueField(valueEl, { defaultIfEmpty: true });
+    valueEl.addEventListener("blur", () => syncEnteredValueField(valueEl, { defaultIfEmpty: true }));
   }
   document.querySelectorAll("[data-metal-mode]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -427,7 +469,10 @@ function initQuickCheck() {
     let tFta = null;
     const kick = () => {
       clearTimeout(tFta);
-      tFta = setTimeout(syncFtaClaimUi, 250);
+      tFta = setTimeout(() => {
+        syncFtaClaimUi();
+        previewHtsMeta();
+      }, 250);
     };
     ["change", "blur", "input"].forEach((ev) => cooEl.addEventListener(ev, kick));
   }
@@ -485,7 +530,7 @@ function readMetalContentsFromQuick() {
 function updateMetalResolved() {
   const el = $("#qc-metal-resolved");
   if (!el) return;
-  const entered = Number(($("#qc-value")?.value || "").replace(/[$,\s]/g, ""));
+  const entered = parseEnteredValue($("#qc-value")?.value);
   const mode = metalInputMode();
   const parts = [];
   let total = 0;
@@ -524,8 +569,11 @@ async function previewHtsMeta() {
   }
   syncPharmaClaimUi();
   const asOf = $("#qc-date")?.value || new Date().toISOString().slice(0, 10);
+  const coo = countryIsoFrom($("#qc-coo"));
   try {
-    const r = await api(`/v1/hts/${encodeURIComponent(hts)}?as_of=${encodeURIComponent(asOf)}`);
+    const qs = new URLSearchParams({ as_of: asOf });
+    if (coo) qs.set("coo", coo);
+    const r = await api(`/v1/hts/${encodeURIComponent(hts)}?${qs.toString()}`);
     const bits = [];
     if (r.window_status === "ended") {
       bits.push(
@@ -727,7 +775,8 @@ function formatQuickCol1(r) {
 function applyQuickToLines() {
   const hts = ($("#qc-hts").value || "").trim();
   const coo = countryIsoFrom($("#qc-coo"));
-  const value = ($("#qc-value").value || "").trim();
+  const parsed = parseEnteredValue($("#qc-value").value);
+  const value = Number.isFinite(parsed) && parsed > 0 ? String(parsed) : "";
   const date = $("#qc-date").value || new Date().toISOString().slice(0, 10);
   const quantity = ($("#qc-qty")?.value || "").trim();
   const metal_contents = readMetalContentsFromQuick();
@@ -782,7 +831,8 @@ async function runQuickCheck() {
   const bad = [];
   if (!($("#qc-hts").value || "").trim()) bad.push("HTS");
   if (!countryIsoFrom($("#qc-coo"))) bad.push("origin (ISO-2 or country name)");
-  if (!($("#qc-value").value || "").trim()) bad.push("entered value");
+  const entered = parseEnteredValue($("#qc-value").value);
+  if (!Number.isFinite(entered) || entered <= 0) bad.push("entered value");
   const qtyWrap = $("#qc-qty-wrap");
   if (qtyWrap && !qtyWrap.hidden && !($("#qc-qty")?.value || "").trim()) {
     bad.push("quantity (" + (($("#qc-qty-uom")?.textContent || "").replace(/[()]/g, "").trim() || "UOM") + ")");
@@ -814,6 +864,7 @@ async function loadQuickExample(id) {
   $("#qc-hts").value = ex.hts;
   $("#qc-coo").value = ex.coo;
   $("#qc-value").value = ex.value;
+  syncEnteredValueField($("#qc-value"), { defaultIfEmpty: true });
   $("#qc-date").value = ex.date;
   if ($("#qc-mode")) $("#qc-mode").value = ex.mode || "OCEAN";
   if ($("#mode")) $("#mode").value = $("#qc-mode")?.value || "OCEAN";
@@ -2867,7 +2918,8 @@ function renderLookup(R) {
       if (!row) return;
       $("#qc-hts").value = row.hts || "";
       $("#qc-coo").value = row.coo || $("#lookup-coo").value || "";
-      $("#qc-value").value = $("#qc-value").value || "10000";
+      $("#qc-value").value = $("#qc-value").value || formatEnteredValue(QC_DEFAULT_VALUE);
+      syncEnteredValueField($("#qc-value"), { defaultIfEmpty: true });
       $("#qc-date").value = row.as_of || $("#lookup-date").value;
       show("calc");
       previewHtsMeta();
@@ -2884,7 +2936,8 @@ function renderLookup(R) {
       $("#qc-hts").value = row.replacement_hts_display || row.replacement_hts;
       $("#qc-coo").value = row.coo || $("#lookup-coo").value || "";
       $("#qc-date").value = row.as_of || $("#lookup-date").value;
-      $("#qc-value").value = $("#qc-value").value || "10000";
+      $("#qc-value").value = $("#qc-value").value || formatEnteredValue(QC_DEFAULT_VALUE);
+      syncEnteredValueField($("#qc-value"), { defaultIfEmpty: true });
       show("calc");
       previewHtsMeta();
       banner("#calcbanner", "info", "Replacement loaded",
@@ -2900,7 +2953,8 @@ function renderLookup(R) {
       $("#qc-hts").value = rel.hts_display || rel.hts;
       $("#qc-coo").value = row.coo || $("#lookup-coo").value || "";
       $("#qc-date").value = row.as_of || $("#lookup-date").value;
-      $("#qc-value").value = $("#qc-value").value || "10000";
+      $("#qc-value").value = $("#qc-value").value || formatEnteredValue(QC_DEFAULT_VALUE);
+      syncEnteredValueField($("#qc-value"), { defaultIfEmpty: true });
       show("calc");
       previewHtsMeta();
       banner("#calcbanner", "info", "Related HTS loaded",

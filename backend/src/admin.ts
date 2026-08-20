@@ -214,7 +214,26 @@ function openApiDoc(serverUrl: string) {
         },
       },
       "/v1/hts/{hts}": {
-        get: { summary: "Alias — baseline HTS rate", responses: { "200": { description: "Rate window" } } },
+        get: {
+          summary: "Alias — baseline HTS rate",
+          parameters: [
+            { name: "hts", in: "path", required: true, schema: { type: "string" } },
+            { name: "as_of", in: "query", schema: { type: "string", format: "date" } },
+            { name: "coo", in: "query", schema: { type: "string" }, description: "ISO-2 origin for 232 heading preview" },
+          ],
+          responses: { "200": { description: "Rate window" }, "404": { description: "Not found" } },
+        },
+      },
+      "/v1/hts:suggest": {
+        get: {
+          summary: "Typeahead — active 10-digit HTS lines matching typed digits",
+          parameters: [
+            { name: "q", in: "query", required: true, schema: { type: "string" } },
+            { name: "as_of", in: "query", schema: { type: "string", format: "date" } },
+            { name: "limit", in: "query", schema: { type: "integer" } },
+          ],
+          responses: { "200": { description: "Matching statistical lines" } },
+        },
       },
       "/v1/hts:coverage": {
         post: {

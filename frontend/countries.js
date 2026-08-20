@@ -83,7 +83,7 @@ export function formatCountry(iso) {
   return `${c} — ${BY_CODE.get(c)}`;
 }
 
-export function searchCountries(q, limit = 12) {
+export function searchCountries(q, limit = 40) {
   const s = String(q || "").trim().toLowerCase();
   if (!s) {
     // frequent trade partners first when empty/opening
@@ -154,9 +154,9 @@ export function bindCountryField(input, opts = {}) {
     active = -1;
   };
 
-  const render = (items) => {
+  const render = (hits, hint) => {
     list.innerHTML = "";
-    items.forEach(([c, n], i) => {
+    hits.forEach(([c, n], i) => {
       const li = document.createElement("li");
       li.setAttribute("role", "option");
       li.dataset.iso = c;
@@ -168,15 +168,27 @@ export function bindCountryField(input, opts = {}) {
       });
       list.appendChild(li);
     });
-    list.hidden = !items.length;
-    open = items.length > 0;
+    if (hint) {
+      const li = document.createElement("li");
+      li.className = "country-list-hint";
+      li.setAttribute("aria-disabled", "true");
+      li.textContent = hint;
+      list.appendChild(li);
+    }
+    list.hidden = !hits.length;
+    open = hits.length > 0;
   };
 
   const refresh = () => {
     const q = input.value.trim();
     // If already committed display "XX — Name", search on the raw query part
-    const search = q.includes("—") ? q.split("—")[0].trim() : q;
-    render(searchCountries(search));
+    const committed = q.includes("—");
+    const search = committed ? q.split("—")[0].trim() : q;
+    const empty = !search || committed;
+    render(
+      searchCountries(search),
+      empty ? "Type to search 200+ origins" : "",
+    );
   };
 
   input.addEventListener("focus", () => {
@@ -194,7 +206,7 @@ export function bindCountryField(input, opts = {}) {
   });
 
   input.addEventListener("keydown", (e) => {
-    const items = [...list.querySelectorAll("li")];
+    const items = [...list.querySelectorAll("li:not(.country-list-hint)")];
     if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!open) refresh();

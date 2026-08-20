@@ -555,7 +555,7 @@ table.data tr.sel td{background:var(--color-primary-50)}
 .country-input{width:100%}
 .country-list{
   position:absolute;z-index:40;left:0;right:0;top:calc(100% + 2px);
-  margin:0;padding:4px 0;list-style:none;max-height:220px;overflow:auto;
+  margin:0;padding:4px 0;list-style:none;max-height:360px;overflow:auto;
   background:#fff;border:1px solid var(--color-blue-gray-300);border-radius:var(--radius);
   box-shadow:var(--shadow-1);
 }
@@ -565,6 +565,20 @@ table.data tr.sel td{background:var(--color-primary-50)}
 }
 .country-list li:hover,.country-list li.active{background:var(--color-primary-50)}
 .country-list li .mono{font-weight:700;min-width:2ch;color:var(--color-primary-700)}
+.country-list li.country-list-hint{
+  cursor:default;font-size:.786rem;color:var(--color-blue-gray-500);
+}
+.country-list li.country-list-hint:hover,.country-list li.country-list-hint.active{
+  background:transparent;
+}
+.hts-wrap .country-list{min-width:min(28rem,80vw)}
+.hts-suggest-desc{
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:.786rem;color:var(--color-blue-gray-600);
+}
+.hts-suggest-rate{
+  margin-left:auto;font-size:.786rem;color:var(--color-blue-gray-500);white-space:nowrap;
+}
 .country-input.country-invalid{border-color:var(--color-red-500)}
 .metals-rows{display:flex;flex-direction:column;gap:var(--sp-2);margin-top:var(--sp-2)}
 .metal-row{

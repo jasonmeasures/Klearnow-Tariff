@@ -9,7 +9,7 @@ import { chatRouter } from "./chat.ts";
 import { coverRows, parseCoverageInput } from "./coverage.ts";
 import { csmsRouter } from "./csms.ts";
 import { auditEs003, ingestEs003 } from "./es003.ts";
-import { htsTableMeta, lookupHts } from "./htsLookup.ts";
+import { htsTableMeta, lookupHts, suggestHtsPrefix } from "./htsLookup.ts";
 import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
 import { previewS232Universe } from "../../tariff-rules/src/s232Resolve.ts";
 import { insightsRouter } from "./insights.ts";
@@ -159,15 +159,43 @@ app.post(
   },
 );
 
+function lookupS232Extras(hts: string, asOf: string, coo: string, col1Pct: number | null | undefined) {
+  const col1Rate = (Number(col1Pct) || 0) / 100;
+  const s232_universe = previewS232Universe(hts, coo, { rateDay: asOf, col1Rate });
+  const annex = match232AutoPartsAnnex(hts);
+  const s232_auto_parts = annex
+    ? {
+        in_annex: true,
+        matched_stem: annex.matched_stem,
+        ch99: s232_universe.auto_parts?.ch99 || annex.ch99_duty,
+        source: annex.source,
+      }
+    : {
+        in_annex: false,
+        matched_stem: null,
+        ch99: null,
+        note: "Not on Proclamation 10908 / U.S. note 33 auto-parts list",
+      };
+  return { s232_universe, s232_auto_parts };
+}
+
+app.get("/v1/hts:suggest", requireScope("calculate"), (req, res) => {
+  const q = String(req.query.q || req.query.hts || "");
+  const asOf = String(req.query.as_of || new Date().toISOString().slice(0, 10));
+  const limit = Number(req.query.limit);
+  res.json({
+    as_of: asOf,
+    q,
+    hits: suggestHtsPrefix(q, asOf, Number.isFinite(limit) ? limit : 12),
+  });
+});
+
 app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
   const asOf = String(req.query.as_of || new Date().toISOString().slice(0, 10));
+  const coo = String(req.query.coo || "").trim().toUpperCase();
   const raw = String(req.params.hts);
   const look = lookupHts(raw, asOf);
-  const annex = match232AutoPartsAnnex(raw);
-  const s232_universe = previewS232Universe(raw);
-  const s232_auto_parts = annex
-    ? { in_annex: true, matched_stem: annex.matched_stem, ch99: annex.ch99_duty, source: annex.source }
-    : { in_annex: false, matched_stem: null, ch99: null, note: "Not on Proclamation 10908 / U.S. note 33 auto-parts list" };
+  const { s232_universe, s232_auto_parts } = lookupS232Extras(raw, asOf, coo, look.hit?.col1_pct);
   if (look.window_status === "unknown" && !look.replacement_hts) {
     res.status(404).json({
       detail: `No column-1 rate for ${raw} on ${asOf}`,
