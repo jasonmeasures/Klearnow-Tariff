@@ -110,7 +110,10 @@ function show(view) {
   if (view === "insights") loadInsights();
   if (view === "history") loadSnapshots();
   if (view === "reference") loadReference();
-  if (view === "upload") renderUploadHelp();
+  if (view === "upload") {
+    renderUploadHelp({ keepStaged: true });
+    refreshHtsLive();
+  }
   if (view === "lookup") initLookup();
   if (view === "audit") initEs003Audit();
   if (view === "chat") initChat();
@@ -370,8 +373,6 @@ function applyScopes() {
   if (canBrowseRules && !hideManage) {
     banner("#rulesbanner", "info", "Live pack + MCP",
       "Browse the seeded pack. Hot-update 301-FL via PUT /v1/admin/s301fl/countries/{iso2} or the MCP server (mcp/) — no rebuild. Full file edits still live in tariff-rules/data/.");
-    banner("#uploadbanner", "info", "Update baseline HTS",
-      "Drop the classification workbook (.xlsx) to replace Column-1 rates (optional Replacement HTS / Successor columns merge into the successor map), or paste/CSV to merge rates and from→to replacements. Requires write_rules / admin. Live reload — no restart.");
     banner("#historybanner", "info", "Single seeded snapshot",
       "The active snapshot is the pack on disk (hash refreshes on admin reload). Activate/publish UI disabled in v1.");
   }
@@ -1988,7 +1989,7 @@ const TEMPLATES = {
   }, null, 2),
 };
 
-function renderUploadHelp() {
+function renderUploadHelp(opts = {}) {
   const kind = $("#uploadkind").value;
   $("#uploadhelp").innerHTML = kind === "hts"
     ? `<div class="banner info"><b>HTSUS Column-1 rates</b>
@@ -2003,12 +2004,37 @@ function renderUploadHelp() {
         and publish a snapshot. Mark anything AI-drafted
         <span class="mono">confidence: AI_EXTRACTED</span> and leave
         <span class="mono">reviewed_by</span> unset so the validator forces a human sign-off.</div>`;
+  if (opts.keepStaged) return;
   $("#previewcard").hidden = true;
   $("#uploadcommit").disabled = true;
   S.parsed = null;
   S.parsedKind = null;
   UploadXlsx.b64 = null;
   UploadXlsx.name = null;
+}
+
+async function refreshHtsLive(meta) {
+  const el = $("#hts-live");
+  if (!el) return;
+  let t = meta;
+  if (!t) {
+    try {
+      const r = await api("/v1/reference/stacking-order");
+      t = r.hts_table;
+    } catch (e) {
+      el.innerHTML = `<p class="cap">Could not read the live table (${esc(e.message)}).</p>`;
+      return;
+    }
+  }
+  const n = Number(t.row_count || 0).toLocaleString();
+  const repl = t.replacements != null ? Number(t.replacements).toLocaleString() : "—";
+  el.innerHTML = `<dl class="kv">
+      <dt>Source</dt><dd class="mono">${esc(t.source || "—")}</dd>
+      <dt>As of</dt><dd class="mono">${esc(t.as_of || "—")}</dd>
+      <dt>Rate windows</dt><dd class="mono">${n}</dd>
+      <dt>Replacements</dt><dd class="mono">${esc(String(repl))}</dd>
+    </dl>
+    <p class="cap" style="margin:var(--sp-2) 0 0">Duty stack and HTS list use this table. A successful Load updates these fields immediately.</p>`;
 }
 
 const UploadXlsx = { b64: null, name: null };
@@ -2189,15 +2215,18 @@ $("#uploadcommit").onclick = async () => {
   if (!S.parsed) return;
   const b = $("#uploadcommit"); const was = b.textContent;
   b.disabled = true; b.innerHTML = '<span class="busy"></span>';
+  let successTitle = "";
+  let successMsg = "";
+  let live = null;
   try {
     if (S.parsedKind === "rules") {
       const r = await api("/v1/rules:bulk", { method: "POST", body: JSON.stringify({
         actor: S.parsed.actor || "upload", status: S.parsed.status || "DRAFT",
         source_ref: S.parsed.source_ref || "", rules: S.parsed.rules }) });
-      banner("#uploadbanner", "ok", `${r.upserted} rule(s) loaded as draft`,
-        (r.blocked_pending_review?.length
-          ? `${r.blocked_pending_review.length} need a named reviewer before they can publish. `
-          : "") + "Go to Rules to validate and publish a snapshot.");
+      successTitle = `${r.upserted} rule(s) loaded as draft`;
+      successMsg = (r.blocked_pending_review?.length
+        ? `${r.blocked_pending_review.length} need a named reviewer before they can publish. `
+        : "") + "Go to Rules to validate and publish a snapshot.";
     } else if (S.parsedKind === "hts_xlsx") {
       if (!UploadXlsx.b64) throw new Error("Workbook not staged — drop the .xlsx again.");
       const r = await api("/v1/admin/hts:import", {
@@ -2208,10 +2237,14 @@ $("#uploadcommit").onclick = async () => {
           as_of: new Date().toISOString().slice(0, 10),
         }),
       });
-      banner("#uploadbanner", "ok",
-        `HTS table replaced · ${r.row_count?.toLocaleString?.() || r.row_count} rate windows`,
-        `${esc(r.source || UploadXlsx.name)} · hash ${esc(r.hash || "—")} · ` +
-        `${r.with_specific || 0} with specific rates. Live for Duty stack / HTS list now.`);
+      const n = r.row_count?.toLocaleString?.() || r.row_count;
+      successTitle = `HTS table replaced · ${n} rate windows`;
+      successMsg = `${r.source || UploadXlsx.name} · hash ${r.hash || "—"} · ` +
+        `${r.with_specific || 0} with specific rates. Live for Duty stack / HTS list now.`;
+      live = r.hts || {
+        source: r.source, as_of: r.as_of, row_count: r.row_count,
+        replacements: r.replacements_total,
+      };
       UploadXlsx.b64 = null;
       UploadXlsx.name = null;
     } else {
@@ -2232,11 +2265,19 @@ $("#uploadcommit").onclick = async () => {
           as_of: new Date().toISOString().slice(0, 10),
         }),
       });
-      banner("#uploadbanner", "ok", `${r.loaded} rate row(s) merged`,
-        `Table now has ${r.row_count?.toLocaleString?.() || r.row_count} windows · hash ${esc(r.hash || r.reference_epoch || "—")}.`);
+      successTitle = `${r.loaded} rate row(s) merged`;
+      successMsg = `Table now has ${r.row_count?.toLocaleString?.() || r.row_count} windows · hash ${r.hash || r.reference_epoch || "—"}.`;
+      live = r.hts || {
+        source: r.source, as_of: r.as_of, row_count: r.row_count,
+        replacements: r.replacements_total,
+      };
     }
     $("#previewcard").hidden = true; $("#uploadbox").value = ""; S.parsed = null; S.parsedKind = null;
+    banner("#uploadbanner", "ok", successTitle, successMsg);
+    if (live) refreshHtsLive(live);
     await boot();
+    banner("#uploadbanner", "ok", successTitle, successMsg);
+    if (live) refreshHtsLive(live);
   } catch (e) {
     banner("#uploadbanner", "err", "Load failed", e.message);
   } finally { b.disabled = false; b.textContent = was; }

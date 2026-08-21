@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import { adminRouter } from "./admin.ts";
@@ -25,6 +28,16 @@ const FRAME_ANCESTORS = String(
   process.env.FRAME_ANCESTORS || "'self' https://*.klearnow.com https://klearnow.com",
 );
 
+/**
+ * Built SPA. Same origin as the API so the browser's `/v1/...` calls need no
+ * CORS and the frame-ancestors CSP below covers the HTML too (WordPress embed).
+ * Path resolves to <repo>/frontend/dist locally and /frontend/dist in Docker.
+ * DO NOT REMOVE — playground / Elastic Beanstalk serve the UI from this process.
+ */
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const STATIC_DIR = process.env.STATIC_DIR || join(__dirname, "../../frontend/dist");
+const SERVE_STATIC = existsSync(join(STATIC_DIR, "index.html"));
+
 app.use(
   cors({
     origin: true,
@@ -39,6 +52,19 @@ app.use((_req, res, next) => {
   res.setHeader("Content-Security-Policy", `frame-ancestors ${FRAME_ANCESTORS}`);
   next();
 });
+
+if (SERVE_STATIC) {
+  app.use(
+    express.static(STATIC_DIR, {
+      index: false,
+      maxAge: "1h",
+      setHeaders(res, path) {
+        // The service worker must never be served stale, or clients pin an old shell.
+        if (path.endsWith("sw.js")) res.setHeader("Cache-Control", "no-cache");
+      },
+    }),
+  );
+}
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "klearnow-tariff", rulepack: rulepackPublic() });
@@ -314,6 +340,18 @@ app.use("/v1", adminRouter);
 app.use("/v1", usersRouter);
 app.use("/v1", chatRouter);
 app.use("/v1", csmsRouter);
+
+// SPA fallback — anything that is not an API path returns the app shell.
+if (SERVE_STATIC) {
+  app.use((req, res, next) => {
+    const readOnly = req.method === "GET" || req.method === "HEAD";
+    if (!readOnly || req.path.startsWith("/v1") || req.path === "/health") {
+      next();
+      return;
+    }
+    res.sendFile(join(STATIC_DIR, "index.html"));
+  });
+}
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
