@@ -24,8 +24,8 @@ export {
 
 /** Machine-readable stacking contract — asserted by rulesMatrix.test.ts */
 export const STACKING_CONTRACT = {
-  version: "1.3.0",
-  as_of: "2026-08-05",
+  version: "1.4.0",
+  as_of: "2026-08-24",
   eras: [
     {
       id: "ieepa",
@@ -73,6 +73,10 @@ export const STACKING_CONTRACT = {
     {
       id: "R4c",
       text: "Sec 122 is entry-level: 9903.03.01 filed on any ESL of an Entry Summary Number satisfies the entry.",
+    },
+    {
+      id: "R11",
+      text: "Section 338 Canada (9903.03.12–.14 @ 50%) reports as Chapter 99 additional before 301/232. USMCA does not exempt. 232-family headings gate 9903.03.15; civil aircraft GN6 gates 9903.03.16. Drawback eligible. Live from 12:01 a.m. EST 2026-08-22 (suspended 2026-08-19–21).",
     },
   ],
   boundary_days: {

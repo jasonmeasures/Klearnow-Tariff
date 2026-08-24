@@ -176,6 +176,7 @@ function materializeCh99Rules() {
 }
 
 function uiProg(p: string): string {
+  if (p.includes("338")) return "s338";
   if (p.includes("301_FL")) return "s301fl";
   if (p.includes("301")) return "s301";
   if (p.includes("232") || p.includes("TRADE")) return "s232";
@@ -185,6 +186,7 @@ function uiProg(p: string): string {
 }
 
 function slotFor(program: string, kind: string): string {
+  if (program.includes("338")) return "2";
   if (program.includes("301_FL") || kind === "SUPPRESSION") return "3.2";
   if (program.includes("301")) return "3.1";
   if (program.includes("232") || program.includes("TRADE")) return "3.3";
@@ -224,6 +226,7 @@ rulesRouter.get("/rules", requireScope("read_rules"), (req, res) => {
 rulesRouter.get("/programs", requireScope("calculate"), (_req, res) => {
   const evaluation_order = [
     "s232",
+    "s338",
     "s301",
     "s301fl",
     "ch99",
@@ -236,6 +239,12 @@ rulesRouter.get("/programs", requireScope("calculate"), (_req, res) => {
       status: "ACTIVE",
       authority: "Trade Expansion Act / Proclamation 10908",
       stack_slot: "3.3",
+    },
+    s338: {
+      label: "Section 338 Canada",
+      status: "ACTIVE",
+      authority: "19 U.S.C. §1338 / CSMS #69606660",
+      stack_slot: "2",
     },
     s301: {
       label: "Section 301 (incl. China legacy)",

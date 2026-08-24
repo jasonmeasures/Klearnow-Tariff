@@ -4,6 +4,12 @@
  */
 import * as XLSX from "xlsx";
 import { auditEntry, type LineIn } from "./assess.ts";
+import {
+  LIMITS,
+  LimitError,
+  decodeXlsxBase64,
+  yieldEventLoop,
+} from "./loadGuard.ts";
 import { normalizeCh99 } from "../../tariff-rules/src/tariffRules.ts";
 import {
   IEEPA_END,
@@ -272,6 +278,9 @@ export function parseEs003Buffer(buf: Buffer): { lines: Es003ParsedLine[]; meta:
   const { name, sheet } = pickSheet(wb);
   const tariffs = sheetToTariffRows(sheet);
   if (!tariffs.length) throw new Error("No ES-003 tariff rows found.");
+  if (tariffs.length > LIMITS.es003TariffRows) {
+    throw new LimitError(`Max ${LIMITS.es003TariffRows} ES-003 tariff rows per request.`);
+  }
   const headers = Object.keys(
     XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" })[0] || {},
   );
@@ -293,8 +302,7 @@ export function parseEs003Buffer(buf: Buffer): { lines: Es003ParsedLine[]; meta:
 }
 
 export function parseEs003Base64(b64: string): { lines: Es003ParsedLine[]; meta: Es003ParseMeta } {
-  const cleaned = String(b64 || "").replace(/^data:.*base64,/, "");
-  return parseEs003Buffer(Buffer.from(cleaned, "base64"));
+  return parseEs003Buffer(decodeXlsxBase64(b64));
 }
 
 function toLineIn(row: Es003ParsedLine): LineIn {
@@ -331,8 +339,8 @@ export function auditEs003(body: {
   if (!parsed?.lines?.length) {
     throw new Error("Provide xlsx_base64 from an ACE ES-003 export.");
   }
-  if (parsed.lines.length > 8000) {
-    throw new Error("Max 8000 entry lines per ES-003 audit.");
+  if (parsed.lines.length > LIMITS.es003Lines) {
+    throw new LimitError(`Max ${LIMITS.es003Lines} entry lines per ES-003 audit.`);
   }
 
   const lineIns = parsed.lines.filter((l) => l.hts).map((l) => toLineIn(l));
@@ -721,4 +729,29 @@ export function ingestEs003(body: { xlsx_base64?: string; filename?: string }) {
       entry_date: l.entry_date,
     })),
   };
+}
+
+/** Parse (if needed), yield once, then audit so queued Duty-stack requests can run. */
+export async function auditEs003Async(body: {
+  xlsx_base64?: string;
+  filename?: string;
+  knowledge_date?: string;
+  lines?: Es003ParsedLine[];
+  meta?: Es003ParseMeta;
+}) {
+  const parsed = body.lines
+    ? { lines: body.lines, meta: body.meta! }
+    : body.xlsx_base64
+      ? parseEs003Base64(body.xlsx_base64)
+      : null;
+  if (!parsed?.lines?.length) {
+    throw new Error("Provide xlsx_base64 from an ACE ES-003 export.");
+  }
+  await yieldEventLoop();
+  return auditEs003({
+    filename: body.filename,
+    knowledge_date: body.knowledge_date,
+    lines: parsed.lines,
+    meta: parsed.meta,
+  });
 }

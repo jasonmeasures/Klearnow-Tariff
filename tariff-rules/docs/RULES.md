@@ -1,6 +1,6 @@
 # KlearNow Tariff Stacking Rules — Review Pack
 
-**Version 1.5.0 · as of 2026-08-17 · United States only (HTSUS)**  
+**Version 1.6.0 · as of 2026-08-24 · United States only (HTSUS)**  
 **Audience:** developers integrating the engine, and compliance / trade reviewing the logic before it is used in production.
 
 This is the document to **read, mark up, and sign off**. Machine tables in `tariff-rules/data/` are the authority if this prose and a JSON file ever disagree.
@@ -71,6 +71,7 @@ It does **not** classify the product, invent Column 1 for an unknown 10-digit li
 | 232 semiconductors | `9903.79.01`–`.09` | **Live.** CSMS #67400472. | **Claim-gated** Note 39(b) |
 | 232 metals | `9903.82.xx` | **Live.** Separate line; metal-content or entered-value derivative. | Yes (chapter triage + content) |
 | 232 patented pharma | `9903.04.60`–`.67` | **Live.** Proclamation 11020 / CSMS #69395344, #69415934. | **Claim-gated** Ch.29/30 |
+| **Section 338 Canada** | `9903.03.12`–`.16` | **Live** from 12:01 a.m. EST **2026-08-22** (CSMS #69606660). Original 2026-08-19 start was suspended 19–21 Aug (Proc. 11056). | Yes (product of Canada + HTS list). Aircraft `.16` is **claim-gated** (`civil_aircraft_gn6`) |
 | JP / EU leftover trade-deal flags | `9903.94.45/.55` | Rate known; **MFN mechanic TBC (R6)** | Rate yes; **totals blocked** |
 
 ---
@@ -119,7 +120,7 @@ flowchart TD
 
 ---
 
-## 5. Stacking rules (R1–R10)
+## 5. Stacking rules (R1–R11)
 
 Authoritative copies: `interaction_rules.json` + `framework_contract.json`.
 
@@ -195,7 +196,17 @@ Outside Chapter 99 math. Flag for producer/exporter case coverage; do not invent
 
 ### R10 — USMCA / CAFTA-DR
 
-SPI S/S+ (and CAFTA-DR) zeros **Column 1 + MPF only**. It does **not** automatically clear 301-FL, 232, China 301, or Brazil 301. Those need their **own** Ch.99 exception (e.g. 301-FL Note 52 → `9903.05.93` CA / `.94` MX). MHDV parts with USMCA claim use `9903.74.10` @ 0% additional (still in the 232 universe → FL `.90`).
+SPI S/S+ (and CAFTA-DR) zeros **Column 1 + MPF only**. It does **not** automatically clear 301-FL, 232, China 301, Brazil 301, or **Section 338**. Those need their **own** Ch.99 exception (e.g. 301-FL Note 52 → `9903.05.93` CA / `.94` MX). MHDV parts with USMCA claim use `9903.74.10` @ 0% additional (still in the 232 universe → FL `.90`). Section 338 has **no** SPI exemption — USMCA-originating Canadian goods still pay the 50% additional.
+
+### R11 — Section 338 Canada
+
+Products of Canada on the Note 51(b) lists pay **+50%** additional (`9903.03.12` alcohol, `.13` dairy, `.14` broad goods) from **12:01 a.m. EST 2026-08-22**. Stacks on Column 1, 301-FL, China 301, 201, AD/CVD, MPF/HMF. **Drawback eligible.**
+
+If the line already attracts a listed 232-family heading (metals `9903.82.02` / `.04`–`.26`, autos, wood, MHDV, semiconductors `.01`, patented pharma `.60`–`.66`), report **`9903.03.15` @ 0%** instead — never both a 50% 338 heading and a Note 51(c) heading.
+
+Civil aircraft (General Note 6) on the Note 51(d) list reports **`9903.03.16` @ 0%** only when `civil_aircraft_gn6` is claimed.
+
+Evaluate 232-family **first**, then gate 338. On the 7501, 338 reports in the Chapter 99 **additional** slot **before** 301 / 232 (CSMS #69606660). CBP’s Ch.98/drawback text citing `9903.04.12`–`.14` is a typo for `9903.03.12`–`.14`.
 
 ### Reporting order
 
@@ -416,6 +427,8 @@ The UI only shows a checkbox when the HTS is on the relevant list. Spreadsheet /
 | `s232_pharma_patented` / `_generic` | Ch.29/30 patented vs generic | `9903.04.60`–`.67` |
 | `s301fl_pharma` | Pharmaceutical **use** Note 52(e) | `9903.05.89` |
 | `fta_usmca` | SPI S/S+ | Col-1 + MPF; FL `.93`/`.94` if Note 52 |
+| `civil_aircraft_gn6` | Civil aircraft meeting General Note 6 | `9903.03.16` @ 0% (Section 338) |
+| `ftz_admission` | Admitted to a US FTZ | privileged-foreign warning for 338 |
 | `s301_sts_crane` | `8426.19.00` is a ship-to-shore gantry crane | `9903.92.10` |
 | `s301_sts_exclusion` | STS crane with pre-May 14 2024 contract (through 2026-05-13) | `9903.91.09` |
 | `s301_sts_other_crane` | `8426.19.00` is **not** an STS gantry crane | `9903.92.80` |
@@ -469,7 +482,7 @@ Regression lock: `tariff-rules/data/qa_goldens.json` + `cd backend && npm test`.
 | `interaction_rules.json` | R1–R10 |
 | `ch99_codes.json` | Chapter 99 registry |
 | `s301fl_pack.json` | 60 economies |
-| `s301_brazil.json` | Brazil 301 |
+| `s338_canada.json` | Section 338 Canada HTS lists + dates |
 | `s301_china_lists.json` | China 301 HTS membership |
 | `s232_auto_parts_annex.json` | Auto-parts stems |
 | `s232_auto_origin.json` | JP/EU/KR/UK 232 vehicle and parts heading map |
@@ -523,6 +536,7 @@ Please initial / date. Comment on the rule or program id if you disagree.
 | R2c Brazil 301 + FL stack | | | |
 | R3 JP parts top-up only (not vehicles) | | | |
 | R10 SPI zeros Col-1+MPF only | | | |
+| R11 Section 338 Canada (50% / `.15` / `.16`) | | | |
 | Auto-parts annex auto-apply + 8544.42 **out** | | | |
 | Passenger vehicle HTS list + `9903.94.01` | | | |
 | `8704.60.00` default passenger | | | |
@@ -538,6 +552,7 @@ Please initial / date. Comment on the rule or program id if you disagree.
 
 ## Changelog
 
+- **1.6.0 (2026-08-24)** — Section 338 Canada (`9903.03.12`–`.16`, CSMS #69606660): 50% additional on listed products of Canada from 12:01 a.m. EST 2026-08-22; 3-day suspension 19–21 Aug; Note 51(c)/(d) exclusions; drawback eligible; USMCA does not exempt.
 - **1.5.0 (2026-08-17)** — Full review pack for developers and compliance: 232 vehicles / MHDV / wood / semiconductors with complete short HTS lists, claim vs auto, precedence, HTS-list behavior, sign-off table.
 - **1.4.0 (2026-08-14)** — New 232 packs wired from CSMS (see `FRAMEWORK.md`).
 - **1.3.x** — Brazil 301; shareable framework.

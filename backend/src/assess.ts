@@ -38,6 +38,16 @@ import {
   assessS232Pharma,
   s232PharmaClaimed,
 } from "../../tariff-rules/src/s232Pharma.ts";
+import {
+  assessS338Canada,
+  assertNoS338DutyWithNote51c,
+  isS338Heading,
+  normalizeCanadaCoo,
+  s338AppliesOn,
+  s338FtzWarning,
+  s338Meta,
+  s338SuspendedOn,
+} from "../../tariff-rules/src/s338Canada.ts";
 import { formatHtsDisplay, lookupHts, resolveCol1 } from "./htsLookup.ts";
 import { computeEntryFees } from "./fees.ts";
 import { rulepackPublic } from "./state.ts";
@@ -107,6 +117,14 @@ export type LineIn = {
    * Also accepted via flags.fta_usmca / fta_cafta_dr / fta_note_52.
    */
   fta_claim?: string;
+  /** Chapter 98 provision claimed on the line (e.g. 9802.00.80). */
+  ch98_provision?: string;
+  /** US-content cost/value for 9802.00.80 (assembled abroad less US content). */
+  ch98_us_content_value?: number | string;
+  /** Value of repairs/alterations/processing for 9802.00.40 / .50 / .60. */
+  ch98_repair_value?: number | string;
+  /** True when the article is admitted to a US FTZ. */
+  ftz?: boolean;
 };
 
 function money2(n: number): number {
@@ -278,6 +296,7 @@ function uiProgram(id: string): string {
     SEC_232_MHDV: "s232",
     SEC_232_WOOD: "s232",
     SEC_232_SEMI: "s232",
+    SECTION_338_CANADA: "s338",
     SEC_122: "s122",
     TRADE_DEAL_JP: "s232",
     TRADE_DEAL_EU: "s232",
@@ -417,9 +436,18 @@ export function assessLine(line: LineIn, index: number) {
   const suppressed: SuppressedLayer[] = [];
   const line_id = line.line_id || String(index + 1);
   const hts = String(line.hts || "").trim();
-  const coo = String(line.coo || "").trim().toUpperCase();
+  const rawCoo = String(line.coo || "").trim().toUpperCase();
+  const caNorm = normalizeCanadaCoo(rawCoo);
+  const coo = caNorm.coo;
   const entered = num(line.entered_value);
   const rd = rateDate(line);
+  if (caNorm.normalized_from) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "COO_NORMALIZED_CA_XCODE",
+      message: `Country of origin ${caNorm.normalized_from} is a CATAIR Canadian province X-code; evaluated as product of Canada (CA).`,
+    });
+  }
 
   let col1Pct = num(line.col1_rate_pct, NaN);
   let col1Source = "supplied";
@@ -1271,6 +1299,8 @@ export function assessLine(line: LineIn, index: number) {
     }
   }
 
+  addS338Canada(line, hts, coo, entered, layers, diagnostics, rd.date, flags, filed);
+
   partsDuty = money2(
     layers
       .filter(
@@ -1286,7 +1316,10 @@ export function assessLine(line: LineIn, index: number) {
 
   const seq = layers.filter((l) => l.ch99).map((l) => l.ch99 as string);
   const brazil301 = (c: string) => isBrazil301Heading(c);
+  const s338 = (c: string) => isS338Heading(c);
   const ordered = [
+    // CSMS #69606660 slot 2 — Chapter 99 additional (Section 338) before trade remedies
+    ...seq.filter(s338),
     ...seq.filter(
       (c) =>
         c.startsWith("9903.88") ||
@@ -1307,9 +1340,15 @@ export function assessLine(line: LineIn, index: number) {
     ...seq.filter(
       (c) => c.startsWith("9903.05") && c !== "9903.05.90" && !brazil301(c),
     ),
-    ...seq.filter((c) => c.startsWith("9903.03") && c !== "9903.03.06" && c !== "9903.03.03"),
+    ...seq.filter((c) => c.startsWith("9903.03") && c !== "9903.03.06" && c !== "9903.03.03" && !s338(c)),
   ];
   const ch99_sequence_unique = [...new Set(ordered.length ? ordered : seq)];
+  const ch98Filed = String(line.ch98_provision || "").trim();
+  const filing_sequence = [
+    ...(ch98Filed ? [ch98Filed] : []),
+    ...ch99_sequence_unique,
+    hts,
+  ];
 
   const pctOf = (d: number) => (entered > 0 ? money2((d / entered) * 100) : 0);
 
@@ -1446,6 +1485,15 @@ export function assessLine(line: LineIn, index: number) {
     suppressed,
     diagnostics,
     ch99_sequence: ch99_sequence_unique,
+    filing_sequence,
+    section_338: layers.some((l) => l.ch99 && isS338Heading(l.ch99))
+      ? {
+          program: "SECTION_338_CANADA",
+          heading: layers.find((l) => l.ch99 && isS338Heading(l.ch99))?.ch99 || null,
+          drawback_eligible: true,
+          source: s338Meta().source_csms,
+        }
+      : null,
     fta_compare,
     pharma_compare,
     fta_claim: resolveFtaClaim(line),
@@ -1655,6 +1703,106 @@ function addBrazil301(
       severity: "ERROR",
       code: "REVIEW_REQUIRED",
       message: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
+function addS338Canada(
+  line: LineIn,
+  hts: string,
+  coo: string,
+  entered: number,
+  layers: DutyLayer[],
+  diagnostics: Diagnostic[],
+  rateDay: string | undefined,
+  flags: Record<string, boolean>,
+  filed: string[],
+) {
+  if (coo !== "CA") return;
+  if (layers.some((l) => l.ch99 && isS338Heading(l.ch99))) return;
+
+  if (rateDay && s338SuspendedOn(rateDay) && !s338AppliesOn(rateDay)) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "S338_SUSPENDED",
+      message: `Section 338 Canada additional duties are suspended on ${String(rateDay).slice(0, 10)} (Proc. 11056). They resume 12:01 a.m. eastern standard time on 2026-08-22 (CSMS #69606660).`,
+    });
+  }
+
+  const attracted = [
+    ...layers.map((l) => l.ch99).filter((c): c is string => Boolean(c)),
+    ...filed,
+  ];
+  const ch98 = String(line.ch98_provision || "").trim();
+  const hit = assessS338Canada({
+    hts,
+    coo,
+    rateDay,
+    flags,
+    attracted_ch99: attracted,
+    ch98_provision: ch98,
+  });
+  if (!hit) return;
+
+  let basisAmount = entered;
+  let basis: string = "ENTERED_VALUE";
+  if (hit.basis === "REPAIR_VALUE") {
+    const repair = num(line.ch98_repair_value, NaN);
+    basisAmount = Number.isFinite(repair) && repair >= 0 ? repair : entered;
+    basis = "REPAIR_VALUE";
+  } else if (hit.basis === "ASSEMBLY_LESS_US_CONTENT") {
+    const us = Math.max(0, num(line.ch98_us_content_value));
+    basisAmount = Math.max(0, money2(entered - us));
+    basis = "ASSEMBLY_LESS_US_CONTENT";
+  }
+
+  try {
+    const meta = assertComputable(hit.heading);
+    layers.push(
+      layer({
+        slot: "2",
+        program: "SECTION_338_CANADA",
+        ch99: hit.heading,
+        label: hit.label,
+        reason: hit.reason,
+        source_ref: meta.notes,
+        basis,
+        basis_amount: basisAmount,
+        rate_pct: hit.rate_pct_decimal,
+      }),
+    );
+    diagnostics.push({
+      severity: "INFO",
+      code: hit.exempt ? "S338_EXCLUDED" : "S338_APPLIED",
+      message: hit.reason,
+    });
+  } catch (e) {
+    diagnostics.push({
+      severity: "ERROR",
+      code: "REVIEW_REQUIRED",
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return;
+  }
+
+  const ftz = s338FtzWarning({ flags, ftz: Boolean(line.ftz || flags.ftz_admission || flags.ftz) });
+  if (ftz) {
+    diagnostics.push({
+      severity: "WARNING",
+      code: "S338_FTZ_PRIVILEGED_FOREIGN",
+      message: ftz,
+      remediation: "Admit covered merchandise in privileged foreign status (19 CFR 146.41) unless domestic status applies (19 CFR 146.43).",
+    });
+  }
+
+  const invariant = assertNoS338DutyWithNote51c(
+    layers.map((l) => l.ch99).filter((c): c is string => Boolean(c)),
+  );
+  if (invariant) {
+    diagnostics.push({
+      severity: "ERROR",
+      code: "S338_NOTE51C_INVARIANT",
+      message: invariant,
     });
   }
 }

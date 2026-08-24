@@ -14,6 +14,7 @@ import {
 } from "../../tariff-rules/src/tariffRules.ts";
 import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
 import { previewS232Universe } from "../../tariff-rules/src/s232Resolve.ts";
+import { previewS338, reloadS338Canada, s338Meta } from "../../tariff-rules/src/s338Canada.ts";
 import {
   listS301flCountries,
   lookupS301fl,
@@ -24,6 +25,7 @@ import {
 } from "../../tariff-rules/src/s301fl.ts";
 import { reloadS301ChinaNote31 } from "../../tariff-rules/src/s301ChinaNote31.ts";
 import { assessEntry } from "./assess.ts";
+import { LIMITS, assertMaxItems } from "./loadGuard.ts";
 import { requireScope } from "./auth.ts";
 import { listCsms } from "./csms.ts";
 import { answerFromTables, TABLES_HELP } from "./chatLocal.ts";
@@ -252,6 +254,7 @@ function upsertS301fl(body: Record<string, unknown>) {
   writeFileSync(path, JSON.stringify(pack, null, 2) + "\n", "utf8");
   reloadS301fl();
   reloadS301ChinaNote31();
+  reloadS338Canada();
   refreshRulepackState();
   return { ok: true, upserted: row, economies: s301flMeta().economies, rulepack: rulepackPublic() };
 }
@@ -293,6 +296,7 @@ async function runTool(
             }
           : { in_annex: false },
         s232_universe,
+        section_338: previewS338(hts),
       };
     }
     case "explain_hts": {
@@ -307,15 +311,17 @@ async function runTool(
     }
     case "assess_entry": {
       const engine = String(input.engine || "auto");
+      const lines = (input.lines as never[]) || [];
+      assertMaxItems(lines.length, LIMITS.assessLines, "lines");
       if (engine === "ch99") {
         const { assessCh99Entry } = await import("./ch99Assess.ts");
         return assessCh99Entry({
-          lines: (input.lines as never[]) || [],
+          lines,
         });
       }
       return assessEntry({
         formal_entry: true,
-        lines: (input.lines as never[]) || [],
+        lines,
       });
     }
     case "hts_coverage": {
@@ -453,8 +459,9 @@ async function runTool(
       if (!canWrite) return { error: "write_rules scope required" };
       reloadS301fl();
       reloadS301ChinaNote31();
+      reloadS338Canada();
       refreshRulepackState();
-      return { ok: true, rulepack: rulepackPublic(), s301fl: s301flMeta() };
+      return { ok: true, rulepack: rulepackPublic(), s301fl: s301flMeta(), s338: s338Meta() };
     }
     default:
       return { error: `Unknown tool ${name}` };

@@ -11,9 +11,11 @@ import {
   type FlCountry,
 } from "../../tariff-rules/src/s301fl.ts";
 import { reloadS301ChinaNote31 } from "../../tariff-rules/src/s301ChinaNote31.ts";
+import { reloadS338Canada, s338Meta } from "../../tariff-rules/src/s338Canada.ts";
 import { requireAdmin, requireScope } from "./auth.ts";
 import { htsTableMeta, reloadHtsTable } from "./htsLookup.ts";
 import { importHtsFromBuffer } from "./import_hts.ts";
+import { LimitError, runHeavy } from "./loadGuard.ts";
 import { refreshRulepackState, rulepackPublic } from "./state.ts";
 
 export const adminRouter = Router();
@@ -21,19 +23,21 @@ export const adminRouter = Router();
 adminRouter.post("/admin/reload", requireScope("write_rules"), requireAdmin, (_req, res) => {
   reloadS301fl();
   reloadS301ChinaNote31();
+  reloadS338Canada();
   reloadHtsTable();
   refreshRulepackState();
   res.json({
     ok: true,
     rulepack: rulepackPublic(),
     s301fl: s301flMeta(),
+    s338: s338Meta(),
     hts: htsTableMeta(),
     note: "Ch99 reciprocal engine constants are loaded at process start — restart backend after editing ch99_rules.json.",
   });
 });
 
 /** Full HTS classification workbook import (xlsx / xls) — replaces hts_rates.json. */
-adminRouter.post("/admin/hts:import", requireScope("write_rules"), requireAdmin, (req, res) => {
+adminRouter.post("/admin/hts:import", requireScope("write_rules"), requireAdmin, async (req, res) => {
   try {
     const b64 = String(req.body?.xlsx_base64 || req.body?.file_base64 || "").replace(
       /^data:.*base64,/,
@@ -56,7 +60,7 @@ adminRouter.post("/admin/hts:import", requireScope("write_rules"), requireAdmin,
       res.status(413).json({ detail: "Workbook exceeds 80 MB limit." });
       return;
     }
-    const result = importHtsFromBuffer(buf, filename, asOf);
+    const result = await runHeavy(() => importHtsFromBuffer(buf, filename, asOf));
     const hts = reloadHtsTable();
     refreshRulepackState();
     res.json({
@@ -67,6 +71,11 @@ adminRouter.post("/admin/hts:import", requireScope("write_rules"), requireAdmin,
       note: "Baseline Column-1 table replaced and reloaded in-process — no server restart needed.",
     });
   } catch (e) {
+    if (e instanceof LimitError) {
+      if (e.status === 503) res.setHeader("Retry-After", "3");
+      res.status(e.status).json({ detail: e.message });
+      return;
+    }
     res.status(400).json({ detail: e instanceof Error ? e.message : String(e) });
   }
 });

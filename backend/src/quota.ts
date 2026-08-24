@@ -6,7 +6,9 @@
  *   authenticated: 50 stacks / day, 10 extracts / day
  *   unlimited:      no metering (admin / internal keys)
  *
- * In-memory daily buckets — swap for Redis/DB when multi-instance.
+ * In-memory daily buckets — not shared across Elastic Beanstalk instances.
+ * Set QUOTA_USER_STACKS / QUOTA_USER_EXTRACTS in env when 50–100 daily users
+ * share a playground (defaults are conservative). Swap for Redis/DB when multi-instance.
  */
 import type { NextFunction, Request, Response } from "express";
 import type { Principal } from "./auth.ts";

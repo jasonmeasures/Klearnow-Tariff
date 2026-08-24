@@ -197,6 +197,22 @@ referenceRouter.get("/reference/claim-flags", (_req, res) => {
         rule_count: 1,
       },
       {
+        flag: "civil_aircraft_gn6",
+        label: "Civil aircraft General Note 6 — Section 338 Canada 9903.03.16 @ 0%",
+        kind: "claim",
+        programs: ["s338"],
+        headings: ["9903.03.16"],
+        rule_count: 1,
+      },
+      {
+        flag: "ftz_admission",
+        label: "Admitted to a US foreign-trade zone (Section 338 privileged foreign status warning)",
+        kind: "claim",
+        programs: ["s338"],
+        headings: ["9903.03.12", "9903.03.13", "9903.03.14"],
+        rule_count: 1,
+      },
+      {
         flag: "s232_drawback_col1",
         label: "232 auto combined-cap drawback split (col-1 on Ch.1–97)",
         kind: "claim",
@@ -298,16 +314,20 @@ referenceRouter.get("/reference/rate-date-hierarchy", (_req, res) => {
 referenceRouter.get("/reference/stacking-order", (_req, res) => {
   void STATE;
   res.json({
-    authority: "CBP Form 7501 / Chapter 99 reporting sequence",
+    authority: "CSMS #69606660 / CBP Form 7501 Chapter 99 reporting sequence",
     sequence: [
-      { slot: "3.1", line: "Section 301 (incl. China legacy lists)" },
-      { slot: "3.2", line: "Section 122 / 301-FL (incl. suppressions)" },
-      { slot: "3.3", line: "Section 232 (autos, metals, trade-deal headings)" },
-      { slot: "3.4", line: "Section 201" },
+      { slot: "1", line: "Chapter 98 (if claimed)" },
+      { slot: "2", line: "Chapter 99 additional duties (Section 338 9903.03.12–.16)" },
+      { slot: "3.1", line: "Section 301 (China legacy / four-year review / Brazil country / 301-FL)" },
+      { slot: "3.2", line: "Section 122 (slot retained — inactive after 2026-07-23)" },
+      { slot: "3.3", line: "Section 232 (autos, metals, wood, MHDV, semiconductors, pharma)" },
+      { slot: "3.4", line: "Section 201 duty / quota" },
+      { slot: "4", line: "Chapter 99 replacement duty / MTB / other use" },
+      { slot: "5", line: "Chapter 99 other quota" },
       { slot: "6.0", line: "Chapters 1–97 commodity line" },
     ],
     note:
-      "CBP entry-summary reporting sequence: Ch.99 lines report before the Ch.1–97 line. Where legacy China 301 and 232 both apply, 301 reports first.",
+      "CSMS #69606660: Ch.98 → Ch.99 additional (338) → trade remedies 301 → 122 (inactive) → 232 → 201 → replacement/MTB → other quota → Ch.1–97. Entered value reports on the Ch.1–97 line unless Chapter 98 provisions dictate otherwise.",
     hts_table: htsTableMeta(),
   });
 });

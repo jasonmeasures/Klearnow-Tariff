@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
-  "as_of": "2026-08-18",
-  "stacking_order_note": "CBP entry-summary reporting sequence: Ch.99 lines report before the Ch.1-97 line. Where China 301 (9903.88.xx or 9903.91.xx) and 232 both apply, 301 reports first.",
+  "version": "1.6.0",
+  "as_of": "2026-08-24",
+  "stacking_order_note": "CSMS #69606660 entry-summary sequence: Ch.98 → Ch.99 additional (Section 338 9903.03.12–.16) → trade remedies (301 → 122 slot inactive → 232 → 201) → replacement/MTB → other quota → Ch.1–97. Where China 301 (9903.88.xx or 9903.91.xx) and 232 both apply, 301 reports first among trade remedies.",
   "rules": [
     {
       "id": "R1_232_VS_301FL",
@@ -52,9 +52,15 @@
     },
     {
       "id": "R10_SPI_FTA_COL1_MPF",
-      "rule": "USMCA (SPI S/S+) and CAFTA-DR preferential claims suppress Column-1 (Chapters 1–97) duty and the Merchandise Processing Fee (MPF). Declaring S/S+ does NOT automatically suppress any other tariff program (301-FL, Section 232, China 301, Brazil 301, Sec 122, etc.). Those programs are cleared only when their own USMCA / FTA / Note 52 Chapter 99 exception heading is applicable and claimed (e.g. 301-FL Note 52(g)/(h) via 9903.05.93 CA / 9903.05.94 MX).",
+      "rule": "USMCA (SPI S/S+) and CAFTA-DR preferential claims suppress Column-1 (Chapters 1–97) duty and the Merchandise Processing Fee (MPF). Declaring S/S+ does NOT automatically suppress any other tariff program (301-FL, Section 232, China 301, Brazil 301, Section 338, Sec 122, etc.). Those programs are cleared only when their own USMCA / FTA / Note 52 Chapter 99 exception heading is applicable and claimed (e.g. 301-FL Note 52(g)/(h) via 9903.05.93 CA / 9903.05.94 MX). Section 338 has no SPI exemption.",
       "status": "CONFIRMED",
       "source": "Jason Measures — USMCA / SPI claim scope; CSMS #69326983 Note 52"
+    },
+    {
+      "id": "R11_SECTION_338_CANADA",
+      "rule": "Section 338 Canada (9903.03.12–.14 @ 50%) stacks on Column 1, 301-FL, China 301, 201, AD/CVD, and MPF/HMF. USMCA/SPI zeros Column 1 only — it does NOT exempt 338. Mutually exclusive with 232 metals/autos/wood/MHDV/semiconductors/patented pharma via 9903.03.15 (0%). Civil aircraft 9903.03.16 (0%) requires civil_aircraft_gn6. Evaluate 232-family first, then gate 338. Drawback eligible. Suspended 2026-08-19 through 2026-08-21; live from 12:01 a.m. EST 2026-08-22. CSMS Ch.98/drawback text citing 9903.04.12–.14 is a CBP typo for 03.12–.14.",
+      "status": "CONFIRMED",
+      "source": "CSMS #69606660; 91 FR 46639 / 46653 / 46663; Proc. 11046–11048, 11056"
     },
     {
       "id": "R7_9394_PROGRAM_LABEL",

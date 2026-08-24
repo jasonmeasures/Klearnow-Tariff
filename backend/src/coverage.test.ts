@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import * as XLSX from "xlsx";
-import { coverRows, isPlausibleHtsCell, parseCoverageInput } from "./coverage.ts";
+import { coverRows, coverRowsAsync, isPlausibleHtsCell, parseCoverageInput } from "./coverage.ts";
 
 describe("HTS coverage", () => {
   it("parses paste with header and bare HTS lines", () => {
@@ -30,6 +30,20 @@ describe("HTS coverage", () => {
     assert.ok((vn.rules as unknown[]).some((rule: { program?: string }) => rule.program === "s301fl"));
     const cn = r.rows.find((x) => String(x.coo) === "CN")!;
     assert.ok((cn.ch99_sequence as string[]).length >= 1);
+  });
+
+  it("coverRowsAsync matches coverRows", async () => {
+    const body = {
+      as_of: "2026-07-25",
+      assume_cn_list3: false,
+      rows: [
+        { hts: "8708.10.3050", coo: "CN", s301_list_3: true },
+        { hts: "6203.42.0711", coo: "VN" },
+      ],
+    };
+    const sync = coverRows(body);
+    const asyncOut = await coverRowsAsync(body, 1);
+    assert.deepEqual(asyncOut.summary, sync.summary);
   });
 
   it("uses default_coo when column missing", () => {

@@ -566,6 +566,7 @@ async function previewHtsMeta() {
     if (metalWrap) metalWrap.hidden = true;
     syncPharmaClaimUi();
     syncS232ClaimUi();
+    syncS338ClaimUi();
     return;
   }
   syncPharmaClaimUi();
@@ -634,6 +635,18 @@ async function previewHtsMeta() {
         `<span class="pill pill-232" title="CSMS #66492057">232 wood ${esc(uni.wood.bucket)} → ${esc(uni.wood.ch99)}</span>`,
       );
     }
+    const s338 = r.section_338 || {};
+    if (s338.duty) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #69606660">Section 338 Canada → ${esc(s338.duty.heading)} @ 50%</span>`,
+      );
+    }
+    if (s338.aircraft) {
+      bits.push(
+        `<span class="pill pill-232" title="Civil aircraft list — claim General Note 6">Section 338 aircraft list → 9903.03.16</span>`,
+      );
+    }
+    syncS338ClaimUi(s338);
     syncS232ClaimUi(uni);
 
     const annex = r.s232_auto_parts;
@@ -791,6 +804,7 @@ function applyQuickToLines() {
   if ($("#qc-s232-mhdv")?.checked) flags.s232_mhdv_part = true;
   if ($("#qc-s232-semi")?.checked) flags.s232_semiconductor = true;
   if ($("#qc-s232-vintage")?.checked) flags.s232_vehicle_vintage = true;
+  if ($("#qc-gn6")?.checked) flags.civil_aircraft_gn6 = true;
   const ftaWrap = $("#qc-fta-wrap");
   const ftaClaimId = ftaWrap?.dataset?.claimId || "";
   if ($("#qc-fta")?.checked && ftaClaimId) {
@@ -1033,6 +1047,17 @@ function syncS232ClaimUi(uni = {}) {
   }
 }
 
+function syncS338ClaimUi(s338 = {}) {
+  const wrap = $("#qc-gn6-wrap");
+  const box = $("#qc-gn6");
+  if (!wrap || !box) return;
+  const show = Boolean(s338.aircraft);
+  wrap.hidden = !show;
+  if (!show) box.checked = false;
+  wrap.title =
+    "Claim when the article is civil aircraft (not military/unmanned) meeting General Note 6. Reports 9903.03.16 @ 0% additional (CSMS #69606660). Default is off — dual-list HTS then takes the 50% 338 duty heading.";
+}
+
 /* ================================================================ CALCULATOR */
 function blankLine(over = {}) {
   const today = new Date().toISOString().slice(0, 10);
@@ -1040,7 +1065,7 @@ function blankLine(over = {}) {
     _id: ++S.seq, _open: false, line_id: "", hts: "", coo: "", entered_value: "",
     col1_rate_pct: "", entry_date: today, release_date: today, it_date: "", loaded_date: "",
     warehouse_withdrawal_date: "", entry_type: "CONSUMPTION",     metal_content_value: "", metal_content_pct: "", metal_contents: null,
-    country_of_melt_pour: "", ch98_provision: "", ch98_us_content_value: "",
+    country_of_melt_pour: "", ch98_provision: "", ch98_us_content_value: "", ch98_repair_value: "",
     quantity: "", quantity_uom: "", net_weight_kg: "", filed_ch99: "",
     filed_duty_total: "", flags: {},
   }, over);
@@ -1123,7 +1148,8 @@ function lineDetail(L, i) {
       ${fld("Metal content % of entered", "metal_content_pct", 'inputmode="decimal"', "num", "Percent of entered value that is metal content")}
       ${fld("Country of melt &amp; pour", "country_of_melt_pour", "data-country", "country-field", "Primary melt/pour ISO-2 or name")}
       ${fld("Chapter 98 provision", "ch98_provision", "", "mono", "Chapter 98 provision if claimed")}
-      ${fld("US content value", "ch98_us_content_value", 'inputmode="decimal"', "num")}
+      ${fld("US content value", "ch98_us_content_value", 'inputmode="decimal"', "num", "For 9802.00.80 — US-content cost/value")}
+      ${fld("Repair / processing value", "ch98_repair_value", 'inputmode="decimal"', "num", "For 9802.00.40 / .50 / .60 — value of repairs, alterations, or processing")}
       ${fld("Net weight (kg)", "net_weight_kg", 'inputmode="decimal"', "num")}
       ${fld("Quantity", "quantity", 'inputmode="decimal"', "num", "HTS quantity when Column 1 is specific")}
     </div>
@@ -1206,7 +1232,7 @@ $("#loadsample").onclick = () => {
 
 const LINE_COLS = ["line_id", "hts", "coo", "entered_value", "col1_rate_pct", "entry_date",
   "release_date", "it_date", "loaded_date", "warehouse_withdrawal_date", "metal_content_value",
-  "metal_content_pct", "country_of_melt_pour", "ch98_provision", "ch98_us_content_value", "net_weight_kg",
+  "metal_content_pct", "country_of_melt_pour", "ch98_provision", "ch98_us_content_value", "ch98_repair_value", "net_weight_kg",
   "quantity", "filed_ch99", "filed_duty_total", "flags"];
 
 $("#doparse").onclick = () => {
@@ -1249,7 +1275,7 @@ function payload() {
       entry_type: L.entry_type || "CONSUMPTION",
       flags: Object.fromEntries(Object.entries(L.flags).filter(([, v]) => v)),
     };
-    ["col1_rate_pct", "metal_content_value", "metal_content_pct", "ch98_us_content_value", "net_weight_kg",
+    ["col1_rate_pct", "metal_content_value", "metal_content_pct", "ch98_us_content_value", "ch98_repair_value", "net_weight_kg",
      "quantity", "filed_duty_total"].forEach(k => {
       const v = num(L[k]); if (v) o[k] = v;
     });
@@ -1260,6 +1286,7 @@ function payload() {
     const melt = resolveCountryIso(L.country_of_melt_pour) || String(L.country_of_melt_pour || "").trim().toUpperCase().slice(0, 2);
     if (melt) o.country_of_melt_pour = melt;
     if ((L.ch98_provision || "").trim()) o.ch98_provision = L.ch98_provision.trim();
+    if ((L.entry_type || "").toUpperCase() === "FTZ") o.ftz = true;
     const filed = (L.filed_ch99 || "").split(/[;\s,]+/).filter(Boolean);
     if (filed.length) o.filed_ch99 = filed;
     return o;

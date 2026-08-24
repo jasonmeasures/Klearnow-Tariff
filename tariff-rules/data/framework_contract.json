@@ -1,7 +1,7 @@
 {
   "id": "klearnow-tariff-rules-framework",
-  "version": "1.5.0",
-  "as_of": "2026-08-14",
+  "version": "1.6.0",
+  "as_of": "2026-08-24",
   "jurisdiction": "US",
   "status": "SHAREABLE_PACK — interim until core engine is published as a shared API",
   "owner": "KlearNow Tariff (tariff-rules/)",
@@ -32,7 +32,7 @@
     "auth": "Auth0 Bearer (playground) or X-API-Key (local / service)"
   },
   "engines": {
-    "auto": "Default Duty stack — eras + 232 annex/metals + China 301 + 301-FL + Sec 122 historical",
+    "auto": "Default Duty stack — eras + 232 annex/metals + China 301 + 301-FL + Section 338 Canada + Sec 122 historical",
     "ch99": "Chapter 99 reciprocal / IEEPA-era seed pack evaluator"
   },
   "eras": [
@@ -228,10 +228,11 @@
   },
   "data_files": {
     "program_status.json": "Live / sunset / struck program registry",
-    "interaction_rules.json": "R1–R10 stacking narrative + status (includes R10 SPI/FTA Col-1+MPF)",
+    "interaction_rules.json": "R1–R11 stacking narrative + status (includes R10 SPI/FTA Col-1+MPF and R11 Section 338 Canada)",
     "ch99_codes.json": "~120 Ch.99 code registry",
     "s301fl_pack.json": "301-FL 60 economies + exemptions (CSMS #69326983)",
     "s301_brazil.json": "Brazil country Section 301 9903.05.01–.09 (CSMS #69302472)",
+    "s338_canada.json": "Section 338 Canada 9903.03.12–.16 HTS lists + dates (CSMS #69606660)",
     "s232_auto_parts_annex.json": "Proclamation 10908 auto-parts HTS stems",
     "s232_autos_vehicles.json": "Proclamation 10908 passenger vehicles / light trucks (CSMS #64624801)",
     "s232_mhdv.json": "Proclamation 10984 MHDV / buses / parts (CSMS #66665333)",

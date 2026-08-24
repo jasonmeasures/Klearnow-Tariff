@@ -404,6 +404,42 @@
         "ch99_excludes": ["9903.94.05"],
         "codes": ["S232_SEMI_APPLIED"]
       }
+    },
+    {
+      "id": "s338-ca-whiskey",
+      "title": "Section 338 Canada: whiskey 2208.30.30 → 9903.03.12 @ 50%",
+      "line": {
+        "hts": "2208.30.30",
+        "coo": "CA",
+        "entered_value": 10000,
+        "col1_rate_pct": 0,
+        "entry_date": "2026-08-23",
+        "flags": {}
+      },
+      "expect": {
+        "effective_duty_rate_pct": 60,
+        "duty": 6000,
+        "col1_rate_pct": 0,
+        "ch99_includes": ["9903.03.12", "9903.05.29"],
+        "ch99_excludes": ["9903.03.01"],
+        "codes": ["S338_APPLIED"]
+      }
+    },
+    {
+      "id": "s338-ca-whiskey-suspended",
+      "title": "Section 338 Canada: whiskey in Proc. 11056 suspension window",
+      "line": {
+        "hts": "2208.30.30",
+        "coo": "CA",
+        "entered_value": 10000,
+        "col1_rate_pct": 0,
+        "entry_date": "2026-08-20",
+        "flags": {}
+      },
+      "expect": {
+        "ch99_excludes": ["9903.03.12", "9903.03.13", "9903.03.14"],
+        "codes": ["S338_SUSPENDED"]
+      }
     }
   ]
 }

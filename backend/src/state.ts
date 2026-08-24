@@ -44,6 +44,7 @@ function fileHash(): string {
     "s232_mhdv.json",
     "s232_wood.json",
     "s232_semiconductors.json",
+    "s338_canada.json",
     "ch99_rules.json",
     "s301_china_lists.json",
     "s301_china_note31.json",

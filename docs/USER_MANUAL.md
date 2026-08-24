@@ -1,6 +1,6 @@
 # KlearNow Tariff — User Manual
 
-**Version 1.5.0 · as of 2026-08-17 · United States entries only**
+**Version 1.6.0 · as of 2026-08-24 · United States entries only**
 
 This is the operator guide for the Duty stack app. For *why* a heading applies, share [`tariff-rules/docs/RULES.md`](../tariff-rules/docs/RULES.md) with compliance — that pack is written for review.
 
@@ -10,7 +10,7 @@ Shareable HTML (same content): [`USER_MANUAL.html`](./USER_MANUAL.html) — open
 
 ## 1. What this tool is
 
-KlearNow Tariff builds the **US duty stack** for a classification: Column 1 (the ordinary HTS rate) plus every **Chapter 99** layer that should report — China 301, 301-FL, Section 232 (autos, vehicles, MHDV, wood, semiconductors, metals, patented pharma), Brazil 301 — in the order CBP expects.
+KlearNow Tariff builds the **US duty stack** for a classification: Column 1 (the ordinary HTS rate) plus every **Chapter 99** layer that should report — China 301, 301-FL, Section 232 (autos, vehicles, MHDV, wood, semiconductors, metals, patented pharma), Brazil 301, **Section 338 Canada** — in the order CBP expects.
 
 It does **not** classify the product. You still need a correct 10-digit HTS. It will not invent a Column 1 rate for an unknown code, and it will not tick a claim (MHDV part, semiconductor Note 39 parameters, patented pharma) unless you do.
 
@@ -66,7 +66,8 @@ If Column 1 is a specific rate (¢/kg, etc.), a **quantity** field appears. If t
 | **25-year vehicle** | HTS is on the passenger or MHDV **vehicle/bus** list | Tick if manufactured ≥25 years before entry (0% additional 232) |
 | **232 patented pharma** | Chapters 29 / 30 | Tick for patented articles under Proclamation 11020 |
 | **Pharma use (9903.05.89)** | 301-FL pharma-use list | Tick for Note 52(e) pharmaceutical **use** — not the same as 232 pharma |
-| **Claim FTA / USMCA** | Origin CA / MX / CAFTA | SPI S/S+ zeros Column 1 and MPF only — it does not automatically clear 232 or 301-FL |
+| **Claim FTA / USMCA** | Origin CA / MX / CAFTA | SPI S/S+ zeros Column 1 and MPF only — it does not automatically clear 232, 301-FL, or Section 338 |
+| **Civil aircraft (General Note 6)** | HTS is on the Section 338 aircraft list | Reports `9903.03.16` @ 0% instead of the 50% 338 duty heading |
 
 If a 232 program **auto-applies** from the published HTS list (passenger vehicle, MHDV truck, bus, wood, in-annex auto part), you do **not** need a checkbox. The stack will already include that heading and `9903.05.90` (301-FL suppressed).
 
@@ -162,6 +163,8 @@ Section 232 programs can apply in those windows too, on their own effective date
 
 **Why did 301-FL disappear?**  
 Section 232 and 301-FL are mutually exclusive. If the HTS is a valid 232 auto part, vehicle, MHDV, wood article, claimed semiconductor, metal, or patented pharma, the stack reports `9903.05.90` and does not assess 301-FL. China 301 (`9903.88`) still stacks.
+
+**Section 338 Canada** (from 22 Aug 2026): listed products of Canada take an extra 50% (`9903.03.12` / `.13` / `.14`). USMCA does **not** turn that off. If a 232 heading already applies, the engine reports `9903.03.15` @ 0% instead. Civil aircraft needs the General Note 6 claim (`9903.03.16`). The 338 additional duty is drawback-eligible.
 
 **Why is a Japan car 15% combined, not 25% additional?**  
 Country of origin drives the 232 vehicle heading. Japan passenger vehicles from 16 Sep 2025 use `9903.94.41` (combined Column 1 + 232 = 15%) when Column 1 is under 15%. The parts heading `9903.94.43` is not used on a car. Other origins (Thailand, China, Vietnam, …) still use `9903.94.01` @ 25% additional. UK in-quota vehicles need the TRQ claim `s232_uk_auto_trq` for `9903.94.31`.

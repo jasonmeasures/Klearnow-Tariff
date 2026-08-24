@@ -88,8 +88,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                 coo: { type: "string" },
                 entered_value: { type: "number" },
                 col1_rate_pct: { type: "number" },
-                entry_date: { type: "string" },
-                flags: { type: "object" },
+                entry_date: { type: "string", description: "YYYY-MM-DD or datetime; warehouse withdrawal date also accepted" },
+                warehouse_withdrawal_date: { type: "string" },
+                ch98_provision: { type: "string" },
+                ch98_us_content_value: { type: "number" },
+                ch98_repair_value: { type: "number" },
+                flags: {
+                  type: "object",
+                  description: "Claim flags including civil_aircraft_gn6 (Section 338 Note 51(d)) and ftz_admission",
+                },
               },
               required: ["hts", "coo", "entered_value"],
             },
@@ -142,7 +149,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: { type: "object", properties: {} },
     },
     {
-      name: "openapi",
+      name: "stacking_order",
+      description:
+        "CBP Form 7501 / CSMS #69606660 Chapter 99 reporting sequence, including Section 338 additional duties",
+      inputSchema: { type: "object", properties: {} },
+    },
       description: "Return OpenAPI document for integrating other tools with this API",
       inputSchema: { type: "object", properties: {} },
     },
@@ -193,6 +204,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       }
       case "reload_pack":
         return json(await api("/v1/admin/reload", { method: "POST", body: "{}" }));
+      case "stacking_order":
+        return json(await api("/v1/reference/stacking-order"));
       case "openapi":
         return json(await api("/v1/openapi.json"));
       default:

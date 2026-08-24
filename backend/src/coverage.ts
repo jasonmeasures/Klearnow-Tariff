@@ -17,6 +17,7 @@ import {
   suggestRelatedHts,
   usitcSearchUrl,
 } from "./htsLookup.ts";
+import { LIMITS, assertMaxItems, decodeXlsxBase64, yieldEventLoop } from "./loadGuard.ts";
 import { rulepackPublic } from "./state.ts";
 
 export type CoverageRowIn = {
@@ -89,6 +90,9 @@ function rowFlags(row: CoverageRowIn): Record<string, boolean> {
   if (truthy(row.s232_semiconductor)) flags.s232_semiconductor = true;
   if (truthy(row.s232_vehicle_vintage)) flags.s232_vehicle_vintage = true;
   if (truthy(row.s232_wood_not_cabinet)) flags.s232_wood_not_cabinet = true;
+  if (truthy((row as { civil_aircraft_gn6?: unknown }).civil_aircraft_gn6)) {
+    flags.civil_aircraft_gn6 = true;
+  }
   return flags;
 }
 
@@ -617,7 +621,7 @@ export function coverOne(
   };
 }
 
-export function coverRows(body: {
+function coverContext(body: {
   as_of?: string;
   default_coo?: string;
   assume_cn_list3?: boolean;
@@ -628,18 +632,27 @@ export function coverRows(body: {
     ? String(body.default_coo).trim().toUpperCase()
     : null;
   const rowsIn = Array.isArray(body.rows) ? body.rows : [];
-  const rows = rowsIn.map((r) =>
-    coverOne(r, {
+  assertMaxItems(rowsIn.length, LIMITS.coverageRows, "HTS rows");
+  return {
+    as_of,
+    default_coo,
+    rowsIn,
+    opts: {
       as_of,
       default_coo,
       assume_cn_list3: Boolean(body.assume_cn_list3),
-    }),
-  );
+    },
+  };
+}
 
+function coverResult(
+  ctx: ReturnType<typeof coverContext>,
+  rows: ReturnType<typeof coverOne>[],
+) {
   return {
     ok: true,
-    as_of,
-    default_coo,
+    as_of: ctx.as_of,
+    default_coo: ctx.default_coo,
     rulepack: rulepackPublic(),
     summary: {
       rows: rows.length,
@@ -664,6 +677,38 @@ export function coverRows(body: {
     },
     rows,
   };
+}
+
+export function coverRows(body: {
+  as_of?: string;
+  default_coo?: string;
+  assume_cn_list3?: boolean;
+  rows?: CoverageRowIn[];
+}) {
+  const ctx = coverContext(body);
+  return coverResult(
+    ctx,
+    ctx.rowsIn.map((r) => coverOne(r, ctx.opts)),
+  );
+}
+
+/** Same as coverRows, yielding every `yieldEvery` rows so Duty-stack requests can interleave. */
+export async function coverRowsAsync(
+  body: {
+    as_of?: string;
+    default_coo?: string;
+    assume_cn_list3?: boolean;
+    rows?: CoverageRowIn[];
+  },
+  yieldEvery = 25,
+) {
+  const ctx = coverContext(body);
+  const rows: ReturnType<typeof coverOne>[] = [];
+  for (let i = 0; i < ctx.rowsIn.length; i++) {
+    rows.push(coverOne(ctx.rowsIn[i], ctx.opts));
+    if (yieldEvery > 0 && (i + 1) % yieldEvery === 0) await yieldEventLoop();
+  }
+  return coverResult(ctx, rows);
 }
 
 const HTS_HEADER_RE =
@@ -856,7 +901,7 @@ export function parseCoverageInput(body: {
     return body.json.map(normalizeParsedRow);
   }
   if (body.xlsx_base64) {
-    const buf = Buffer.from(String(body.xlsx_base64).replace(/^data:.*base64,/, ""), "base64");
+    const buf = decodeXlsxBase64(body.xlsx_base64);
     const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
     return sheetToCoverageRows(pickCoverageSheet(wb));
   }

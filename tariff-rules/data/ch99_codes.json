@@ -1,7 +1,7 @@
 {
-  "$schema_note": "Chapter 99 code registry — KlearNow Tariff stacking. Source: confirmed corrections (session 2026-07-30) + full-stack build (session 2026-07-27). status: CONFIRMED = safe to compute; TBC = do NOT compute, surface for review. 301-FL headings expanded from s301fl_pack.json (CSMS #69326983). Brazil Section 301 9903.05.01–.09 from CSMS #69302472 (2026-08-06). China 301 four-year review 9903.91.xx / 9903.92.10 from 89 FR 76581 / CSMS #62411889.",
-  "version": "1.5.0",
-  "as_of": "2026-08-19",
+  "$schema_note": "Chapter 99 code registry — KlearNow Tariff stacking. Source: confirmed corrections (session 2026-07-30) + full-stack build (session 2026-07-27). status: CONFIRMED = safe to compute; TBC = do NOT compute, surface for review. 301-FL headings expanded from s301fl_pack.json (CSMS #69326983). Brazil Section 301 9903.05.01–.09 from CSMS #69302472 (2026-08-06). China 301 four-year review 9903.91.xx / 9903.92.10 from 89 FR 76581 / CSMS #62411889. Section 338 Canada 9903.03.12–.16 from CSMS #69606660.",
+  "version": "1.6.0",
+  "as_of": "2026-08-24",
   "codes": [
     {
       "code": "9903.03.06",
@@ -29,6 +29,51 @@
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
       "notes": "Section 122 10% global surcharge (19 U.S.C. §2132). In force 2026-02-24 through 2026-07-23; sunset 12:01 a.m. 2026-07-24 when 301-FL replaced it. Not IEEPA. Suppressed by 9903.03.06 when 232 applies."
+    },
+    {
+      "code": "9903.03.12",
+      "program": "SECTION_338_CANADA",
+      "kind": "DUTY",
+      "rate": 0.5,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 338 Canada — U.S. note 51(b)(1) alcoholic beverages cluster. +50% additional ad valorem from 12:01 a.m. EST 2026-08-22 (CSMS #69606660). Suspended 2026-08-19–2026-08-21 (Proc. 11056). Drawback eligible. USMCA does not exempt."
+    },
+    {
+      "code": "9903.03.13",
+      "program": "SECTION_338_CANADA",
+      "kind": "DUTY",
+      "rate": 0.5,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 338 Canada — U.S. note 51(b)(2) dairy cluster. +50% additional ad valorem from 12:01 a.m. EST 2026-08-22 (CSMS #69606660). Drawback eligible. USMCA does not exempt."
+    },
+    {
+      "code": "9903.03.14",
+      "program": "SECTION_338_CANADA",
+      "kind": "DUTY",
+      "rate": 0.5,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 338 Canada — U.S. note 51(b)(3) broad goods list. +50% additional ad valorem from 12:01 a.m. EST 2026-08-22 (CSMS #69606660). Drawback eligible. USMCA does not exempt."
+    },
+    {
+      "code": "9903.03.15",
+      "program": "SECTION_338_CANADA",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 338 Canada — U.S. note 51(c) exclusion 0% when the line already attracts 232 metals/autos/wood/MHDV/semi/patented pharma headings. Mutually exclusive with 9903.03.12–.14."
+    },
+    {
+      "code": "9903.03.16",
+      "program": "SECTION_338_CANADA",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 338 Canada — U.S. note 51(d) civil aircraft exclusion 0%. Requires civil_aircraft_gn6 (General Note 6) claim. Applies even if Free (C) SPI was not claimed."
     },
     {
       "code": "9903.04.60",

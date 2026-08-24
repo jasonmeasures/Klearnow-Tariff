@@ -1,6 +1,6 @@
 # KlearNow Tariff Rules Framework (shareable)
 
-**Version 1.5.0 · as of 2026-08-17 · US jurisdiction**  
+**Version 1.6.0 · as of 2026-08-24 · US jurisdiction**  
 **Status:** Interim pack for **other apps** until the core Duty-stack engine is exposed as a **shared API**.
 
 | Artifact | Path |
@@ -46,6 +46,7 @@ tariff-rules/
   data/ch99_codes.json
   data/s301fl_pack.json
   data/s301_brazil.json
+  data/s338_canada.json
   data/s232_auto_parts_annex.json
   data/s232_autos_vehicles.json
   data/s232_mhdv.json
@@ -224,6 +225,7 @@ Full list: [`OPEN_ITEMS.md`](./OPEN_ITEMS.md).
 
 | Ver | Date | Notes |
 |-----|------|-------|
+| **1.6.0** | 2026-08-24 | Section 338 Canada `9903.03.12`–`.16` (CSMS #69606660); 50% additional from 12:01 a.m. EST 2026-08-22 |
 | **1.5.0** | 2026-08-17 | Review pack (`RULES.md`) + user manual; HTS list surfaces 232 vehicles / MHDV / wood / semiconductors (auto vs claim) |
 | **1.4.0** | 2026-08-14 | Section 232 wood / passenger vehicles / MHDV / semiconductors packs from CSMS; 232 still wins via `9903.05.90` |
 | **1.3.1** | 2026-08-06 | Brazil Section 301 `9903.05.01` @ 25% wired (CSMS #69302472); stacks with 301-FL; R2c |

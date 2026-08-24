@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
-  "as_of": "2026-08-18",
+  "version": "1.6.0",
+  "as_of": "2026-08-24",
   "programs": [
     {
       "id": "IEEPA",
@@ -81,6 +81,14 @@
       "status": "ACTIVE",
       "detail": "CSMS #69302472 / 91 FR 45516. Additional 25% on products of Brazil from 2026-07-22. Exempt headings 9903.05.02–.09 (232 universe → .07). Distinct from 301-FL Brazil flat 9903.05.27 (12.5% from 2026-07-24); both stack when applicable (FR note 50).",
       "compute": true
+    },
+    {
+      "id": "SECTION_338_CANADA",
+      "ch99_family": "9903.03.12–.14 (50% additional) / 9903.03.15–.16 (0% exclusions)",
+      "status": "ACTIVE",
+      "detail": "Section 338 (19 U.S.C. §1338) additional 50% on certain products of Canada. CSMS #69606660 / Proclamations 11046–11048, 11056. Original effective 2026-08-19 was suspended through 2026-08-21; live from 12:01 a.m. EST 2026-08-22. Product-of-Canada test (ISO CA; CATAIR X-codes normalize to CA). USMCA does not exempt. Drawback eligible. Note 51(c) 9903.03.15 when a 232-family heading already applies; 9903.03.16 civil aircraft needs civil_aircraft_gn6. Stacks on 301-FL / China 301 / AD/CVD / MPF/HMF. Evaluate after 232-family, report before trade remedies on the 7501.",
+      "compute": true,
+      "compute_caveat": "Do not apply during 2026-08-19–2026-08-21 suspension. Do not suppress because of SPI/USMCA."
     },
     {
       "id": "TRADE_DEALS",
