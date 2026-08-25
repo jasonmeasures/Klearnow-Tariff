@@ -1,0 +1,46 @@
+{
+  "program": {
+    "id": "SEC_201_QSP",
+    "name": "Section 201 — quartz surface products TRQ",
+    "authority": "19 U.S.C. §§2251–2253 / U.S. note 41 to subchapter III of chapter 99",
+    "source_fr": "91 FR (proc. published as 2026-15975)",
+    "source_url": "https://www.whitehouse.gov/presidential-actions/2026/07/to-facilitate-positive-adjustment-to-competition-from-imports-of-quartz-surface-products/",
+    "annex_url": "https://www.presidency.ucsb.edu/sites/default/files/documents_with_attached_files/396179/188149.pdf",
+    "effective": "2026-08-15",
+    "expires": "2030-08-14",
+    "in_quota_heading": "9903.45.30",
+    "over_quota_heading": "9903.45.31",
+    "stacks_with_301fl": true,
+    "does_not_suppress_301fl": true,
+    "detail": "Four-year safeguard TRQ on quartz surface products. In-quota 9903.45.30; over-quota 9903.45.31. Stacks with Column 1, 301-FL, China 301, AD/CVD. Vietnam / China / India / Malaysia / Spain / Italy / Turkey are in scope. Quota quantity is not known at line level — default in-quota and warn."
+  },
+  "hts_covered": ["6810.99.0020", "6810.99.0040", "7020.00.6000"],
+  "rate_schedule": [
+    { "from": "2026-08-15", "to": "2027-08-14", "in_quota_pct": 25, "over_quota_pct": 50 },
+    { "from": "2027-08-15", "to": "2028-08-14", "in_quota_pct": 23, "over_quota_pct": 49 },
+    { "from": "2028-08-15", "to": "2029-08-14", "in_quota_pct": 21, "over_quota_pct": 48 },
+    { "from": "2029-08-15", "to": "2030-08-14", "in_quota_pct": 19, "over_quota_pct": 47 }
+  ],
+  "exempt_iso2": {
+    "usmca_fta": ["CA", "MX", "AU", "CO", "CR", "DO", "SV", "GT", "HN", "IL", "NI", "PA", "PE", "SG", "KR"],
+    "cbera": ["AG", "AW", "BS", "BB", "BZ", "VG", "CW", "DM", "GD", "GY", "HT", "JM", "MS", "KN", "LC", "VC", "TT"],
+    "developing": [
+      "AF", "AL", "DZ", "AO", "AM", "AZ", "BZ", "BJ", "BT", "BO", "BA", "BW", "BR", "BF", "MM", "BI",
+      "KH", "CM", "CV", "CF", "TD", "KM", "CG", "CD", "CI", "DJ", "DM", "EC", "EG", "ER", "SZ", "ET",
+      "FJ", "GA", "GM", "GE", "GH", "GD", "GN", "GW", "GY", "HT", "ID", "IQ", "JM", "JO", "KZ", "KE",
+      "KI", "XK", "KG", "LB", "LS", "LR", "MG", "MW", "MV", "ML", "MR", "MU", "MD", "MN", "ME", "MZ",
+      "NA", "NP", "NE", "NG", "MK", "PK", "PG", "PY", "PH", "RW", "LC", "VC", "WS", "ST", "SN", "RS",
+      "SL", "SB", "SO", "ZA", "SS", "LK", "SR", "TZ", "TL", "TG", "TO", "TN", "TV", "UG", "UA", "UZ",
+      "VU", "YE", "ZM", "ZW"
+    ]
+  },
+  "not_exempt_major_origins": ["CN", "IN", "VN", "MY", "ES", "IT", "TR", "PT", "TW", "JP", "DE", "GB"],
+  "quota_year_1_m2": 13006426,
+  "ftz": { "privileged_foreign_required": true, "cfr": "19 CFR 146.41" },
+  "scope_note": "U.S. note 41(a): silica-predominant resin-bound slabs/surfaces. Quarried stone (granite, marble, soapstone, quartzite) is out of scope. Listed 10-digit statistical suffixes are the proclamation's covered HTS.",
+  "sources": [
+    "Presidential proclamation 31 July 2026 — To Facilitate Positive Adjustment to Competition from Imports of Quartz Surface Products",
+    "U.S. note 41 to subchapter III of chapter 99 (headings 9903.45.30 / 9903.45.31)",
+    "Covered HTS: 6810.99.0020, 6810.99.0040, 7020.00.6000"
+  ]
+}

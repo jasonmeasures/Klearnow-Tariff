@@ -121,6 +121,11 @@
       "status": "TBC_BLOCKING"
     },
     {
+      "id": "R12",
+      "text": "Section 201 QSP TRQ (9903.45.30 in-quota / 9903.45.31 over-quota) auto-applies on 6810.99.0020 / .0040 / 7020.00.6000 from 2026-08-15. Stacks with 301-FL. Default in-quota.",
+      "status": "CONFIRMED"
+    },
+    {
       "id": "R8",
       "text": "HTS authority: Item Master for parts; HA30 for vehicles with Item Master fallback.",
       "status": "CONFIRMED"

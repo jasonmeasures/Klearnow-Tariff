@@ -30,6 +30,16 @@
       "value": "10000",
       "date": "2026-08-07",
       "flags": { "s301fl_pharma": true }
+    },
+    {
+      "id": "vn-qsp",
+      "name": "VN quartz 201",
+      "meta": "6810.99.0040 · Vietnam · Section 201 QSP",
+      "hts": "6810.99.0040",
+      "coo": "VN",
+      "value": "10000",
+      "date": "2026-08-25",
+      "flags": {}
     }
   ],
   "scenarios": [
@@ -439,6 +449,19 @@
       "expect": {
         "ch99_excludes": ["9903.03.12", "9903.03.13", "9903.03.14"],
         "codes": ["S338_SUSPENDED"]
+      }
+    },
+    {
+      "id": "qc-vn-qsp-201",
+      "title": "Quick Check: VN quartz 6810.99.0040 → 201 QSP + 301-FL",
+      "example": "vn-qsp",
+      "expect": {
+        "effective_duty_rate_pct": 37.5,
+        "duty": 3750,
+        "col1_rate_pct": 0,
+        "ch99_includes": ["9903.45.30", "9903.05.84"],
+        "ch99_excludes": ["9903.05.90"],
+        "codes": ["S201_QSP_APPLIED", "FL301_APPLIED"]
       }
     }
   ]

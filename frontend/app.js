@@ -166,7 +166,7 @@ async function boot() {
       const notes = {
         admin: "You are Admin: sidebar shows Manage. Chat answers from the live tables; pack writes stay a preview.",
         user: "You are User: Duty stack, HTS list, Chat, CSMS, and Audit.",
-        guest: "You are Guest: same chrome as User, with daily stack/extract caps.",
+        guest: "You are Guest: 5 stacks / 2 extracts per day. Sign in for unlimited.",
       };
       banner("#calcbanner", "info", notes[role] || "Signed in",
         role === "admin"
@@ -249,7 +249,7 @@ function renderRoleChip(me) {
   const labels = {
     admin: "Admin — Manage + Chat",
     user: "User — Duty stack · Chat · CSMS",
-    guest: "Guest — limited tries · Chat · CSMS",
+    guest: "Guest — limited tries. Sign in for unlimited.",
   };
   el.textContent = labels[role] || role;
   el.title = me.auth === "api_key"
@@ -263,11 +263,11 @@ function renderQuota(q) {
   el.hidden = false;
   if (q.unlimited) {
     el.textContent = "Unlimited";
-    el.title = "Admin / internal — no daily caps";
+    el.title = "Signed in / internal — no daily caps";
     return;
   }
   el.textContent = `Stacks ${q.stacks_remaining}/${q.stacks_limit} · Extracts ${q.extracts_remaining}/${q.extracts_limit}`;
-  el.title = `Resets ${q.day} (UTC). Sign in for a higher allowance.`;
+  el.title = `Guest daily cap. Resets ${q.day} (UTC). Sign in for unlimited.`;
 }
 
 async function refreshMeQuota() {
@@ -460,10 +460,11 @@ function initQuickCheck() {
       updateMetalResolved();
     });
   });
-  ["qc-value", "qc-steel-content", "qc-aluminum-content", "qc-copper-content"].forEach(id => {
+  ["qc-value", "qc-hts", "qc-steel-content", "qc-aluminum-content", "qc-copper-content"].forEach(id => {
     const el = $("#" + id);
     if (el) el.addEventListener("input", updateMetalResolved);
   });
+  syncMetalPanel(null);
   initCountryFields();
   const cooEl = $("#qc-coo");
   if (cooEl) {
@@ -491,6 +492,8 @@ function initQuickCheck() {
       if (s232Box.checked && pharmaBox) pharmaBox.checked = false;
     });
   }
+  syncChina301AdvUi();
+  syncClaimEmptyState();
 }
 
 function metalInputMode() {
@@ -501,7 +504,7 @@ function metalInputMode() {
 function syncMetalModeUi() {
   const mode = metalInputMode();
   $$(".metal-content").forEach((input) => {
-    input.placeholder = "";
+    input.placeholder = (input.id === "qc-copper-content" && mode === "PCT") ? "e.g. 10" : "";
     input.title = mode === "PCT"
       ? "Percent of entered value for this metal"
       : "Dollar value of this metal’s content";
@@ -535,11 +538,15 @@ function updateMetalResolved() {
   const mode = metalInputMode();
   const parts = [];
   let total = 0;
+  let pctSum = 0;
+  let hasPct = false;
   for (const k of ["steel", "aluminum", "copper"]) {
     const raw = Number(($(`#qc-${k}-content`)?.value || "").replace(/[$,\s]/g, ""));
     if (!Number.isFinite(raw) || raw <= 0) continue;
     let basis = raw;
     if (mode === "PCT") {
+      hasPct = true;
+      pctSum += raw;
       if (!(Number.isFinite(entered) && entered > 0)) {
         parts.push(`${k} ${raw}%`);
         continue;
@@ -549,27 +556,114 @@ function updateMetalResolved() {
     total += basis;
     parts.push(`${k} $${basis.toFixed(2)}`);
   }
-  if (!parts.length) { el.textContent = ""; return; }
-  el.textContent = `Metal-content basis ${parts.join(" + ")} = $${total.toFixed(2)}` +
-    (Number.isFinite(entered) && entered > 0 ? ` (${((total / entered) * 100).toFixed(1)}% of entered)` : "");
+  if (!parts.length) {
+    el.textContent = "";
+    const meta = $("#qc-metal-summary-meta");
+    if (meta && $("#qc-metal-wrap")?.dataset.required !== "1") {
+      meta.textContent = "Optional — expand to enter %";
+    }
+    return;
+  }
+  const pct = hasPct
+    ? pctSum
+    : (Number.isFinite(entered) && entered > 0 ? (total / entered) * 100 : null);
+  const dig = ($("#qc-hts")?.value || "").replace(/\D/g, "");
+  const ch = dig.slice(0, 2);
+  const article = ["72", "73", "74", "76"].includes(ch);
+  let path = "";
+  if (pct != null && pct > 0) {
+    if (article) {
+      path = " Steel/aluminum/copper article → 9903.82.02 (needs melt/pour).";
+    } else if (pct < 15) {
+      path = " Under 15% → 9903.82.03 at 0%. 301-FL still applies.";
+    } else {
+      path = " 15% or more → 9903.82.09 at 25% on entered value (replaces 301-FL).";
+    }
+  }
+  el.textContent = (hasPct && !(Number.isFinite(entered) && entered > 0)
+    ? `Metal content ${parts.join(" + ")}`
+    : `Metal-content basis ${parts.join(" + ")} = $${total.toFixed(2)}` +
+      (Number.isFinite(entered) && entered > 0 ? ` (${((total / entered) * 100).toFixed(1)}% of entered)` : ""))
+    + path;
+  const meta = $("#qc-metal-summary-meta");
+  if (meta) {
+    meta.textContent = path.trim() || `${((pct != null) ? pct.toFixed(1) + "% of entered" : parts.join(" + "))}`;
+  }
+}
+
+function syncMetalPanel(articleHit) {
+  const wrap = $("#qc-metal-wrap");
+  const panel = $("#qc-metal-panel");
+  if (wrap) wrap.hidden = false;
+  const required = Boolean(articleHit);
+  if (wrap) wrap.dataset.required = required ? "1" : "";
+  if (panel) panel.classList.toggle("is-required", required);
+  const title = $("#qc-metal-title");
+  const hint = $("#qc-metal-hint");
+  const summaryMeta = $("#qc-metal-summary-meta");
+  if (articleHit) {
+    if (title) title.textContent = `Section 232 metals — ${articleHit.metal} (required)`;
+    if (summaryMeta) summaryMeta.textContent = "Required for this HTS — enter content";
+    if (hint) {
+      hint.textContent = `Primary from HTS: ${articleHit.metal}. Enter steel, aluminum, and/or copper content (USD or %). Melt/pour (or smelt) is required for each metal you enter.`;
+    }
+    $$(".metal-row").forEach((row) => {
+      row.style.outline = row.dataset.metal === articleHit.metal ? "2px solid var(--color-orange-500)" : "";
+    });
+    const excl = $("#qc-exclusions");
+    if (excl) {
+      excl.hidden = false;
+      excl.innerHTML = `<span class="eyebrow">Potential exclusion codes</span>` +
+        (articleHit.potential_exclusions || []).map(e =>
+          `<div class="excl-item"><code class="mono">${esc(e.ch99)}</code> ${esc(e.label)}</div>`
+        ).join("");
+    }
+  } else {
+    if (title) title.textContent = "Metal / copper content";
+    if (summaryMeta && !Object.keys(readMetalContentsFromQuick()).length) {
+      summaryMeta.textContent = "Optional — expand to enter %";
+    }
+    if (hint) {
+      hint.innerHTML = `Optional. Enter copper, steel, or aluminum as % of entered value.
+        Under 15% on a non-article HTS files <span class="mono">9903.82.03</span> at 0% and keeps 301-FL.
+        15% or more files <span class="mono">9903.82.09</span> at 25% (replaces 301-FL).`;
+    }
+    $$(".metal-row").forEach((row) => {
+      row.style.outline = "";
+    });
+    const excl = $("#qc-exclusions");
+    if (excl) excl.hidden = true;
+  }
+  const hasInput = Object.keys(readMetalContentsFromQuick()).length > 0;
+  if (panel && required) panel.open = true;
+  if (panel && !required && !hasInput && panel.dataset.wasRequired === "1") {
+    panel.open = false;
+  }
+  if (panel) panel.dataset.wasRequired = required ? "1" : "";
+  syncMetalModeUi();
+  initCountryFields($("#qc-metal-wrap"));
+  updateMetalResolved();
 }
 
 async function previewHtsMeta() {
   const el = $("#qc-htsmeta");
   const wrap = $("#qc-qty-wrap");
-  const metalWrap = $("#qc-metal-wrap");
   const hts = ($("#qc-hts")?.value || "").trim();
   if (!el) return;
   if (!hts || hts.replace(/\D/g, "").length < 6) {
     el.innerHTML = "";
     if (wrap) wrap.hidden = true;
-    if (metalWrap) metalWrap.hidden = true;
+    syncMetalPanel(null);
     syncPharmaClaimUi();
     syncS232ClaimUi();
     syncS338ClaimUi();
+    syncS201ClaimUi();
+    sync232AutoPartClaimUi(null);
+    syncChina301AdvUi();
     return;
   }
   syncPharmaClaimUi();
+  syncChina301AdvUi();
   const asOf = $("#qc-date")?.value || new Date().toISOString().slice(0, 10);
   const coo = countryIsoFrom($("#qc-coo"));
   try {
@@ -646,21 +740,32 @@ async function previewHtsMeta() {
         `<span class="pill pill-232" title="Civil aircraft list — claim General Note 6">Section 338 aircraft list → 9903.03.16</span>`,
       );
     }
+    const s201 = r.section_201 || {};
+    if (s201.covered || s201.in_quota) {
+      bits.push(
+        `<span class="pill pill-201" title="U.S. note 41 QSP TRQ">Section 201 QSP → ${esc(s201.in_quota || "9903.45.30")} (over ${esc(s201.over_quota || "9903.45.31")})</span>`,
+      );
+    }
+    const uas = uni.uas || {};
+    if (uas.annex_i) {
+      bits.push(
+        `<span class="pill pill-232" title="Proc. 11055 / U.S. note 43">232 UAS large → 9903.08.21 @ 100% from 2026-09-03</span>`,
+      );
+    } else if (uas.annex_ii) {
+      bits.push(
+        `<span class="pill pill-232" title="Proc. 11055 / U.S. note 43">232 UAS small → 9903.08.22 @ 25% from 2026-09-03</span>`,
+      );
+    }
     syncS338ClaimUi(s338);
+    syncS201ClaimUi(s201);
     syncS232ClaimUi(uni);
 
     const annex = r.s232_auto_parts;
-    const box232 = $("#qc-232");
-    const hint232 = $("#qc-232-hint");
+    sync232AutoPartClaimUi(r);
     if (annex?.in_annex) {
       bits.push(
         `<span class="pill pill-232" title="${esc(annex.source || "Proclamation 10908")}">232 autos annex ${esc(annex.matched_stem)} → ${esc(annex.ch99 || "9903.94.05")}</span>`,
       );
-      if (box232) {
-        box232.checked = true;
-        box232.dataset.autoAnnex = "1";
-      }
-      if (hint232) hint232.textContent = "(annex — auto-applied)";
     } else {
       const dig = String(hts).replace(/\D/g, "");
       if (dig.startsWith("854442") || dig.startsWith("854449")) {
@@ -668,11 +773,11 @@ async function previewHtsMeta() {
           `<span class="pill pill-warn" title="CBP Auto Parts HTS list">Not 232 autos annex — list has 8544.30.00, not 8544.42/49</span>`,
         );
       }
-      if (box232 && box232.dataset.autoAnnex === "1") {
-        box232.checked = false;
-        delete box232.dataset.autoAnnex;
+      if (dig.startsWith("848350")) {
+        bits.push(
+          `<span class="pill pill-warn" title="CBP Auto Parts HTS list">Not 232 autos annex — list has 8483.10, not 8483.50. Check 232 auto part to self-cert 9903.94.07</span>`,
+        );
       }
-      if (hint232) hint232.textContent = "(claim only if off-list evidence)";
     }
     const url = r.usitc_url || `https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}`;
     bits.push(`<a class="usitc-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">USITC HTS</a>`);
@@ -718,33 +823,7 @@ async function previewHtsMeta() {
       }
     }
 
-    if (metalWrap) {
-      const m = r.metals;
-      metalWrap.hidden = !m;
-      if (m) {
-        const title = $("#qc-metal-title");
-        if (title) title.textContent = `Section 232 metals — ${m.metal} (enter all metals in the article)`;
-        const hint = $("#qc-metal-hint");
-        if (hint) {
-          hint.textContent = `Primary from HTS: ${m.metal}. Enter steel, aluminum, and/or copper content separately (USD or %). Melt/pour (or smelt) is required for each metal you enter. Duty uses the sum of content values.`;
-        }
-        // Highlight primary metal row
-        $$(".metal-row").forEach((row) => {
-          row.style.outline = row.dataset.metal === m.metal ? "2px solid var(--color-orange-500)" : "";
-        });
-        const excl = $("#qc-exclusions");
-        if (excl) {
-          excl.hidden = false;
-          excl.innerHTML = `<span class="eyebrow">Potential exclusion codes</span>` +
-            (m.potential_exclusions || []).map(e =>
-              `<div class="excl-item"><code class="mono">${esc(e.ch99)}</code> ${esc(e.label)}</div>`
-            ).join("");
-        }
-        syncMetalModeUi();
-        initCountryFields($("#qc-metal-wrap"));
-        updateMetalResolved();
-      }
-    }
+    syncMetalPanel(r.metals);
   } catch (err) {
     const detail = err?.payload || null;
     if (detail?.replacement_hts) {
@@ -770,7 +849,8 @@ async function previewHtsMeta() {
         `<a class="usitc-link" href="https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">Look up on USITC</a>`;
     }
     if (wrap) wrap.hidden = true;
-    if (metalWrap) metalWrap.hidden = true;
+    syncMetalPanel(null);
+    sync232AutoPartClaimUi(null);
   }
 }
 
@@ -805,6 +885,8 @@ function applyQuickToLines() {
   if ($("#qc-s232-semi")?.checked) flags.s232_semiconductor = true;
   if ($("#qc-s232-vintage")?.checked) flags.s232_vehicle_vintage = true;
   if ($("#qc-gn6")?.checked) flags.civil_aircraft_gn6 = true;
+  if ($("#qc-s201-over")?.checked) flags.s201_qsp_over_quota = true;
+  if ($("#qc-s232-uas-thermal")?.checked) flags.s232_uas_thermal = true;
   const ftaWrap = $("#qc-fta-wrap");
   const ftaClaimId = ftaWrap?.dataset?.claimId || "";
   if ($("#qc-fta")?.checked && ftaClaimId) {
@@ -853,9 +935,9 @@ async function runQuickCheck() {
     bad.push("quantity (" + (($("#qc-qty-uom")?.textContent || "").replace(/[()]/g, "").trim() || "UOM") + ")");
   }
   const metalWrap = $("#qc-metal-wrap");
-  if (metalWrap && !metalWrap.hidden) {
-    const contents = readMetalContentsFromQuick();
-    const withVal = Object.entries(contents).filter(([, r]) => r.value != null || r.pct != null);
+  const contents = readMetalContentsFromQuick();
+  const withVal = Object.entries(contents).filter(([, r]) => r.value != null || r.pct != null);
+  if (metalWrap?.dataset.required === "1") {
     if (!withVal.length) bad.push("at least one metal content (steel, aluminum, or copper)");
     for (const [k, r] of withVal) {
       if (!r.melt_pour) bad.push(`${k} melt/pour country`);
@@ -911,17 +993,76 @@ $("#mode")?.addEventListener("change", () => {
   if ($("#qc-mode") && $("#mode").value) $("#qc-mode").value = $("#mode").value;
 });
 
+function guestQuotaHtml() {
+  const q = S.me?.quota;
+  if (!q || q.unlimited) return "";
+  const left = q.stacks_remaining ?? Math.max(0, (q.stacks_limit || 0) - (q.stacks_used || 0));
+  return `<p class="guest-quota">Guest: <b>${left}</b> of ${q.stacks_limit} stacks left today.
+    Sign in for unlimited.</p>`;
+}
+
+function syncClaimEmptyState() {
+  const empty = $("#qc-flags-empty");
+  if (!empty) return;
+  const flags = $("#qc-flags");
+  if (!flags) return;
+  const visible = [...flags.querySelectorAll(".check, #qc-cn-adv")].some((el) => !el.hidden);
+  empty.hidden = visible;
+}
+
+function syncChina301AdvUi() {
+  const wrap = $("#qc-cn-adv");
+  if (!wrap) return;
+  const coo = countryIsoFrom($("#qc-coo"));
+  const show = coo === "CN" || coo === "HK";
+  wrap.hidden = !show;
+  if (!show && $("#qc-cnlist")) $("#qc-cnlist").value = "auto";
+  syncClaimEmptyState();
+}
+
+/** 232 auto-part checkbox: only for off-list self-cert. Annex HTS auto-applies without a claim. */
+function sync232AutoPartClaimUi(r) {
+  const wrap = $("#qc-232-wrap");
+  const box = $("#qc-232");
+  const hint = $("#qc-232-hint");
+  if (!wrap || !box) return;
+  const annex = r?.s232_auto_parts;
+  const hts = String(r?.hts || $("#qc-hts")?.value || "");
+  const dig = hts.replace(/\D/g, "");
+  const offListFamily = /^(8483|8708|8544)/.test(dig);
+  if (annex?.in_annex) {
+    wrap.hidden = true;
+    box.checked = false;
+    delete box.dataset.autoAnnex;
+    if (hint) hint.textContent = "(annex — auto-applied)";
+    syncClaimEmptyState();
+    return;
+  }
+  const show = Boolean(r) && offListFamily && !annex?.in_annex;
+  wrap.hidden = !show;
+  if (!show) {
+    box.checked = false;
+    delete box.dataset.autoAnnex;
+  }
+  if (hint) hint.textContent = "(off-list self-cert 9903.94.07)";
+  syncClaimEmptyState();
+}
+
 /** Show FTA / USMCA claim when origin has a Note 52 economy exemption. */
 async function syncFtaClaimUi() {
   const wrap = $("#qc-fta-wrap");
   const label = $("#qc-fta-label");
   const box = $("#qc-fta");
-  if (!wrap || !label || !box) return;
+  if (!wrap || !label || !box) {
+    syncChina301AdvUi();
+    return;
+  }
   const coo = countryIsoFrom($("#qc-coo"));
   if (!coo) {
     wrap.hidden = true;
     wrap.dataset.claimId = "";
     box.checked = false;
+    syncChina301AdvUi();
     return;
   }
   try {
@@ -930,6 +1071,7 @@ async function syncFtaClaimUi() {
       wrap.hidden = true;
       wrap.dataset.claimId = "";
       box.checked = false;
+      syncChina301AdvUi();
       return;
     }
     wrap.hidden = false;
@@ -945,9 +1087,11 @@ async function syncFtaClaimUi() {
     wrap.title =
       r.hint ||
       `${r.label}: SPI preference zeros Column-1 and MPF. Other programs need their own ${r.label} Chapter 99 exception.`;
+    syncChina301AdvUi();
   } catch {
     wrap.hidden = true;
     wrap.dataset.claimId = "";
+    syncChina301AdvUi();
   }
 }
 
@@ -986,6 +1130,7 @@ async function syncPharmaClaimUi() {
     if (!userOn) wrap.hidden = true;
   }
   syncS232PharmaClaimUi();
+  syncClaimEmptyState();
 }
 
 /** Show Section 232 patented-pharma claim for Chapter 29/30 HTS (Proclamation 11020). */
@@ -1000,6 +1145,7 @@ function syncS232PharmaClaimUi() {
   if (ch !== 29 && ch !== 30) {
     wrap.hidden = true;
     box.checked = false;
+    syncClaimEmptyState();
     return;
   }
   wrap.hidden = false;
@@ -1013,6 +1159,7 @@ function syncS232PharmaClaimUi() {
   }
   wrap.title =
     "Claim when goods are patented pharmaceuticals / ingredients under U.S. note 40. UK additional duty is 0% from 2026-07-31. Suppresses 301-FL via 9903.05.90.";
+  syncClaimEmptyState();
 }
 
 function syncS232ClaimUi(uni = {}) {
@@ -1045,6 +1192,28 @@ function syncS232ClaimUi(uni = {}) {
     vinWrap.hidden = !show;
     if (!show) vinBox.checked = false;
   }
+  const thermWrap = $("#qc-s232-uas-thermal-wrap");
+  const thermBox = $("#qc-s232-uas-thermal");
+  if (thermWrap && thermBox) {
+    const show = Boolean(uni.uas?.annex_ii);
+    thermWrap.hidden = !show;
+    if (!show) thermBox.checked = false;
+    thermWrap.title =
+      "Small-UAS HTS (8806.21–.23 / .91–.93) defaults to 9903.08.22 @ 25%. Tick if the aircraft integrates a thermal imager — then 9903.08.21 @ 100% (note 43(c)(3)).";
+  }
+  syncClaimEmptyState();
+}
+
+function syncS201ClaimUi(s201 = {}) {
+  const wrap = $("#qc-s201-over-wrap");
+  const box = $("#qc-s201-over");
+  if (!wrap || !box) return;
+  const show = Boolean(s201.covered);
+  wrap.hidden = !show;
+  if (!show) box.checked = false;
+  wrap.title =
+    "Section 201 QSP defaults to in-quota 9903.45.30. Tick this when the quarterly TRQ is exhausted so the stack uses 9903.45.31.";
+  syncClaimEmptyState();
 }
 
 function syncS338ClaimUi(s338 = {}) {
@@ -1056,6 +1225,7 @@ function syncS338ClaimUi(s338 = {}) {
   if (!show) box.checked = false;
   wrap.title =
     "Claim when the article is civil aircraft (not military/unmanned) meeting General Note 6. Reports 9903.03.16 @ 0% additional (CSMS #69606660). Default is off — dual-list HTS then takes the 50% 338 duty heading.";
+  syncClaimEmptyState();
 }
 
 /* ================================================================ CALCULATOR */
@@ -1554,8 +1724,10 @@ function renderResults(R) {
   const count = sev => lines.reduce((a, l) =>
     a + (l.diagnostics || []).filter(d => d.severity === sev).length, 0);
   const nErr = count("ERROR"), nWarn = count("WARNING"), nInfo = count("INFO");
+  const landed = R.totals?.landed_cost ?? ((Number(R.totals?.entered_value)||0) + (Number(R.totals?.duty)||0) + (Number(R.totals?.fees)||0));
 
   let html = `<div class="body" style="padding:var(--sp-4) var(--sp-4) 0">
+    ${guestQuotaHtml()}
     <div class="summary">
       <div class="stat"><div class="k">Duty rate</div>
         <div class="v">${
@@ -1571,7 +1743,7 @@ function renderResults(R) {
         <div class="v">${
           nErr
             ? `<span class="cap" style="color:var(--color-red-700)">—</span>`
-            : `$${money(R.totals?.landed_cost ?? ((Number(R.totals?.entered_value)||0) + (Number(R.totals?.duty)||0) + (Number(R.totals?.fees)||0)))}`
+            : `$${money(landed)}`
         }</div></div>
     </div>
     <p class="cap" style="margin:var(--sp-2) 0 0">${
@@ -1590,7 +1762,7 @@ function renderResults(R) {
           f.code === "HMF" && f.rate_note ? ` <span class="cap">${esc(f.rate_note)}</span>` : ""
         }</span><span>$${money(f.amount)}</span></div>`
       ).join("") +
-      `<div class="cost-row total"><span>Landed cost</span><span>$${money(R.totals?.landed_cost)}</span></div>
+      `<div class="cost-row total"><span>Landed cost</span><span>$${money(landed)}</span></div>
     </div>`;
   }
   html += `</div>`;

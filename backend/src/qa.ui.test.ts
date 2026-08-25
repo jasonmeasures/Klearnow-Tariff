@@ -1,5 +1,5 @@
 /**
- * Frontend contract: Quick Check chips and PWA layout stay in sync with goldens.
+ * Frontend contract: Quick Check chips and Duty stack layout stay in sync with goldens.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -60,5 +60,28 @@ describe("QA UI contract", () => {
     assert.ok(metalAt > 0, "qc-metal-wrap missing");
     assert.ok(modeAt < metalAt, "MOT must sit with HTS / origin / value, not inside metals");
     assert.match(html, /HMF 0\.125% on ocean only/);
+  });
+
+  it("metal / copper content is on the Duty stack card", () => {
+    assert.ok(html.includes('id="qc-metal-wrap"'));
+    assert.ok(!/id="qc-metal-wrap"[^>]*\bhidden\b/.test(html), "metal panel must be visible by default");
+    assert.match(html, /<details[^>]*id="qc-metal-panel"/);
+    assert.ok(!/<details[^>]*id="qc-metal-panel"[^>]*\bopen\b/.test(html), "metal panel starts collapsed");
+    assert.ok(html.includes("9903.82.03"));
+    assert.ok(html.includes('id="qc-copper-content"'));
+    const exclAt = html.indexOf('id="qc-exclusions"');
+    const metalPanelAt = html.indexOf('id="qc-metal-panel"');
+    const metalClose = html.indexOf("</details>", metalPanelAt);
+    assert.ok(exclAt > metalPanelAt && exclAt < metalClose, "exclusions live inside the metals panel");
+  });
+
+  it("claim checkboxes start hidden until HTS/origin needs them", () => {
+    assert.ok(html.includes('id="qc-flags-empty"'));
+    assert.match(html, /id="qc-232-wrap"[^>]*\bhidden\b/);
+    assert.match(html, /id="qc-fta-wrap"[^>]*\bhidden\b/);
+    assert.match(html, /id="qc-cn-adv"[^>]*\bhidden\b/);
+    assert.ok(!html.includes("Shipment details"));
+    assert.ok(!html.includes('id="qc-loaded"'));
+    assert.ok(!html.includes('id="qc-htsdesc"'));
   });
 });

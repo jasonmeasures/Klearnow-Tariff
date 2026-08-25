@@ -77,8 +77,21 @@ describe("232 auto origin splits", () => {
       "9903.94.53",
     );
     assert.equal(
-      resolve232PartsOrigin({ coo: "CN", rateDay: DAY, col1Rate: COL1 }).heading,
+      resolve232PartsOrigin({
+        coo: "CN",
+        rateDay: DAY,
+        col1Rate: COL1,
+        matchedStem: "870829",
+      }).heading,
       "9903.94.05",
+    );
+    assert.equal(
+      resolve232PartsOrigin({ coo: "HK", rateDay: DAY, col1Rate: COL1 }).heading,
+      "9903.94.07",
+    );
+    assert.equal(
+      resolve232PartsOrigin({ coo: "CN", rateDay: DAY, col1Rate: COL1 }).heading,
+      "9903.94.07",
     );
   });
 

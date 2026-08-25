@@ -1,6 +1,6 @@
 {
-  "version": "1.6.0",
-  "as_of": "2026-08-24",
+  "version": "1.7.0",
+  "as_of": "2026-08-25",
   "programs": [
     {
       "id": "IEEPA",
@@ -62,6 +62,14 @@
       "compute_caveat": "Do not fold into parts TOTAL"
     },
     {
+      "id": "SEC_232_PHARMA",
+      "ch99_family": "9903.04.60–.69",
+      "status": "ACTIVE",
+      "detail": "Proclamation 11020 / CSMS #69395344, #69415934. Patented pharmaceutical articles and ingredients (Ch.29/30). Default 9903.04.60 @ 100% combined Col-1+232; JP/EU/KR/CH/LI 9903.04.62 @ 15% combined; UK 9903.04.63 @ 0% additional from 2026-07-31. Generic 9903.04.67 @ 0%. Claim-gated (s232_pharma_patented / s232_pharma_generic). Suppresses 301-FL. Distinct from 301-FL pharmaceutical-use 9903.05.89 (Note 52(e)).",
+      "compute": true,
+      "compute_caveat": "Do not infer patented vs generic from HTS. Combined Col-1+232 mechanic TBC on some headings — report rate, warn on total."
+    },
+    {
       "id": "SEC_301_CHINA_LEGACY",
       "ch99_family": "9903.88.xx",
       "status": "ACTIVE",
@@ -89,6 +97,22 @@
       "detail": "Section 338 (19 U.S.C. §1338) additional 50% on certain products of Canada. CSMS #69606660 / Proclamations 11046–11048, 11056. Original effective 2026-08-19 was suspended through 2026-08-21; live from 12:01 a.m. EST 2026-08-22. Product-of-Canada test (ISO CA; CATAIR X-codes normalize to CA). USMCA does not exempt. Drawback eligible. Note 51(c) 9903.03.15 when a 232-family heading already applies; 9903.03.16 civil aircraft needs civil_aircraft_gn6. Stacks on 301-FL / China 301 / AD/CVD / MPF/HMF. Evaluate after 232-family, report before trade remedies on the 7501.",
       "compute": true,
       "compute_caveat": "Do not apply during 2026-08-19–2026-08-21 suspension. Do not suppress because of SPI/USMCA."
+    },
+    {
+      "id": "SEC_201_QSP",
+      "ch99_family": "9903.45.30 (in-quota) / 9903.45.31 (over-quota)",
+      "status": "ACTIVE",
+      "detail": "Section 201 quartz surface products TRQ. U.S. note 41 / 31 July 2026 proclamation. Live 2026-08-15 through 2030-08-14. Covered HTS 6810.99.0020, 6810.99.0040, 7020.00.6000. Year 1 in-quota 25% / over-quota 50%, then steps down. Vietnam, China, India, Malaysia, Spain, Italy, Turkey are in scope; CA/MX/KR/FTA/CBERA/listed developing countries are exempt. Stacks with 301-FL (does not suppress). Default in-quota; over-quota is a claim. AD/CVD is separate.",
+      "compute": true,
+      "compute_caveat": "Line-level assessment cannot see remaining quarterly quota — default 9903.45.30 and warn."
+    },
+    {
+      "id": "SEC_232_UAS",
+      "ch99_family": "9903.08.20–.26",
+      "status": "ACTIVE",
+      "detail": "Section 232 unmanned aircraft systems. Proclamation 11055 / U.S. note 43, effective 2026-09-03. Large UAS 8806.24/.29/.94/.99 auto 9903.08.21 @ 100%. Small UAS 8806.21–.23/.91–.93 auto 9903.08.22 @ 25% unless thermal is claimed (then .21 @ 100%). Docking 8504.40.9580 / 8537.10.9170 and 8807 parts are claim-gated. Suppresses 301-FL. Partner 10/15% caps are rate-known but combined mechanic TBC. Annex III 8807 @ 25% from 2027-02-09.",
+      "compute": true,
+      "compute_caveat": "Do not auto-apply 100% on general-purpose docking HTS. Thermal vs non-thermal on overlapping 8806 stems is claim-gated for the 100% path."
     },
     {
       "id": "TRADE_DEALS",

@@ -25,17 +25,19 @@ import {
   assessS232Semiconductors,
   match232SemiconductorHts,
 } from "./s232Semiconductors.ts";
+import { assessS232Uas, previewS232Uas } from "./s232Uas.ts";
 
 export type S232Family =
   | "autos_parts"
   | "autos_vehicles"
   | "mhdv"
   | "wood"
-  | "semiconductors";
+  | "semiconductors"
+  | "uas";
 
 export type S232EnteredHit = {
   family: S232Family;
-  program: "SEC_232_AUTOS" | "SEC_232_MHDV" | "SEC_232_WOOD" | "SEC_232_SEMI";
+  program: "SEC_232_AUTOS" | "SEC_232_MHDV" | "SEC_232_WOOD" | "SEC_232_SEMI" | "SEC_232_UAS";
   heading: string;
   rate_pct_decimal: number;
   label: string;
@@ -67,6 +69,7 @@ export type S232UniversePreview = {
   wood: { matched_stem: string; bucket: string; ch99: string } | null;
   semiconductor: { matched_stem: string } | null;
   auto_parts: { matched_stem: string; ch99: string } | null;
+  uas: ReturnType<typeof previewS232Uas> | null;
 };
 
 export function previewS232Universe(
@@ -114,6 +117,7 @@ export function previewS232Universe(
     auto_parts: annex
       ? { matched_stem: annex.matched_stem, ch99: partsHeading || annex.ch99_duty }
       : null,
+    uas: previewS232Uas(hts),
   };
 }
 
@@ -164,6 +168,28 @@ export function resolveS232EnteredValue(opts: {
   }
   if (semi && !semi.applies) {
     notes.push({ severity: "INFO", code: "S232_SEMI_LIST", message: semi.reason });
+  }
+
+  const uas = assessS232Uas({ hts, coo, rateDay: day, flags });
+  if (uas && "preview_only" in uas) {
+    notes.push({ severity: "INFO", code: "S232_UAS_PENDING", message: uas.reason });
+  } else if (uas && "heading" in uas) {
+    return {
+      hit: {
+        family: "uas",
+        program: "SEC_232_UAS",
+        heading: uas.heading,
+        rate_pct_decimal: uas.rate_pct_decimal,
+        label: uas.label,
+        reason: uas.reason,
+        source: "Proclamation 11055 / U.S. note 43",
+        matched_stem: uas.matched_stem,
+        ...NO_CAP,
+        suppresses_metals: false,
+        suppresses_wood: true,
+      },
+      notes,
+    };
   }
 
   const mhdvOn = s232MhdvAppliesOn(day);

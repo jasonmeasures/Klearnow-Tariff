@@ -3,7 +3,7 @@
   "as_of": "2026-08-19",
   "notes": [
     "Passenger vehicles and auto parts are NOT origin-blind after the JP/EU/KR/UK CSMS modifications.",
-    "Default (most COO): vehicles 9903.94.01 @ 25% additional; parts 9903.94.05 @ 25% additional. Column 1 stacks.",
+    "Default (most COO): vehicles 9903.94.01 @ 25% additional; annex parts 9903.94.05 @ 25% additional. Off-list self-cert (U.S. note 33(p)) is 9903.94.07. Column 1 stacks.",
     "JP / EU / KR combined-cap filing (CSMS default): report the cap on the Ch.99 line and $0 duty on Ch.1–97. Drawback exception is claim-gated (s232_drawback_col1).",
     "UK vehicles 9903.94.31 is a TRQ claim (s232_uk_auto_trq), not auto. UK parts 9903.94.32 auto-applies on the annex.",
     "Taiwan vehicle/parts origin headings remain unpublished here — keep default until CSMS assigns them.",
@@ -18,6 +18,12 @@
     "heading": "9903.94.05",
     "rate_pct": 25,
     "kind": "additional"
+  },
+  "default_parts_self_cert": {
+    "heading": "9903.94.07",
+    "rate_pct": 25,
+    "kind": "additional",
+    "note": "Off-annex parts claimed for passenger-vehicle / light-truck production or repair — U.S. note 33 subdivision (p). Not 9903.94.05 (annex list)."
   },
   "uk_vehicle_trq": {
     "from": "2025-06-30",

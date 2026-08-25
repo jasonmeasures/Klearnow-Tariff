@@ -89,6 +89,10 @@ function getJwks() {
   return jwks;
 }
 
+function quotaTierForRole(role: Role): Principal["quota_tier"] {
+  return role === "guest" ? "anonymous" : "unlimited";
+}
+
 function scopesForRole(role: Role): Scopes {
   if (role === "admin") {
     return { calculate: true, read_rules: true, write_rules: true, admin: true };
@@ -116,7 +120,7 @@ const KEYS: Record<
     key_id: "dev-calculate",
     role: "user",
     can: scopesForRole("user"),
-    quota_tier: "authenticated",
+    quota_tier: "unlimited",
     auth: "api_key",
   },
   "dev-external": {
@@ -159,7 +163,7 @@ function principalFromDbUser(user: DbUser, sub: string): Principal {
     role,
     surface: SURFACE,
     can: scopesForRole(role),
-    quota_tier: role === "admin" ? "unlimited" : "authenticated",
+    quota_tier: quotaTierForRole(role),
     auth: "auth0",
     email: user.email,
   };
@@ -272,7 +276,7 @@ async function principalFromBearer(token: string): Promise<Principal | null> {
       role,
       surface: SURFACE,
       can: scopesForRole(role),
-      quota_tier: role === "admin" ? "unlimited" : "authenticated",
+      quota_tier: quotaTierForRole(role),
       auth: "auth0",
       email,
     };

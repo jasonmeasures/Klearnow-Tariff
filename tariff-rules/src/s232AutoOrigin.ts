@@ -142,6 +142,26 @@ function defaultParts(stemNote: string): AutoOriginHit {
   };
 }
 
+function defaultSelfCertParts(stemNote: string): AutoOriginHit {
+  const spec = originPack.default_parts_self_cert as {
+    heading: string;
+    rate_pct: number;
+  };
+  const h = spec.heading;
+  const rate = spec.rate_pct / 100;
+  return {
+    heading: h,
+    rate_pct_decimal: rate,
+    combined_cap: false,
+    cap_pct_decimal: null,
+    zero_commodity: false,
+    label: "Section 232 — auto parts (self-certified)",
+    reason: `${stemNote} → ${h} @ ${spec.rate_pct}% additional (U.S. note 33(p) off-list self-cert). 301-FL suppressed via 9903.05.90.`,
+    source: "U.S. note 33(p) / 9903.94.07",
+    split_id: null,
+  };
+}
+
 export type AutoOriginOpts = {
   coo: string;
   rateDay: string;
@@ -223,6 +243,7 @@ export function resolve232PartsOrigin(opts: AutoOriginOpts): AutoOriginHit {
     );
   }
 
+  if (!opts.matchedStem) return defaultSelfCertParts(stem);
   return defaultParts(stem);
 }
 

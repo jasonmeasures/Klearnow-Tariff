@@ -14,6 +14,7 @@ import { htsTableMeta, lookupHts, suggestHtsPrefix } from "./htsLookup.ts";
 import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
 import { previewS232Universe } from "../../tariff-rules/src/s232Resolve.ts";
 import { previewS338 } from "../../tariff-rules/src/s338Canada.ts";
+import { previewS201Qsp } from "../../tariff-rules/src/s201Qsp.ts";
 import { coverRowsAsync, parseCoverageInput } from "./coverage.ts";
 import { csmsRouter } from "./csms.ts";
 import { insightsRouter } from "./insights.ts";
@@ -104,10 +105,7 @@ app.get("/v1/config", (_req, res) => {
         stacks: Number(process.env.QUOTA_ANON_STACKS || 5),
         extracts: Number(process.env.QUOTA_ANON_EXTRACTS || 2),
       },
-      authenticated: {
-        stacks: Number(process.env.QUOTA_USER_STACKS || 50),
-        extracts: Number(process.env.QUOTA_USER_EXTRACTS || 10),
-      },
+      signed_in: { unlimited: true },
     },
     limits: publicLimits(),
   });
@@ -251,6 +249,7 @@ app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
   const look = lookupHts(raw, asOf);
   const { s232_universe, s232_auto_parts } = lookupS232Extras(raw, asOf, coo, look.hit?.col1_pct);
   const section_338 = previewS338(raw);
+  const section_201 = previewS201Qsp(raw);
   if (look.window_status === "unknown" && !look.replacement_hts) {
     res.status(404).json({
       detail: `No column-1 rate for ${raw} on ${asOf}`,
@@ -260,6 +259,7 @@ app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
       s232_auto_parts,
       s232_universe,
       section_338,
+      section_201,
     });
     return;
   }
@@ -271,6 +271,7 @@ app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
     s232_auto_parts,
     s232_universe,
     section_338,
+    section_201,
     window_status: look.window_status,
     ended_on: look.ended_on,
     replacement_hts: look.replacement_hts,

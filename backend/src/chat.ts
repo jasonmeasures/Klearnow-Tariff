@@ -15,6 +15,8 @@ import {
 import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
 import { previewS232Universe } from "../../tariff-rules/src/s232Resolve.ts";
 import { previewS338, reloadS338Canada, s338Meta } from "../../tariff-rules/src/s338Canada.ts";
+import { previewS201Qsp, reloadS201Qsp, s201QspMeta } from "../../tariff-rules/src/s201Qsp.ts";
+import { reloadS232Uas, s232UasMeta } from "../../tariff-rules/src/s232Uas.ts";
 import {
   listS301flCountries,
   lookupS301fl,
@@ -297,6 +299,7 @@ async function runTool(
           : { in_annex: false },
         s232_universe,
         section_338: previewS338(hts),
+        section_201: previewS201Qsp(hts),
       };
     }
     case "explain_hts": {
@@ -460,8 +463,10 @@ async function runTool(
       reloadS301fl();
       reloadS301ChinaNote31();
       reloadS338Canada();
+      reloadS201Qsp();
+      reloadS232Uas();
       refreshRulepackState();
-      return { ok: true, rulepack: rulepackPublic(), s301fl: s301flMeta(), s338: s338Meta() };
+      return { ok: true, rulepack: rulepackPublic(), s301fl: s301flMeta(), s338: s338Meta(), s201: s201QspMeta(), s232_uas: s232UasMeta() };
     }
     default:
       return { error: `Unknown tool ${name}` };

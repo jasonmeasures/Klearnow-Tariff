@@ -12,6 +12,8 @@ import {
 } from "../../tariff-rules/src/s301fl.ts";
 import { reloadS301ChinaNote31 } from "../../tariff-rules/src/s301ChinaNote31.ts";
 import { reloadS338Canada, s338Meta } from "../../tariff-rules/src/s338Canada.ts";
+import { reloadS201Qsp, s201QspMeta } from "../../tariff-rules/src/s201Qsp.ts";
+import { reloadS232Uas, s232UasMeta } from "../../tariff-rules/src/s232Uas.ts";
 import { requireAdmin, requireScope } from "./auth.ts";
 import { htsTableMeta, reloadHtsTable } from "./htsLookup.ts";
 import { importHtsFromBuffer } from "./import_hts.ts";
@@ -24,6 +26,8 @@ adminRouter.post("/admin/reload", requireScope("write_rules"), requireAdmin, (_r
   reloadS301fl();
   reloadS301ChinaNote31();
   reloadS338Canada();
+  reloadS201Qsp();
+  reloadS232Uas();
   reloadHtsTable();
   refreshRulepackState();
   res.json({
@@ -31,6 +35,8 @@ adminRouter.post("/admin/reload", requireScope("write_rules"), requireAdmin, (_r
     rulepack: rulepackPublic(),
     s301fl: s301flMeta(),
     s338: s338Meta(),
+    s201: s201QspMeta(),
+    s232_uas: s232UasMeta(),
     hts: htsTableMeta(),
     note: "Ch99 reciprocal engine constants are loaded at process start — restart backend after editing ch99_rules.json.",
   });

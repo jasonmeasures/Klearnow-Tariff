@@ -72,6 +72,8 @@ It does **not** classify the product, invent Column 1 for an unknown 10-digit li
 | 232 metals | `9903.82.xx` | **Live.** Separate line; metal-content or entered-value derivative. | Yes (chapter triage + content) |
 | 232 patented pharma | `9903.04.60`–`.67` | **Live.** Proclamation 11020 / CSMS #69395344, #69415934. | **Claim-gated** Ch.29/30 |
 | **Section 338 Canada** | `9903.03.12`–`.16` | **Live** from 12:01 a.m. EST **2026-08-22** (CSMS #69606660). Original 2026-08-19 start was suspended 19–21 Aug (Proc. 11056). | Yes (product of Canada + HTS list). Aircraft `.16` is **claim-gated** (`civil_aircraft_gn6`) |
+| **Section 201 QSP** | `9903.45.30` / `.31` | **Live** from **2026-08-15** through 2030-08-14 (U.S. note 41). In-quota 25% year 1; over-quota 50%. HTS `6810.99.0020` / `.0040` / `7020.00.6000`. VN/CN/IN in scope. Stacks with 301-FL. | Yes (list auto; over-quota claim) |
+| **232 UAS / drones** | `9903.08.21` / `.22` | **Live** from **2026-09-03** (Proc. 11055 / note 43). Large UAS 100%; small UAS 25%. Suppresses 301-FL. | Yes (list auto; thermal / docking / 8807 claim-gated) |
 | JP / EU leftover trade-deal flags | `9903.94.45/.55` | Rate known; **MFN mechanic TBC (R6)** | Rate yes; **totals blocked** |
 
 ---

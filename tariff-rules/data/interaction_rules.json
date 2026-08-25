@@ -1,13 +1,13 @@
 {
-  "version": "1.6.0",
-  "as_of": "2026-08-24",
+  "version": "1.7.0",
+  "as_of": "2026-08-25",
   "stacking_order_note": "CSMS #69606660 entry-summary sequence: Ch.98 → Ch.99 additional (Section 338 9903.03.12–.16) → trade remedies (301 → 122 slot inactive → 232 → 201) → replacement/MTB → other quota → Ch.1–97. Where China 301 (9903.88.xx or 9903.91.xx) and 232 both apply, 301 reports first among trade remedies.",
   "rules": [
     {
       "id": "R1_232_VS_301FL",
-      "rule": "Section 232 (autos/parts, vehicles, MHDV, metals, wood, semiconductors, patented pharma) and 301-FL are MUTUALLY EXCLUSIVE. 232 wins. When 232 applies, report 9903.05.90 to suppress 301-FL.",
+      "rule": "Section 232 (autos/parts, vehicles, MHDV, metals, wood, semiconductors, patented pharma, UAS) and 301-FL are MUTUALLY EXCLUSIVE. 232 wins. When 232 applies, report 9903.05.90 to suppress 301-FL.",
       "status": "CONFIRMED",
-      "dependency": "Valid 232 determination: auto-parts annex, passenger-vehicle list, MHDV vehicle/bus list or claimed MHDV part, wood HTS list, claimed semiconductor Note 39(b), metals chapter/claim, or patented-pharma claim. Chapter-level match is triage only for auto-parts."
+      "dependency": "Valid 232 determination: auto-parts annex, passenger-vehicle list, MHDV vehicle/bus list or claimed MHDV part, wood HTS list, claimed semiconductor Note 39(b), metals chapter/claim, patented-pharma claim, or UAS note 43 (Proc. 11055 from 2026-09-03). Chapter-level match is triage only for auto-parts. 9903.08.20 (not for UAS use) does not suppress 301-FL."
     },
     {
       "id": "R2_CHINA_301_NOT_SUPPRESSED",
@@ -61,6 +61,12 @@
       "rule": "Section 338 Canada (9903.03.12–.14 @ 50%) stacks on Column 1, 301-FL, China 301, 201, AD/CVD, and MPF/HMF. USMCA/SPI zeros Column 1 only — it does NOT exempt 338. Mutually exclusive with 232 metals/autos/wood/MHDV/semiconductors/patented pharma via 9903.03.15 (0%). Civil aircraft 9903.03.16 (0%) requires civil_aircraft_gn6. Evaluate 232-family first, then gate 338. Drawback eligible. Suspended 2026-08-19 through 2026-08-21; live from 12:01 a.m. EST 2026-08-22. CSMS Ch.98/drawback text citing 9903.04.12–.14 is a CBP typo for 03.12–.14.",
       "status": "CONFIRMED",
       "source": "CSMS #69606660; 91 FR 46639 / 46653 / 46663; Proc. 11046–11048, 11056"
+    },
+    {
+      "id": "R12_SECTION_201_QSP",
+      "rule": "Section 201 quartz surface products TRQ (9903.45.30 in-quota / 9903.45.31 over-quota) auto-applies on listed HTS 6810.99.0020, 6810.99.0040, 7020.00.6000 from 2026-08-15 through 2030-08-14 for origins not listed in U.S. note 41(c). Year 1 rates 25% / 50%, then 23/49, 21/48, 19/47. Stacks with Column 1, 301-FL, China 301, and AD/CVD — 201 does not suppress 301-FL. Default in-quota; over-quota is claim-gated because remaining quota is not known at line level. Quarried stone is out of scope (flags.s201_not_qsp).",
+      "status": "CONFIRMED",
+      "source": "U.S. note 41; proclamation 31 July 2026 (2026-15975)"
     },
     {
       "id": "R7_9394_PROGRAM_LABEL",

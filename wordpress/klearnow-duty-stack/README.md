@@ -11,9 +11,9 @@ Install this folder as a WordPress plugin (`wp-content/plugins/klearnow-duty-sta
 
 ## What external users see
 
-- Duty stack only (no Rules / Upload / Rule chat / admin)
-- Guest allowance: **5 stacks / day**, **2 extracts / day** (HTS list / ES-003)
-- Auth0 sign-in raises the cap to **50 / 10**
+- Duty stack only (no HTS list / Audit / Chat / CSMS / admin)
+- Guest allowance: **5 stacks / day**, **2 extracts / day**
+- **Sign in (Auth0) → unlimited** stacks and extracts
 - Admin role still never exposed through the embed chrome
 
 ## Backend env (API hosting the SPA)
@@ -26,8 +26,6 @@ AUTH0_AUDIENCE=https://api.klearnow.com/tariff
 FRAME_ANCESTORS='self' https://your-wordpress.example https://*.klearnow.com
 QUOTA_ANON_STACKS=5
 QUOTA_ANON_EXTRACTS=2
-QUOTA_USER_STACKS=50
-QUOTA_USER_EXTRACTS=10
 ```
 
 ## Frontend env (Amplify / SPA)

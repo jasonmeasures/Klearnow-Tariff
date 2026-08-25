@@ -209,8 +209,8 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td>An ACE ES-003 export</td><td><strong>Audit</strong> (filed Ch.99 vs expected)</td></tr></tbody></table></div>
 <hr />
 <h2 id="2-who-sees-what">2. Who sees what</h2>
-<div class="table-wrap"><table><thead><tr><th>Who</th><th>Sign-on</th><th>What they get</th></tr></thead><tbody><tr><td>Guest / WordPress embed</td><td>Optional Auth0</td><td>Duty stack, HTS list, Audit. Daily quotas. No admin.</td></tr>
-<tr><td>Signed-in user</td><td>Auth0</td><td>Full calculator; Chat / CSMS when enabled.</td></tr>
+<div class="table-wrap"><table><thead><tr><th>Who</th><th>Sign-on</th><th>What they get</th></tr></thead><tbody><tr><td>Guest / WordPress embed</td><td>Optional Auth0</td><td>Duty stack only. <strong>5 stacks / 2 extracts per day.</strong> Sign in for unlimited. No admin.</td></tr>
+<tr><td>Signed-in user</td><td>Auth0</td><td>Unlimited stacks. Full calculator; Chat / CSMS on the direct app (not the WordPress embed).</td></tr>
 <tr><td>Admin</td><td>Auth0 + app role <code>admin</code></td><td>Rules, Upload, Snapshots, Users.</td></tr></tbody></table></div>
 <p>Local demo: open http://localhost:3000 with API key <code>dev-internal</code>. Use <strong>View as</strong> to preview user / guest. Playground / WordPress replace that switch with Auth0.</p>
 <hr />
@@ -222,13 +222,17 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <ul><li>Column 1 rate and description</li><li>China 301 list membership (legacy <code>9903.88</code> and four-year review <code>9903.91</code>)</li><li><strong>232 list pills</strong> — passenger vehicle, MHDV, bus, wood, auto-parts annex, metals</li><li>USITC link</li></ul>
 <p>If Column 1 is a specific rate (¢/kg, etc.), a <strong>quantity</strong> field appears. If the HTS is in Chapters 72–74 / 76, a <strong>metals</strong> panel appears (content in USD or % of entered, plus melt/pour country).</p>
 <h3 id="claims-checkboxes-that-appear-only-when-relevant">Claims (checkboxes that appear only when relevant)</h3>
-<div class="table-wrap"><table><thead><tr><th>Checkbox</th><th>When you see it</th><th>When to tick it</th></tr></thead><tbody><tr><td><strong>232 auto part</strong></td><td>Always available; auto-checked if the HTS is on the Proclamation 10908 annex</td><td>Tick only if the part is <strong>off-list</strong> but you have annex evidence</td></tr>
+<div class="table-wrap"><table><thead><tr><th>Checkbox</th><th>When you see it</th><th>When to tick it</th></tr></thead><tbody><tr><td><strong>232 auto part</strong></td><td>Off-list 8483 / 8708 / 8544 HTS (not on the Proclamation 10908 annex)</td><td>Tick to self-cert <code>9903.94.07</code>. On-annex HTS auto-applies — no checkbox.</td></tr>
 <tr><td><strong>232 MHDV part</strong></td><td>HTS is on the MHDV <strong>parts</strong> list</td><td>Tick if the article is actually a part of a medium- or heavy-duty vehicle</td></tr>
 <tr><td><strong>232 semiconductor (Note 39 params)</strong></td><td>HTS is <code>8471.50</code> / <code>8471.80</code> / <code>8473.30</code></td><td>Tick only if TPP / DRAM bandwidth bands in U.S. note 39(b) are met</td></tr>
 <tr><td><strong>25-year vehicle</strong></td><td>HTS is on the passenger or MHDV <strong>vehicle/bus</strong> list</td><td>Tick if manufactured ≥25 years before entry (0% additional 232)</td></tr>
 <tr><td><strong>232 patented pharma</strong></td><td>Chapters 29 / 30</td><td>Tick for patented articles under Proclamation 11020</td></tr>
 <tr><td><strong>Pharma use (9903.05.89)</strong></td><td>301-FL pharma-use list</td><td>Tick for Note 52(e) pharmaceutical <strong>use</strong> — not the same as 232 pharma</td></tr>
-<tr><td><strong>Claim FTA / USMCA</strong></td><td>Origin CA / MX / CAFTA</td><td>SPI S/S+ zeros Column 1 and MPF only — it does not automatically clear 232 or 301-FL</td></tr></tbody></table></div>
+<tr><td><strong>Claim FTA / USMCA</strong></td><td>Origin CA / MX / CAFTA</td><td>SPI S/S+ zeros Column 1 and MPF only — it does not automatically clear 232 or 301-FL</td></tr>
+<tr><td><strong>Civil aircraft (General Note 6)</strong></td><td>HTS is on the Section 338 aircraft list</td><td>Reports <code>9903.03.16</code> @ 0% instead of the 50% 338 duty heading</td></tr>
+<tr><td><strong>201 QSP over-quota</strong></td><td>Covered quartz surface product</td><td>Tick when the quarterly TRQ is exhausted (<code>9903.45.31</code>)</td></tr>
+<tr><td><strong>232 UAS thermal</strong></td><td>Small-UAS annex II HTS</td><td>Tick if the aircraft integrates a thermal imager (<code>9903.08.21</code>)</td></tr></tbody></table></div>
+<p>If no extra claim applies, the form says <strong>No extra claims for this line</strong> instead of a row of empty boxes. The China 301 list override appears only for CN / HK origins.</p>
 <p>If a 232 program <strong>auto-applies</strong> from the published HTS list (passenger vehicle, MHDV truck, bus, wood, in-annex auto part), you do <strong>not</strong> need a checkbox. The stack will already include that heading and <code>9903.05.90</code> (301-FL suppressed).</p>
 <h3 id="reading-the-result">Reading the result</h3>
 <p>Each row is a layer: program, Chapter 99 code (or “commodity” for Column 1), rate, duty dollars, and a short reason with the CSMS / proclamation source.</p>

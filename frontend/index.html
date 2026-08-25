@@ -109,13 +109,24 @@
                 title="Quantity in the HTS unit of measure (required when Column 1 is specific)" />
               <p class="cap" id="qc-qty-hint" style="margin:var(--sp-1) 0 0"></p>
             </div>
-            <div class="field" id="qc-metal-wrap" hidden style="grid-column:1 / -1">
-              <div class="metals-panel">
-                <p class="eyebrow" id="qc-metal-title">Section 232 metals</p>
-                <p class="cap" id="qc-metal-hint" style="margin:0 0 var(--sp-2)"></p>
+            <div class="field" id="qc-metal-wrap" style="grid-column:1 / -1">
+              <details class="metals-panel" id="qc-metal-panel">
+                <summary class="metals-summary">
+                  <span class="metals-summary-text">
+                    <span class="eyebrow" id="qc-metal-title">Metal / copper content</span>
+                    <span class="cap" id="qc-metal-summary-meta">Optional — expand to enter %</span>
+                  </span>
+                  <span class="metals-chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="metals-body">
+                  <p class="cap" id="qc-metal-hint" style="margin:0 0 var(--sp-2)">
+                    Optional. Enter copper, steel, or aluminum as % of entered value.
+                    Under 15% on a non-article HTS files <span class="mono">9903.82.03</span> at 0% and keeps 301-FL.
+                    15% or more files <span class="mono">9903.82.09</span> at 25% (replaces 301-FL).
+                  </p>
                 <div class="content-mode" role="group" aria-label="Metal content input mode">
-                  <button type="button" class="mode-btn active" data-metal-mode="USD" id="qc-metal-mode-usd">USD value</button>
-                  <button type="button" class="mode-btn" data-metal-mode="PCT" id="qc-metal-mode-pct">% of entered</button>
+                  <button type="button" class="mode-btn" data-metal-mode="USD" id="qc-metal-mode-usd">USD value</button>
+                  <button type="button" class="mode-btn active" data-metal-mode="PCT" id="qc-metal-mode-pct">% of entered</button>
                 </div>
                 <div class="metals-rows" id="qc-metals-rows">
                   <div class="metal-row" data-metal="steel">
@@ -149,6 +160,7 @@
                     <div class="field">
                       <label class="label" for="qc-copper-content">Content</label>
                       <input type="text" id="qc-copper-content" class="num metal-content" inputmode="decimal"
+                        placeholder="e.g. 10"
                         title="Copper content — USD or % of entered" />
                     </div>
                     <div class="field">
@@ -160,12 +172,16 @@
                 </div>
                 <p class="cap" id="qc-metal-resolved" style="margin:var(--sp-2) 0 0"></p>
                 <div id="qc-exclusions" class="excl-list" hidden></div>
-              </div>
+                </div>
+              </details>
             </div>
           </div>
-          <div class="quick-flags">
-            <label class="check"><input type="checkbox" id="qc-232" />
-              <span>232 auto part <span class="cap" id="qc-232-hint">(claim if off-list)</span></span></label>
+          <div class="quick-flags" id="qc-flags">
+            <p class="cap qc-flags-empty" id="qc-flags-empty">No extra claims for this line. Programs that auto-apply from the HTS are already in the stack.</p>
+            <label class="check" id="qc-232-wrap" hidden>
+              <input type="checkbox" id="qc-232" />
+              <span>232 auto part <span class="cap" id="qc-232-hint">(off-list self-cert 9903.94.07)</span></span>
+            </label>
             <label class="check" id="qc-fta-wrap" hidden>
               <input type="checkbox" id="qc-fta" />
               <span id="qc-fta-label">Claim FTA / USMCA</span>
@@ -190,11 +206,19 @@
               <input type="checkbox" id="qc-s232-vintage" />
               <span>25-year vehicle (0% 232)</span>
             </label>
+            <label class="check" id="qc-s201-over-wrap" hidden>
+              <input type="checkbox" id="qc-s201-over" />
+              <span>201 QSP over-quota (9903.45.31)</span>
+            </label>
+            <label class="check" id="qc-s232-uas-thermal-wrap" hidden>
+              <input type="checkbox" id="qc-s232-uas-thermal" />
+              <span>232 UAS thermal imaging (9903.08.21)</span>
+            </label>
             <label class="check" id="qc-gn6-wrap" hidden>
               <input type="checkbox" id="qc-gn6" />
               <span id="qc-gn6-label">Civil aircraft (General Note 6)</span>
             </label>
-            <details class="adv-override" id="qc-cn-adv">
+            <details class="adv-override" id="qc-cn-adv" hidden>
               <summary class="cap">Advanced: override China 301 list</summary>
               <div class="field" style="margin:var(--sp-2) 0 0;min-width:200px">
                 <label class="label" for="qc-cnlist">Manual list claim</label>
@@ -226,6 +250,10 @@
             <button type="button" class="qc-example" id="qc-example-de" data-example="de">
               <span class="qc-ex-name">DE pharma</span>
               <span class="qc-ex-meta">2933.99.2200 · Germany</span>
+            </button>
+            <button type="button" class="qc-example" id="qc-example-vn-qsp" data-example="vn-qsp">
+              <span class="qc-ex-name">VN quartz 201</span>
+              <span class="qc-ex-meta">6810.99.0040 · Vietnam · Section 201 QSP</span>
             </button>
           </div>
           <div class="qc-meta" id="qc-htsmeta"></div>

@@ -2,9 +2,8 @@
  * External / authenticated usage quotas (Duty stacks + extracts).
  *
  * Defaults (overridable via env):
- *   anonymous:      5 stacks / day, 2 extracts / day
- *   authenticated: 50 stacks / day, 10 extracts / day
- *   unlimited:      no metering (admin / internal keys)
+ *   anonymous:      5 stacks / day, 2 extracts / day (WordPress / guest)
+ *   unlimited:      signed-in Auth0, internal keys, playground / admin
  *
  * In-memory daily buckets — not shared across Elastic Beanstalk instances.
  * Set QUOTA_USER_STACKS / QUOTA_USER_EXTRACTS in env when 50–100 daily users
@@ -96,7 +95,7 @@ export function consumeQuota(
     if (b.stacks >= limits.stacks) {
       return {
         ok: false,
-        detail: `Daily duty-stack limit reached (${limits.stacks}). Sign in with Auth0 for a higher allowance, or try again tomorrow.`,
+        detail: `Daily duty-stack limit reached (${limits.stacks}). Sign in for unlimited stacks, or try again tomorrow.`,
         status: quotaStatus(p),
       };
     }
@@ -106,7 +105,7 @@ export function consumeQuota(
   if (b.extracts >= limits.extracts) {
     return {
       ok: false,
-      detail: `Daily extract limit reached (${limits.extracts}). Sign in with Auth0 for a higher allowance, or try again tomorrow.`,
+      detail: `Daily extract limit reached (${limits.extracts}). Sign in for unlimited extracts, or try again tomorrow.`,
       status: quotaStatus(p),
     };
   }

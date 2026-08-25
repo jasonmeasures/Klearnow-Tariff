@@ -28,8 +28,8 @@ Typical uses:
 
 | Who | Sign-on | What they get |
 |-----|---------|---------------|
-| Guest / WordPress embed | Optional Auth0 | Duty stack, HTS list, Audit. Daily quotas. No admin. |
-| Signed-in user | Auth0 | Full calculator; Chat / CSMS when enabled. |
+| Guest / WordPress embed | Optional Auth0 | Duty stack only. **5 stacks / 2 extracts per day.** Sign in for unlimited. No admin. |
+| Signed-in user | Auth0 | Unlimited stacks. Full calculator; Chat / CSMS on the direct app (not the WordPress embed). |
 | Admin | Auth0 + app role `admin` | Rules, Upload, Snapshots, Users. |
 
 Local demo: open http://localhost:3000 with API key `dev-internal`. Use **View as** to preview user / guest. Playground / WordPress replace that switch with Auth0.
@@ -60,7 +60,7 @@ If Column 1 is a specific rate (¢/kg, etc.), a **quantity** field appears. If t
 
 | Checkbox | When you see it | When to tick it |
 |----------|-----------------|-----------------|
-| **232 auto part** | Always available; auto-checked if the HTS is on the Proclamation 10908 annex | Tick only if the part is **off-list** but you have annex evidence |
+| **232 auto part** | Off-list 8483 / 8708 / 8544 HTS (not on the Proclamation 10908 annex) | Tick to self-cert `9903.94.07`. On-annex HTS auto-applies — no checkbox. |
 | **232 MHDV part** | HTS is on the MHDV **parts** list | Tick if the article is actually a part of a medium- or heavy-duty vehicle |
 | **232 semiconductor (Note 39 params)** | HTS is `8471.50` / `8471.80` / `8473.30` | Tick only if TPP / DRAM bandwidth bands in U.S. note 39(b) are met |
 | **25-year vehicle** | HTS is on the passenger or MHDV **vehicle/bus** list | Tick if manufactured ≥25 years before entry (0% additional 232) |
@@ -68,6 +68,10 @@ If Column 1 is a specific rate (¢/kg, etc.), a **quantity** field appears. If t
 | **Pharma use (9903.05.89)** | 301-FL pharma-use list | Tick for Note 52(e) pharmaceutical **use** — not the same as 232 pharma |
 | **Claim FTA / USMCA** | Origin CA / MX / CAFTA | SPI S/S+ zeros Column 1 and MPF only — it does not automatically clear 232, 301-FL, or Section 338 |
 | **Civil aircraft (General Note 6)** | HTS is on the Section 338 aircraft list | Reports `9903.03.16` @ 0% instead of the 50% 338 duty heading |
+| **201 QSP over-quota** | Covered quartz surface product | Tick when the quarterly TRQ is exhausted (`9903.45.31`) |
+| **232 UAS thermal** | Small-UAS annex II HTS | Tick if the aircraft integrates a thermal imager (`9903.08.21`) |
+
+If no extra claim applies, the form says **No extra claims for this line** instead of a row of empty boxes. The China 301 list override appears only for CN / HK origins.
 
 If a 232 program **auto-applies** from the published HTS list (passenger vehicle, MHDV truck, bus, wood, in-annex auto part), you do **not** need a checkbox. The stack will already include that heading and `9903.05.90` (301-FL suppressed).
 

@@ -68,7 +68,7 @@ export const STACKING_CONTRACT = {
     },
     {
       id: "R4b",
-      text: "9903.82.09 — copper / derivative alu+steel (U.S. note 16): +25% on entered value. Claim-gated outside Ch.72–76 when filed.",
+      text: "9903.82.09 — copper / derivative alu+steel (U.S. note 16): +25% on entered value. Outside Ch.72–76, 15%+ metal content (or filed 9903.82.09) selects this path. Under 15% selects 9903.82.03 at 0% and keeps 301-FL.",
     },
     {
       id: "R4c",
@@ -77,6 +77,10 @@ export const STACKING_CONTRACT = {
     {
       id: "R11",
       text: "Section 338 Canada (9903.03.12–.14 @ 50%) reports as Chapter 99 additional before 301/232. USMCA does not exempt. 232-family headings gate 9903.03.15; civil aircraft GN6 gates 9903.03.16. Drawback eligible. Live from 12:01 a.m. EST 2026-08-22 (suspended 2026-08-19–21).",
+    },
+    {
+      id: "R12",
+      text: "Section 201 QSP TRQ (9903.45.30 in-quota / 9903.45.31 over-quota) auto-applies on 6810.99.0020 / .0040 / 7020.00.6000 from 2026-08-15 through 2030-08-14. Stacks with 301-FL. Default in-quota; over-quota is a claim.",
     },
   ],
   boundary_days: {

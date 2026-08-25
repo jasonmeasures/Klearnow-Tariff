@@ -11,3 +11,6 @@
 | 7 | **Japan column-1 rates** — PENDING rows in the 301-FL stacking workbook (majority of the 251). | For workbook totals | Jason |
 | 8 | **China legacy 301 / IEEPA-era heading analysis** on CN lines outside current rule set. | For CN lines | Jason |
 | 9 | **AD/CVD case coverage** — 45 flagged lines need producer/exporter verification. | Separate workstream | Marek |
+| 10 | **Section 232 polysilicon** (effective **2026-12-04**) — MIP + 15% ad valorem. Confirm Ch.99 family; **do not reuse** `9903.45.30/.31` (live QSP 201 through 2030). | Before Dec 4 | Jason |
+| 11 | **301 excess-capacity investigation** (16 economies, Mar 2026) — no FR action yet. Next likely country-301 pack after Brazil. Watch USTR dockets USTR-2026-0067 / 0068. | When FR action drops | Jason |
+| 12 | **232 investigations with no proclamation yet** — wind, medical/PPE, robotics. Aircraft + critical minerals are negotiation-only (no 9903). | When a proclamation names headings | Jason |

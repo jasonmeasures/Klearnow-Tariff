@@ -1,7 +1,7 @@
 {
-  "$schema_note": "Chapter 99 code registry — KlearNow Tariff stacking. Source: confirmed corrections (session 2026-07-30) + full-stack build (session 2026-07-27). status: CONFIRMED = safe to compute; TBC = do NOT compute, surface for review. 301-FL headings expanded from s301fl_pack.json (CSMS #69326983). Brazil Section 301 9903.05.01–.09 from CSMS #69302472 (2026-08-06). China 301 four-year review 9903.91.xx / 9903.92.10 from 89 FR 76581 / CSMS #62411889. Section 338 Canada 9903.03.12–.16 from CSMS #69606660.",
-  "version": "1.6.0",
-  "as_of": "2026-08-24",
+  "$schema_note": "Chapter 99 code registry — KlearNow Tariff stacking. Source: confirmed corrections (session 2026-07-30) + full-stack build (session 2026-07-27). status: CONFIRMED = safe to compute; TBC = do NOT compute, surface for review. 301-FL headings expanded from s301fl_pack.json (CSMS #69326983). Brazil Section 301 9903.05.01–.09 from CSMS #69302472 (2026-08-06). China 301 four-year review 9903.91.xx / 9903.92.10 from 89 FR 76581 / CSMS #62411889. Section 338 Canada 9903.03.12–.16 from CSMS #69606660. Section 201 QSP 9903.45.30–.31 from U.S. note 41 (2026-08-15). Section 232 UAS 9903.08.20–.26 from Proc. 11055 / U.S. note 43 (2026-09-03).",
+  "version": "1.7.0",
+  "as_of": "2026-08-25",
   "codes": [
     {
       "code": "9903.03.06",
@@ -635,12 +635,12 @@
     },
     {
       "code": "9903.94.07",
-      "program": "TBC_LABELING",
+      "program": "SEC_232_AUTOS",
       "kind": "DUTY",
       "rate": 0.25,
-      "mfn_interaction": "CAPPED",
-      "status": "CONFIRMED_RATE_TBC_PROGRAM",
-      "notes": "25%, MFN capped. Cap mechanic itself is TBC — see mfn_cap_rule in interaction_rules.json. Same program-label ambiguity as 9903.94.05."
+      "mfn_interaction": "STACKS",
+      "status": "CONFIRMED",
+      "notes": "Section 232 auto parts self-certification — U.S. note 33 subdivision (p). +25% additional. Use when the article is a passenger-vehicle / light-truck part that is NOT on the Proclamation 10908 annex (9903.94.05). Claim s232_auto_part off-list. Except JP/EU/KR/UK residual headings 9903.94.33/.44/.45/.54/.55/.64/.65/.68/.69."
     },
     {
       "code": "9903.94.31",
@@ -1793,6 +1793,87 @@
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
       "notes": "301-FL economy-specific exemption (JO) — Note 52(j)(13)(ii)."
+    },
+    {
+      "code": "9903.45.30",
+      "program": "SEC_201_QSP",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "STACKS",
+      "status": "CONFIRMED",
+      "notes": "Section 201 QSP in-quota (U.S. note 41). Year 1 (2026-08-15–2027-08-14) +25%; then 23/21/19%. Stacks with 301-FL. Default when quarterly TRQ is open. Covered HTS 6810.99.0020 / .0040 / 7020.00.6000."
+    },
+    {
+      "code": "9903.45.31",
+      "program": "SEC_201_QSP",
+      "kind": "DUTY",
+      "rate": 0.5,
+      "mfn_interaction": "STACKS",
+      "status": "CONFIRMED",
+      "notes": "Section 201 QSP over-quota (U.S. note 41). Year 1 +50%; then 49/48/47%. Claim flags.s201_qsp_over_quota or file this heading when the quarterly quota is exhausted."
+    },
+    {
+      "code": "9903.08.20",
+      "program": "SEC_232_UAS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 UAS — articles on note 43(c) not for use in/with covered UAS. 0% additional. Claim-gated. Does not suppress 301-FL."
+    },
+    {
+      "code": "9903.08.21",
+      "program": "SEC_232_UAS",
+      "kind": "DUTY",
+      "rate": 1.0,
+      "mfn_interaction": "STACKS",
+      "status": "CONFIRMED",
+      "notes": "Section 232 UAS Annex I / note 43(c)(1)–(3) +100% from 2026-09-03 (Proc. 11055). Large UAS 8806.24/.29/.94/.99 auto; thermal on small-UAS stems when claimed; docking/8807 claim-gated. Suppresses 301-FL via 9903.05.90."
+    },
+    {
+      "code": "9903.08.22",
+      "program": "SEC_232_UAS",
+      "kind": "DUTY",
+      "rate": 0.25,
+      "mfn_interaction": "STACKS",
+      "status": "CONFIRMED",
+      "notes": "Section 232 UAS Annex II / note 43(c)(4) +25% from 2026-09-03. Small UAS 8806.21–.23 / .91–.93 without thermal. Suppresses 301-FL via 9903.05.90."
+    },
+    {
+      "code": "9903.08.23",
+      "program": "SEC_232_UAS",
+      "kind": "DUTY",
+      "rate": 0.1,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED_RATE_TBC_MECHANIC",
+      "notes": "Section 232 UAS UK certified-component cap +10% (9903.08.23). Claim-gated. Combined vs additional mechanic TBC — do not silent-compute totals."
+    },
+    {
+      "code": "9903.08.24",
+      "program": "SEC_232_UAS",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "CAPPED",
+      "status": "CONFIRMED_RATE_TBC_MECHANIC",
+      "notes": "Section 232 UAS JP/EU/KR/TW/CH/LI certified-component cap (note 43(d) combined 15% when Col-1 < 15%). Claim-gated. Mechanic TBC — do not silent-compute totals."
+    },
+    {
+      "code": "9903.08.25",
+      "program": "SEC_232_UAS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 UAS onshoring plan (DHS/DoW). 0%. Terminated 2027-02-09 per Annex IV.B. Claim-gated."
+    },
+    {
+      "code": "9903.08.26",
+      "program": "SEC_232_UAS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 UAS Commerce onshoring plan. 0%. Claim-gated."
     }
   ]
 }

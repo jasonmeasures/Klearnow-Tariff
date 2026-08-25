@@ -27,7 +27,7 @@ Open http://localhost:3000. Default API key: `dev-internal` (admin). Guest/exter
 
 | Who | Sign-on | What they get |
 |-----|---------|---------------|
-| External (WordPress) | Auth0 optional · guest allowed | Duty stack / HTS list / Audit only · **5 stacks + 2 extracts / day** (50+10 when signed in) · **no admin** |
+| External (WordPress) | Auth0 optional · guest allowed | Duty stack only · **5 stacks + 2 extracts / day** · **unlimited when signed in** · **no admin** |
 | Playground internal | Auth0 | Full product for authors; Manage / Rule chat / **Users** when DB role is `admin` |
 | Engine framework | Auth0 | Same roles as playground (later) |
 

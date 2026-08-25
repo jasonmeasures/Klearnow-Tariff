@@ -30,6 +30,16 @@
       "value": "10000",
       "date": "2026-08-07",
       "flags": { "s301fl_pharma": true }
+    },
+    {
+      "id": "vn-qsp",
+      "name": "VN quartz 201",
+      "meta": "6810.99.0040 · Vietnam · Section 201 QSP",
+      "hts": "6810.99.0040",
+      "coo": "VN",
+      "value": "10000",
+      "date": "2026-08-25",
+      "flags": {}
     }
   ]
 }

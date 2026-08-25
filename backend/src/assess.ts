@@ -31,7 +31,11 @@ import {
   lookupChina301Note31,
   type Note31Hit,
 } from "../../tariff-rules/src/s301ChinaNote31.ts";
-import { classify232Metals, resolve232Metals } from "../../tariff-rules/src/s232Metals.ts";
+import {
+  classify232Metals,
+  isMetalsDutyHit,
+  resolve232Metals,
+} from "../../tariff-rules/src/s232Metals.ts";
 import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
 import { resolveS232EnteredValue } from "../../tariff-rules/src/s232Resolve.ts";
 import {
@@ -48,6 +52,13 @@ import {
   s338Meta,
   s338SuspendedOn,
 } from "../../tariff-rules/src/s338Canada.ts";
+import {
+  assessS201Qsp,
+  isS201QspHeading,
+  matchS201QspHts,
+  s201QspMeta,
+} from "../../tariff-rules/src/s201Qsp.ts";
+import { S232_UAS_NOT_FOR_USE } from "../../tariff-rules/src/s232Uas.ts";
 import { formatHtsDisplay, lookupHts, resolveCol1 } from "./htsLookup.ts";
 import { computeEntryFees } from "./fees.ts";
 import { rulepackPublic } from "./state.ts";
@@ -296,7 +307,9 @@ function uiProgram(id: string): string {
     SEC_232_MHDV: "s232",
     SEC_232_WOOD: "s232",
     SEC_232_SEMI: "s232",
+    SEC_232_UAS: "s232",
     SECTION_338_CANADA: "s338",
+    SEC_201_QSP: "s201",
     SEC_122: "s122",
     TRADE_DEAL_JP: "s232",
     TRADE_DEAL_EU: "s232",
@@ -305,6 +318,10 @@ function uiProgram(id: string): string {
     base: "base",
   };
   return map[id] || id.toLowerCase();
+}
+
+function s232SuppressesFl(hit: { heading?: string | null } | null | undefined): boolean {
+  return Boolean(hit && hit.heading && hit.heading !== S232_UAS_NOT_FOR_USE);
 }
 
 function layer(opts: {
@@ -743,7 +760,6 @@ export function assessLine(line: LineIn, index: number) {
 
   rejectDeadFiled(filed, diagnostics);
 
-  const metalsHit = resolve232Metals({ hts, filed_ch99: filed, flags });
   const legacyMelt = String(line.country_of_melt_pour || "")
     .trim()
     .toUpperCase()
@@ -795,7 +811,7 @@ export function assessLine(line: LineIn, index: number) {
     let metalValLegacy = num(line.metal_content_value, NaN);
     if (Number.isFinite(metalValLegacy) && metalValLegacy > 0) {
       metalParts.push({
-        kind: metalsHit?.metal || "steel",
+        kind: "steel",
         basis: metalValLegacy,
         pct: entered > 0 ? money2((metalValLegacy / entered) * 100) : null,
         mode: "USD",
@@ -803,7 +819,7 @@ export function assessLine(line: LineIn, index: number) {
       });
     } else if (Number.isFinite(metalPctRaw) && metalPctRaw > 0) {
       metalParts.push({
-        kind: metalsHit?.metal || "steel",
+        kind: "steel",
         basis: money2(entered * (metalPctRaw / 100)),
         pct: metalPctRaw,
         mode: "PCT",
@@ -822,6 +838,18 @@ export function assessLine(line: LineIn, index: number) {
     entered > 0 && metalVal > 0 ? money2((metalVal / entered) * 100) : null;
   const meltPour =
     metalParts.map((p) => p.melt_pour).filter(Boolean)[0] || legacyMelt;
+  const primaryMetal = (["copper", "aluminum", "steel"] as const).find((k) =>
+    metalParts.some((p) => p.kind === k),
+  );
+
+  const metalsHit = resolve232Metals({
+    hts,
+    filed_ch99: filed,
+    flags,
+    aggregate_metal_pct: metalContentPct,
+    primary_metal: primaryMetal,
+  });
+  const metalsDutyHit = isMetalsDutyHit(metalsHit) ? metalsHit : null;
 
   const claimedAuto232 = Boolean(flags.s232_auto_part || flags.s232_auto || flags.s232);
   const annex232 = match232AutoPartsAnnex(hts);
@@ -888,10 +916,10 @@ export function assessLine(line: LineIn, index: number) {
       severity: "WARNING",
       code: "S232_ANNEX_CLAIM_GATED",
       message:
-        "Section 232 auto-part claim asserted, but this HTS is NOT on the published Proclamation 10908 / U.S. note 33 auto-parts list (e.g. 8544.42.xx ≠ 8544.30.00). Confirm annex evidence before filing.",
+        "Section 232 auto-part claim asserted, but this HTS is NOT on the published Proclamation 10908 / U.S. note 33 auto-parts list (e.g. 8483.50 ≠ 8483.10; 8544.42.xx ≠ 8544.30.00). Off-list self-cert files 9903.94.07, not annex 9903.94.05.",
       remediation: "Attach Commerce/CBP annex evidence, reclassify to an in-annex HTS if applicable, or clear the 232 claim.",
     });
-  } else if (!claimedAuto232 && !annex232 && !metalsHit) {
+  } else if (!claimedAuto232 && !annex232 && !metalsDutyHit) {
     // Helpful only for Ch.85 / common miss when filer expected wiring-set 232
     const d = String(hts).replace(/\D/g, "");
     if (d.startsWith("854442") || d.startsWith("854449")) {
@@ -900,12 +928,21 @@ export function assessLine(line: LineIn, index: number) {
         code: "S232_ANNEX_MISS",
         message:
           "8544.42 / 8544.49 fitted conductors are not on the CBP Automobile Parts HTS list. In-annex wiring sets are 8544.30.00. Without an annex hit or 232 claim, 301-FL (or Sec 122 historically) applies for this origin/date.",
-        remediation: "If the goods are vehicle ignition/wiring sets, confirm HTS 8544.30.00. Otherwise leave 232 unchecked.",
+        remediation: "If the goods are vehicle ignition/wiring sets, confirm HTS 8544.30.00. Enter copper % on this card if the line is a 232 metal derivative (under 15% → 9903.82.03).",
       });
     }
   }
 
-  if (metalsHit) {
+  if (metalsHit?.kind === "EXCLUSION") {
+    diagnostics.push({
+      severity: "INFO",
+      code: "S232_METALS_DE_MINIMIS",
+      message:
+        metalContentPct != null
+          ? `Aggregate metal ${metalContentPct}% is under 15% → ${metalsHit.duty_ch99} at 0% additional. 301-FL still applies. Not available for Ch.72–74/76 articles.`
+          : `${metalsHit.duty_ch99} @ 0% additional (Note 16 exclusion). 301-FL still applies.`,
+    });
+  } else if (metalsHit) {
     const basisNote =
       metalsHit.basis === "ENTERED_VALUE"
         ? `${metalsHit.duty_ch99} @ ${metalsHit.rate_pct}% on entered value (derivative / copper path — U.S. note 16 / CSMS #68253075).`
@@ -914,7 +951,7 @@ export function assessLine(line: LineIn, index: number) {
       severity: "INFO",
       code: metalsHit.claim_gated ? "S232_METALS_CLAIM" : "S232_METALS_TRIAGE",
       message: metalsHit.claim_gated
-        ? `Section 232 metals claimed via filed Chapter 99 (${metalsHit.duty_ch99}). ${basisNote}`
+        ? `Section 232 metals claimed via filed Chapter 99 or metal content (${metalsHit.duty_ch99}). ${basisNote}`
         : basisNote,
     });
     diagnostics.push({
@@ -1046,10 +1083,11 @@ export function assessLine(line: LineIn, index: number) {
   }
 
   const applyMetals232 = Boolean(
-    metalsHit &&
+    metalsDutyHit &&
+      metalsDutyHit.suppresses_301fl &&
       !s232Hit?.suppresses_metals &&
       !blocked &&
-      (metalsHit.basis === "ENTERED_VALUE" || (metalVal > 0 && metalsReady)),
+      (metalsDutyHit.basis === "ENTERED_VALUE" || (metalVal > 0 && metalsReady)),
   );
 
   let zeroCommodity232 = false;
@@ -1135,9 +1173,14 @@ export function assessLine(line: LineIn, index: number) {
 
       if (s232Hit) {
         zeroCommodity232 = applyEntered232Layer();
-        push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
-        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
-      } else if (metalsHit) {
+        if (s232SuppressesFl(s232Hit)) {
+          push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
+          applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+        } else {
+          applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
+          add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
+        }
+      } else if (metalsDutyHit) {
         // China 301 + 232 metals triage: China first; Sec 122 out via 9903.03.06; FL suppressed when metals ready
         applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
         if (applyMetals232) {
@@ -1164,11 +1207,16 @@ export function assessLine(line: LineIn, index: number) {
     try {
       const zero = applyEntered232Layer();
       addBrazil301(coo, entered, layers, diagnostics, rd.date, {
-        in232Universe: true,
+        in232Universe: s232SuppressesFl(s232Hit),
         flags,
       });
-      push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
-      applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+      if (s232SuppressesFl(s232Hit)) {
+        push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+      } else {
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
+        add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
+      }
       pushCommodity(zero);
     } catch (e) {
       diagnostics.push({
@@ -1178,7 +1226,7 @@ export function assessLine(line: LineIn, index: number) {
       });
       blocked = true;
     }
-  } else if (!blocked && applyMetals232 && metalsHit) {
+  } else if (!blocked && applyMetals232 && metalsDutyHit) {
     // 232 metals wins over 301-FL (US Note 52(f) / 9903.05.90) — Cervó parity
     addBrazil301(coo, entered, layers, diagnostics, rd.date, {
       in232Universe: true,
@@ -1187,7 +1235,7 @@ export function assessLine(line: LineIn, index: number) {
     push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
     applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
     pushCommodity(false);
-  } else if (!blocked && metalsHit) {
+  } else if (!blocked && metalsDutyHit) {
     // Metals triage without content yet: still carve Sec 122 out of the 232 universe
     addBrazil301(coo, entered, layers, diagnostics, rd.date, {
       in232Universe: true,
@@ -1257,17 +1305,17 @@ export function assessLine(line: LineIn, index: number) {
   }
 
   // Metals layer (R4) — 9903.82.02 on metal-content; 9903.82.09 on entered value
-  if (applyMetals232 && metalsHit) {
+  if (applyMetals232 && metalsDutyHit) {
     try {
-      const steel = assertComputable(metalsHit.duty_ch99);
-      const onEntered = metalsHit.basis === "ENTERED_VALUE";
+      const steel = assertComputable(metalsDutyHit.duty_ch99);
+      const onEntered = metalsDutyHit.basis === "ENTERED_VALUE";
       const Lm = layer({
         slot: "3.3",
         program: steel.program,
         ch99: steel.code,
         label: onEntered
-          ? `Section 232 metals / derivatives — ${steel.code} (${metalsHit.rate_pct}% entered value)`
-          : `Section 232 metal products — ${metalsHit.metal} (${metalsHit.rate_pct}%)`,
+          ? `Section 232 metals / derivatives — ${steel.code} (${metalsDutyHit.rate_pct}% entered value)`
+          : `Section 232 metal products — ${metalsDutyHit.metal} (${metalsDutyHit.rate_pct}%)`,
         reason: onEntered
           ? `Entered-value basis $${entered.toFixed(2)}; U.S. note 16 derivative/copper path. ${steel.notes}`
           : `Metal-content basis $${metalVal.toFixed(2)}${
@@ -1287,7 +1335,7 @@ export function assessLine(line: LineIn, index: number) {
         code: "METALS_SEPARATE_LINE",
         message: onEntered
           ? `232 metals derivative via ${steel.code} on entered value; kept out of parts subtotal (R4).`
-          : `232 metals on metal-content value via ${steel.code} (input as ${metalBasisMode === "PCT" ? "percent of entered" : metalBasisMode === "MIXED" ? "mixed USD/%" : "USD"}); kept out of parts subtotal (R4). Potential exclusions: ${metalsHit.potential_exclusions.map((e) => e.ch99).join(", ")}.`,
+          : `232 metals on metal-content value via ${steel.code} (input as ${metalBasisMode === "PCT" ? "percent of entered" : metalBasisMode === "MIXED" ? "mixed USD/%" : "USD"}); kept out of parts subtotal (R4). Potential exclusions: ${metalsDutyHit.potential_exclusions.map((e) => e.ch99).join(", ")}.`,
       });
     } catch (e) {
       diagnostics.push({
@@ -1299,7 +1347,37 @@ export function assessLine(line: LineIn, index: number) {
     }
   }
 
+  if (metalsHit?.kind === "EXCLUSION") {
+    try {
+      const ex = assertComputable(metalsHit.duty_ch99);
+      layers.push(
+        layer({
+          slot: "3.3",
+          program: ex.program,
+          ch99: ex.code,
+          label: `Section 232 metals exclusion — ${ex.code} (0% additional)`,
+          reason:
+            metalContentPct != null
+              ? `Aggregate metal ${metalContentPct}% is under 15% (U.S. note 16). Not for Ch.72–74/76 articles. 301-FL is not suppressed. ${ex.notes}`
+              : `Note 16 exclusion ${ex.code} @ 0%. 301-FL is not suppressed. ${ex.notes}`,
+          source_ref: "U.S. note 16 / CSMS #68253075",
+          basis: "ENTERED_VALUE",
+          basis_amount: entered,
+          rate_pct: ex.rate,
+        }),
+      );
+    } catch (e) {
+      diagnostics.push({
+        severity: "ERROR",
+        code: "REVIEW_REQUIRED",
+        message: e instanceof Error ? e.message : String(e),
+      });
+      blocked = true;
+    }
+  }
+
   addS338Canada(line, hts, coo, entered, layers, diagnostics, rd.date, flags, filed);
+  addS201Qsp(line, hts, coo, entered, layers, diagnostics, rd.date, flags, filed);
 
   partsDuty = money2(
     layers
@@ -1335,11 +1413,13 @@ export function assessLine(line: LineIn, index: number) {
         c.startsWith("9903.94") ||
         c.startsWith("9903.74") ||
         c.startsWith("9903.76") ||
-        c.startsWith("9903.79"),
+        c.startsWith("9903.79") ||
+        c.startsWith("9903.08"),
     ),
     ...seq.filter(
       (c) => c.startsWith("9903.05") && c !== "9903.05.90" && !brazil301(c),
     ),
+    ...seq.filter((c) => c.startsWith("9903.45")),
     ...seq.filter((c) => c.startsWith("9903.03") && c !== "9903.03.06" && c !== "9903.03.03" && !s338(c)),
   ];
   const ch99_sequence_unique = [...new Set(ordered.length ? ordered : seq)];
@@ -1494,6 +1574,15 @@ export function assessLine(line: LineIn, index: number) {
           source: s338Meta().source_csms,
         }
       : null,
+    section_201: layers.some((l) => l.ch99 && isS201QspHeading(l.ch99))
+      ? {
+          program: "SEC_201_QSP",
+          heading: layers.find((l) => l.ch99 && isS201QspHeading(l.ch99))?.ch99 || null,
+          source: s201QspMeta().source_url,
+        }
+      : matchS201QspHts(hts)
+        ? { program: "SEC_201_QSP", heading: null, covered: true, source: s201QspMeta().source_url }
+        : null,
     fta_compare,
     pharma_compare,
     fta_claim: resolveFtaClaim(line),
@@ -1650,6 +1739,85 @@ function applySec122Or232Exclusion(
     });
   } catch {
     /* registry gap — still reported 9903.03.06 above */
+  }
+}
+
+function addS201Qsp(
+  line: LineIn,
+  hts: string,
+  coo: string,
+  entered: number,
+  layers: DutyLayer[],
+  diagnostics: Diagnostic[],
+  rateDay: string | undefined,
+  flags: Record<string, boolean>,
+  filed: string[],
+) {
+  if (layers.some((l) => l.ch99 && isS201QspHeading(l.ch99))) return;
+  const covered = matchS201QspHts(hts);
+  const hit = assessS201Qsp({
+    hts,
+    coo,
+    rateDay,
+    flags,
+    filed_ch99: filed,
+  });
+  if (!hit) {
+    if (covered && rateDay) {
+      diagnostics.push({
+        severity: "INFO",
+        code: "S201_QSP_NOT_IN_WINDOW",
+        message: `HTS stem ${covered.matched_stem} is on the Section 201 QSP list, but ${String(rateDay).slice(0, 10)} is outside 2026-08-15–2030-08-14 (U.S. note 41).`,
+      });
+    }
+    return;
+  }
+  if (hit.exempt) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "S201_QSP_EXEMPT",
+      message: hit.reason,
+    });
+    return;
+  }
+  try {
+    const meta = assertComputable(hit.heading);
+    layers.push(
+      layer({
+        slot: "3.4",
+        program: "SEC_201_QSP",
+        ch99: hit.heading,
+        label: hit.label,
+        reason: hit.reason,
+        source_ref: meta.notes,
+        basis_amount: entered,
+        rate_pct: hit.rate_pct_decimal,
+      }),
+    );
+    diagnostics.push({
+      severity: "INFO",
+      code: hit.over_quota ? "S201_QSP_OVER_QUOTA" : "S201_QSP_APPLIED",
+      message: hit.reason,
+    });
+    if (!hit.over_quota) {
+      diagnostics.push({
+        severity: "WARNING",
+        code: "S201_QSP_QUOTA_ASSUMED_IN",
+        message: `Defaulted to in-quota ${hit.heading} @ ${hit.rate_pct}%. CBP assesses 9903.45.31 at the over-quota rate once the quarterly TRQ is exhausted. Tick over-quota if you know the quota is closed.`,
+        remediation: "Set flags.s201_qsp_over_quota or file 9903.45.31.",
+      });
+    }
+    diagnostics.push({
+      severity: "WARNING",
+      code: "S201_QSP_ADCVD",
+      message: "Quartz surface products often carry separate AD/CVD orders (producer/exporter specific). Those duties are not in this Ch.99 stack.",
+    });
+  } catch (e) {
+    diagnostics.push({
+      severity: "ERROR",
+      code: "REVIEW_REQUIRED",
+      message: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 
