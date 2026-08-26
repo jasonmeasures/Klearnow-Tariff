@@ -16,6 +16,8 @@ Playground and Elastic Beanstalk serve the Vite build from this API process. Loc
 
 When syncing this repo into `kn-playground/applications/Klearnow-Tariff-main`, keep this block. Diego restored it in `3600899` after an rsync drop (`restore static`).
 
+**Also see `playground-sync-preserve.mdc`** — PR #87 (KD-3135) restored Auth0 invite/mail, RDS SSL in `db.ts`, and env-based API keys that upstream syncs must not overwrite.
+
 ```typescript
 // ❌ BAD — API-only index.ts with no static / SPA fallback
 app.use("/v1", csmsRouter);
