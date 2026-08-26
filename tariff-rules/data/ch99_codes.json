@@ -319,6 +319,24 @@
       "notes": "Section 232 wood furniture/cabinets of EU member countries — 15% additional (CSMS #66492057)."
     },
     {
+      "code": "9903.76.23",
+      "program": "SEC_232_WOOD",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 wood products of Korea — U.S. Note 37 subdivisions (d) upholstered furniture and (f) kitchen cabinets/vanities/parts @ 15% (CSMS #68762890)."
+    },
+    {
+      "code": "9903.76.24",
+      "program": "SEC_232_WOOD",
+      "kind": "DUTY",
+      "rate": 0.15,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 wood products of Taiwan — U.S. Note 37 subdivisions (d) upholstered furniture and (f) kitchen cabinets/vanities/parts @ 15% (CSMS #68762890)."
+    },
+    {
       "code": "9903.79.01",
       "program": "SEC_232_SEMI",
       "kind": "DUTY",

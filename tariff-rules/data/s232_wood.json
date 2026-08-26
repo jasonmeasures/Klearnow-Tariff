@@ -8,14 +8,16 @@
     "effective": "2025-10-14",
     "source_csms": ["66492057"],
     "ch99_family": "9903.76.xx",
-    "detail": "Proclamation 10976. Softwood timber/lumber 10% additional; upholstered wooden furniture and completed kitchen cabinets/vanities 25% (UK 10%, JP/EU 15%). Autos 232 (Proclamation 10908) wins if both apply."
+    "detail": "Proclamation 10976. Softwood timber/lumber 10% additional; upholstered wooden furniture and completed kitchen cabinets/vanities 25% (UK 10%, JP/EU/KR/TW 15%). Autos 232 (Proclamation 10908) wins if both apply."
   },
-  "source": "CSMS #66492057 — GUIDANCE: Section 232 Import Duties on Timber, Lumber, and their Derivative Products",
+  "source": "CSMS #66492057 — GUIDANCE: Section 232 Import Duties on Timber, Lumber, and their Derivative Products; CSMS #68762890 — Taiwan/Korea bilateral wood headings 9903.76.23/.24",
   "source_url": "https://content.govdelivery.com/accounts/USDHSCBP/bulletins/3f69699",
   "preferential_origins": {
     "GB": "9903.76.20",
     "JP": "9903.76.21",
-    "EU": "9903.76.22"
+    "EU": "9903.76.22",
+    "KR": "9903.76.23",
+    "TW": "9903.76.24"
   },
   "buckets": [
     {
@@ -56,7 +58,9 @@
   "preferential_rates": {
     "9903.76.20": { "origins": ["GB"], "rate_pct": 10 },
     "9903.76.21": { "origins": ["JP"], "rate_pct": 15 },
-    "9903.76.22": { "origins": ["EU"], "rate_pct": 15 }
+    "9903.76.22": { "origins": ["EU"], "rate_pct": 15 },
+    "9903.76.23": { "origins": ["KR"], "rate_pct": 15, "note": "U.S. Note 37 subdivisions (d) and (f) — CSMS #68762890" },
+    "9903.76.24": { "origins": ["TW"], "rate_pct": 15, "note": "U.S. Note 37 subdivisions (d) and (f) — CSMS #68762890" }
   },
   "notes": [
     "If the good is also subject to Section 232 automobiles / auto parts (Proclamation 10908), wood 232 does not apply.",

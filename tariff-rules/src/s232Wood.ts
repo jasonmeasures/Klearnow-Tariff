@@ -39,6 +39,8 @@ function originHeading(coo: string): string | null {
   const pref = pack.preferential_origins as Record<string, string>;
   if (iso === "GB") return pref.GB;
   if (iso === "JP") return pref.JP;
+  if (iso === "KR") return pref.KR;
+  if (iso === "TW") return pref.TW;
   if (EU_MEMBERS.has(iso)) return pref.EU;
   return null;
 }

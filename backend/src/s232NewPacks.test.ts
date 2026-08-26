@@ -92,6 +92,41 @@ describe("Section 232 new packs (wood / vehicles / MHDV / semiconductors)", () =
     assert.equal(L.totals.duty, 1000);
   });
 
+  it("TW kitchen cabinets 9403.60.8093 → 9903.76.24 @ 15% (not .03 @ 25%)", () => {
+    const L = assessLine(
+      {
+        hts: "9403.60.8093",
+        coo: "TW",
+        entered_value: 10000,
+        col1_rate_pct: 0,
+        entry_date: DATE,
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.76.24"));
+    assert.ok(!L.ch99_sequence.includes("9903.76.03"));
+    assert.equal(L.totals.duty, 1500);
+    assert.equal(L.totals.effective_duty_rate_pct, 15);
+  });
+
+  it("KR upholstered wooden furniture → 9903.76.23 @ 15%", () => {
+    const L = assessLine(
+      {
+        hts: "9401.61.4011",
+        coo: "KR",
+        entered_value: 10000,
+        col1_rate_pct: 0,
+        entry_date: DATE,
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.76.23"));
+    assert.ok(!L.ch99_sequence.includes("9903.76.02"));
+    assert.equal(L.totals.duty, 1500);
+  });
+
   it("JP passenger vehicle → 9903.94.41 combined 15% (not .01, not parts .43)", () => {
     const L = assessLine(
       {

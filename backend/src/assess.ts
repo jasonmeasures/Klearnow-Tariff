@@ -15,7 +15,7 @@ import {
   type FlAssessment,
   type FlEconomyExemption,
 } from "../../tariff-rules/src/s301fl.ts";
-import { matchFlExcept } from "../../tariff-rules/src/s301flExcept.ts";
+import { FL_EXCEPT_AUTO, matchFlExcept } from "../../tariff-rules/src/s301flExcept.ts";
 import {
   assessBrazil301,
   brazil301AppliesOn,
@@ -1477,14 +1477,28 @@ export function assessLine(line: LineIn, index: number) {
   }
 
   let fta_compare: Record<string, unknown> | null = null;
+  const flExceptAuto = matchFlExcept({ hts, coo, flags: line.flags || {} });
+  const flAutoCleared = Boolean(
+    flExceptAuto && FL_EXCEPT_AUTO.has(flExceptAuto.heading),
+  );
+  const col1DutyBaseline = ftaTrack.col1_without_spi_duty;
+  const ftaCompareWorthShowing =
+    !flAutoCleared ||
+    col1DutyBaseline > 0 ||
+    ftaTrack.spi_applied;
   const hasFtaStory =
+    ftaCompareWorthShowing &&
     !ftaTrack.pharma_applied &&
     (Boolean(ftaTrack.available && ftaTrack.without_fl_heading) || ftaTrack.spi_applied);
   if (hasFtaStory) {
     const flClaimed = Boolean(ftaTrack.claimed);
     const spiOn = ftaTrack.spi_applied;
-    const flDuty = ftaTrack.without_fl_heading ? ftaTrack.without_fl_duty : 0;
-    const col1Duty = ftaTrack.col1_without_spi_duty;
+    const flDuty = flAutoCleared
+      ? 0
+      : ftaTrack.without_fl_heading
+        ? ftaTrack.without_fl_duty
+        : 0;
+    const col1Duty = col1DutyBaseline;
     // SPI Free (Col-1 + MPF) only for USMCA / CAFTA-DR — not bare Note 52(j) claims.
     const spiEligible =
       spiOn ||
@@ -1534,6 +1548,9 @@ export function assessLine(line: LineIn, index: number) {
       },
       duty_saved: money2(withoutDuty - withDutyClamped),
     };
+    if (flAutoCleared && Number(fta_compare.duty_saved) === 0) {
+      fta_compare = null;
+    }
   }
 
   return {

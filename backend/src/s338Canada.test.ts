@@ -207,6 +207,32 @@ describe("Section 338 Canada (CSMS #69606660)", () => {
     assert.equal(L.layers.find((x) => x.program === "base")?.duty_amount, 0);
   });
 
+  it("9701.21.0000 CA: auto 301-FL .86 + 338 .14 — USMCA claim does not change 50% duty", () => {
+    const base = {
+      hts: "9701.21.0000",
+      coo: "CA",
+      entered_value: 10000,
+      col1_rate_pct: 0,
+      entry_date: LIVE,
+    };
+    const without = assessLine({ ...base, flags: {} }, 0);
+    const withUsmca = assessLine({ ...base, flags: { fta_usmca: true } }, 0);
+
+    assert.ok(without.ch99_sequence.includes("9903.05.86"));
+    assert.ok(without.ch99_sequence.includes("9903.03.14"));
+    assert.ok(!without.ch99_sequence.includes("9903.05.29"));
+    assert.equal(without.totals.duty, 5000);
+    assert.equal(without.totals.effective_duty_rate_pct, 50);
+
+    assert.ok(withUsmca.ch99_sequence.includes("9903.05.93"));
+    assert.ok(withUsmca.ch99_sequence.includes("9903.03.14"));
+    assert.equal(withUsmca.totals.duty, 5000);
+    assert.equal(withUsmca.totals.effective_duty_rate_pct, 50);
+
+    assert.equal(without.fta_compare, null);
+    assert.equal(withUsmca.fta_compare, null);
+  });
+
   it("without USMCA on 2026-08-23: .14 + 301-FL, no 122, no IEEPA", () => {
     const L = line({ hts: "3926.90.99", flags: {} });
     assert.ok(L.ch99_sequence.includes("9903.03.14"));
