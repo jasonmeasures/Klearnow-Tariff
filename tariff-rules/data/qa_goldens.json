@@ -60,12 +60,12 @@
       "title": "Quick Check: CN auto parts (232 annex)",
       "example": "cn",
       "expect": {
-        "effective_duty_rate_pct": 27.5,
-        "duty": 2750,
+        "effective_duty_rate_pct": 52.5,
+        "duty": 5250,
         "col1_rate_pct": 2.5,
-        "ch99_includes": ["9903.94.05", "9903.05.90"],
+        "ch99_includes": ["9903.88.03", "9903.94.05", "9903.05.90"],
         "ch99_excludes": ["9903.05.31"],
-        "codes": ["S232_ANNEX_HIT"]
+        "codes": ["S232_ANNEX_HIT", "S301_LIST_RESOLVED"]
       }
     },
     {

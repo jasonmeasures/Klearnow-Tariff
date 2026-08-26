@@ -23,7 +23,7 @@
       "kind": "annex_hts",
       "rate_pct": 0,
       "claim_flag": "brazil_301_annex_excl",
-      "notes": "Annex HTS list under U.S. note 50(a)(ii) — claim-gated until annex stem pack is loaded."
+      "notes": "Annex HTS list under U.S. note 50(a)(ii) — auto-match from s301_brazil_hts.json; claim flag still accepted."
     },
     {
       "heading": "9903.05.04",

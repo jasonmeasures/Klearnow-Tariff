@@ -2,6 +2,7 @@
 node_modules/
 dist/
 .venv/
+.venv-import/
 *.db
 
 # Secrets & local env

@@ -12,6 +12,8 @@
  * metal content % (under 15% → 9903.82.03; 15%+ → 9903.82.09).
  */
 
+import { selectMetalsExtendedHeading } from "./s232MetalsMatrix.ts";
+
 export type MetalKind = "steel" | "aluminum" | "copper";
 
 export type MetalsHit = {
@@ -164,6 +166,9 @@ export function resolve232Metals(opts: {
   /** Sum of steel + aluminum + copper as % of entered value. */
   aggregate_metal_pct?: number | null;
   primary_metal?: MetalKind;
+  coo?: string;
+  col1_pct?: number;
+  us_content_pct?: number | null;
 }): MetalsHit | null {
   const filed = opts.filed_ch99 || [];
   const flags = opts.flags || {};
@@ -179,11 +184,40 @@ export function resolve232Metals(opts: {
   const pct = opts.aggregate_metal_pct;
   const metal = opts.primary_metal || "steel";
 
+  const applyExtended = (
+    base: MetalsHit,
+    kind: MetalKind = base.metal,
+  ): MetalsHit => {
+    const ext = selectMetalsExtendedHeading({
+      hts: opts.hts,
+      coo: opts.coo,
+      col1_pct: opts.col1_pct,
+      aggregate_metal_pct: pct,
+      us_content_pct: opts.us_content_pct,
+      filed_ch99: filed,
+      flags,
+    });
+    if (!ext || ext.heading === base.duty_ch99) return base;
+    const exclusion = METALS_DE_MINIMIS_CODES.has(ext.heading);
+    const derivative = ext.heading === "9903.82.09";
+    return {
+      ...base,
+      metal: kind,
+      duty_ch99: ext.heading,
+      rate_pct: ext.rate_pct,
+      kind: exclusion ? "EXCLUSION" : "DUTY",
+      suppresses_301fl: !exclusion,
+      basis:
+        derivative || exclusion ? "ENTERED_VALUE" : base.basis,
+      content_prompt: ext.reason,
+    };
+  };
+
   if (chapterHit) {
     if (dutyFiled && dutyFiled !== chapterHit.duty_ch99) {
       return hitFor(chapterHit.metal, chapterHit.chapter, chapterHit.hts10, dutyFiled);
     }
-    return chapterHit;
+    return applyExtended(chapterHit);
   }
 
   const hts10 = digits10(opts.hts);

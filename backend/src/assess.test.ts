@@ -452,7 +452,7 @@ describe("golden duty paths", () => {
   it("CN HTS with no seeded list membership warns and does not invent China 301", () => {
     const L = assessLine(
       {
-        hts: "0101210010",
+        hts: "9703000000",
         coo: "CN",
         entered_value: 10000,
         col1_rate_pct: 0,

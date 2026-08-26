@@ -15,6 +15,7 @@ import {
   type FlAssessment,
   type FlEconomyExemption,
 } from "../../tariff-rules/src/s301fl.ts";
+import { matchFlExcept } from "../../tariff-rules/src/s301flExcept.ts";
 import {
   assessBrazil301,
   brazil301AppliesOn,
@@ -848,6 +849,8 @@ export function assessLine(line: LineIn, index: number) {
     flags,
     aggregate_metal_pct: metalContentPct,
     primary_metal: primaryMetal,
+    coo,
+    col1_pct: money2(col1 * 100),
   });
   const metalsDutyHit = isMetalsDutyHit(metalsHit) ? metalsHit : null;
 
@@ -1206,7 +1209,7 @@ export function assessLine(line: LineIn, index: number) {
     // Entered-value 232 (vehicles, parts, MHDV, wood, semiconductors)
     try {
       const zero = applyEntered232Layer();
-      addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+      addBrazil301(coo, hts, entered, layers, diagnostics, rd.date, {
         in232Universe: s232SuppressesFl(s232Hit),
         flags,
       });
@@ -1228,7 +1231,7 @@ export function assessLine(line: LineIn, index: number) {
     }
   } else if (!blocked && applyMetals232 && metalsDutyHit) {
     // 232 metals wins over 301-FL (US Note 52(f) / 9903.05.90) — Cervó parity
-    addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+    addBrazil301(coo, hts, entered, layers, diagnostics, rd.date, {
       in232Universe: true,
       flags,
     });
@@ -1237,7 +1240,7 @@ export function assessLine(line: LineIn, index: number) {
     pushCommodity(false);
   } else if (!blocked && metalsDutyHit) {
     // Metals triage without content yet: still carve Sec 122 out of the 232 universe
-    addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+    addBrazil301(coo, hts, entered, layers, diagnostics, rd.date, {
       in232Universe: true,
       flags,
     });
@@ -1273,7 +1276,7 @@ export function assessLine(line: LineIn, index: number) {
         code: "S232_PHARMA_APPLIED",
         message: pharma232.reason,
       });
-      addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+      addBrazil301(coo, hts, entered, layers, diagnostics, rd.date, {
         in232Universe: pharma232.suppresses_301fl,
         flags,
       });
@@ -1295,7 +1298,7 @@ export function assessLine(line: LineIn, index: number) {
     }
   } else if (!blocked) {
     // Non-232 → Brazil 301 (from 2026-07-22) + Sec 122 (historical) or 301-FL (from 2026-07-24)
-    addBrazil301(coo, entered, layers, diagnostics, rd.date, {
+    addBrazil301(coo, hts, entered, layers, diagnostics, rd.date, {
       in232Universe: false,
       flags,
     });
@@ -1823,6 +1826,7 @@ function addS201Qsp(
 
 function addBrazil301(
   coo: string,
+  hts: string,
   entered: number,
   layers: DutyLayer[],
   diagnostics: Diagnostic[],
@@ -1842,6 +1846,7 @@ function addBrazil301(
 
   const br = assessBrazil301({
     coo,
+    hts,
     in232Universe: opts.in232Universe,
     flags: opts.flags,
   });
@@ -2082,6 +2087,45 @@ function add301Fl(
         message: `Pharmaceutical-use claim (${pharmaHit.heading}) is available for this HTS, but ${matched.label} (${matched.heading}) already clears 301-FL. Pharma claim is not needed on this path.`,
       });
     }
+    return;
+  }
+
+  const flExcept = matchFlExcept({
+    hts: line?.hts || "",
+    coo,
+    flags,
+  });
+  if (flExcept) {
+    layers.push(
+      layer({
+        slot: "3.2",
+        program: "SEC_301_FL",
+        ch99: flExcept.heading,
+        label: `301-FL exempt — ${flExcept.basis}`,
+        reason: `${flExcept.basis}. HTS matches imported exception list (stem ${flExcept.matched_stem}).`,
+        source_ref: "CSMS #69326983 — Forced Labor HTS exception list",
+        basis_amount: entered,
+        rate_pct: 0,
+      }),
+    );
+    suppressed.push({
+      ...layer({
+        slot: "3.2",
+        program: "SEC_301_FL",
+        ch99: fl.heading,
+        label: `${fl.label} (HTS except)`,
+        reason: `Superseded by ${flExcept.heading} (${flExcept.basis}). Would otherwise assess $${wouldDuty.toFixed(2)}.`,
+        source_ref: "CSMS #69326983",
+        basis_amount: entered,
+        rate_pct: wouldRate,
+      }),
+      reason: `Not applied — ${flExcept.heading} HTS exception. Would otherwise assess $${wouldDuty.toFixed(2)}.`,
+    });
+    diagnostics.push({
+      severity: "INFO",
+      code: "FL_HTS_EXCEPT_APPLIED",
+      message: `301-FL reports ${flExcept.heading} @ 0% for this HTS (${flExcept.basis}) instead of ${fl.heading}.`,
+    });
     return;
   }
 

@@ -15,6 +15,11 @@
       "effective": "2026-07-24",
       "engine_module": "tariff-rules/src/s301fl.ts",
       "data_file": "tariff-rules/data/s301fl_pack.json",
+      "data_files": [
+        "tariff-rules/data/s301fl_except_hts.json",
+        "tariff-rules/data/s301fl_pharma_hts.json"
+      ],
+      "incomplete": "9903.05.88 civil aircraft requires GN6 claim; 9903.05.89 pharma-use remains claim-gated.",
       "why": "CSMS #69326983. 60-economy forced-labor 301."
     },
     {
@@ -23,7 +28,8 @@
       "effective": "2026-07-22",
       "engine_module": "tariff-rules/src/s301Brazil.ts",
       "data_file": "tariff-rules/data/s301_brazil.json",
-      "incomplete": "Annex HTS exemption 9903.05.03 is claim-gated until the annex stem list is loaded.",
+      "data_files": ["tariff-rules/data/s301_brazil_hts.json"],
+      "incomplete": "Annex HTS lists imported from workbook; product/aircraft/pharma exemptions still claim-gated when flagged.",
       "why": "CSMS #69302472 country 301 @ 25%. Distinct from FL .27."
     },
     {
