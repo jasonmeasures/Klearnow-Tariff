@@ -28,9 +28,10 @@ git checkout master -- applications/Klearnow-Tariff-main/backend/src/auth0Mgmt.t
 - **`backend/src/auth.ts`** — `buildKeys()` reads `API_KEY_*` env vars; `dev-*` keys only on `SURFACE=local`. `EMAIL_CLAIMS` for Auth0 invite/login email resolution.
 - **`backend/src/db.ts`** — `sslConfig()` + `hostFromUrl()`; RDS requires TLS. Dropping this caused **production DB outage** (syncs `0fa182f9`, `683c793d`).
 - **`backend/src/users.ts`** — `inviteExternalUser()` on create; `POST /admin/users/:id/invite` resend.
-- **`frontend/app.js`** — Manage → Users invite UI (`data-user-invite`, `#user-invite`, `inviteUser()`).
-- **`frontend/index.html`** — invite checkbox + Auth0 column in users table.
-- **`frontend/auth.js`** — loads `auth0_invite` / `auth0_mgmt` from `/v1/config`.
+- **`frontend/app.js`** — Manage → Users invite UI (`data-user-invite`, `#user-invite`, `inviteUser()`); **Auth0 auth gate** (`openApp` / `showGate` / `bindGate`) — local app has no gate.
+- **`frontend/index.html`** — invite checkbox + Auth0 column; **`#auth-gate` markup** and `<body class="gated">`.
+- **`frontend/styles.css`** — `body.gated` / `#auth-gate` styles (append from master if local CSS overwrote them).
+- **`frontend/auth.js`** — loads `auth0_invite` / `auth0_mgmt` from `/v1/config`; deployed SPA takes Auth0 client id from config.
 - **`backend/package.json`** — `tsx` stays in **`dependencies`** (Docker runs `npm ci --omit=dev`; PR #86).
 
 ## Also preserve (existing rule)
@@ -40,4 +41,4 @@ git checkout master -- applications/Klearnow-Tariff-main/backend/src/auth0Mgmt.t
 
 ## Safe rsync pattern
 
-Sync `tariff-rules/`, assess logic, and data packs freely. For `auth.ts`, `db.ts`, `users.ts`, and frontend user-admin files: **diff against playground master** and port only tariff-specific hunks.
+Sync `tariff-rules/`, assess logic, and data packs freely. For `auth.ts`, `db.ts`, `users.ts`, and frontend auth-gate / user-admin files: **diff against playground master** and port only tariff-specific hunks. After sync, confirm `#auth-gate` and `openApp`/`showGate` still exist.
