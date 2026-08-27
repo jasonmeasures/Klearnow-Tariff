@@ -167,8 +167,11 @@ export function formatAssessReply(result: ReturnType<typeof assessEntry>, intent
   for (const l of line.layers || []) {
     rows.push(formatLayer(l));
   }
-  if (line.ch99_sequence?.length) {
-    rows.push("", `Ch.99 sequence: ${line.ch99_sequence.join(" → ")}`);
+  const filing = line.filing_sequence?.length
+    ? line.filing_sequence
+    : line.ch99_sequence;
+  if (filing?.length) {
+    rows.push("", `Filing sequence: ${filing.join(" → ")}`);
   }
   if (line.col1_rate_label) {
     rows.push(`Column-1: ${line.col1_rate_label}${line.spi_preference ? ` (${line.spi_preference.label} SPI ${line.spi_preference.spi})` : ""}`);

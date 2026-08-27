@@ -51,7 +51,7 @@ insightsRouter.get("/insights", requireScope("read_rules"), (_req, res) => {
       program,
       label: String(meta.detail || program).slice(0, 80),
       authority: String(meta.ch99_family || ""),
-      stack_slot: program.includes("301_FL") ? "3.2" : program.includes("301") ? "3.1" : "3.3",
+      stack_slot: program.includes("301_FL") ? "3.1" : program.includes("301") ? "3.1" : program.includes("338") ? "3.2" : "3.3",
       status: String(meta.status || "ACTIVE"),
       rule_count: row.total,
       headings: row.headings,

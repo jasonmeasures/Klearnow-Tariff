@@ -122,7 +122,7 @@ flowchart TD
 
 ---
 
-## 5. Stacking rules (R1–R11)
+## 5. Stacking rules (R1–R13)
 
 Authoritative copies: `interaction_rules.json` + `framework_contract.json`.
 
@@ -208,11 +208,25 @@ If the line already attracts a listed 232-family heading (metals `9903.82.02` / 
 
 Civil aircraft (General Note 6) on the Note 51(d) list reports **`9903.03.16` @ 0%** only when `civil_aircraft_gn6` is claimed.
 
-Evaluate 232-family **first**, then gate 338. On the 7501, 338 reports in the Chapter 99 **additional** slot **before** 301 / 232 (CSMS #69606660). CBP’s Ch.98/drawback text citing `9903.04.12`–`.14` is a typo for `9903.03.12`–`.14`.
+Evaluate 232-family **first**, then gate 338. On the 7501, 338 reports **after Section 301 and before Section 232** (CSMS #69668138). CBP’s Ch.98/drawback text citing `9903.04.12`–`.14` is a typo for `9903.03.12`–`.14`.
+
+### R13 — Chapter 98 dutiable basis
+
+When a Chapter 98 provision is claimed on the line:
+
+| Provision | Effect |
+|-----------|--------|
+| **General 98xx** (e.g. `9801.00.10`) | Suppresses classic China 301, 301-FL, Brazil 301, and Section 338 (no remedy heading). Section 232 still applies. |
+| **`9802.00.40` / `.50`** | Duties (Col-1, 301, 301-FL, Brazil 301, 232, 201, 122, 338) on **repair / alteration / processing value** (`ch98_repair_value`). |
+| **`9802.00.60`** | Same as repair for most programs; **Section 232 assessed on full entered value** (CSMS #68253075). |
+| **`9802.00.80`** | Duties on assembled-abroad value less US content (`entered − ch98_us_content_value`). |
+| **Subchapter XXIII (`9823…`)** | Does not suppress 338; full entered value. |
+
+Reports first on the entry summary (CSMS #69668138). Missing repair / US-content values warn and fall back to entered value.
 
 ### Reporting order
 
-CBP: Chapter 99 lines **before** Chapters 1–97. Where China 301 and 232 both apply, **301 reports first**.
+CBP: Chapter 98 (if claimed) → Chapter 99 lines → Chapters 1–97. Where China 301 and 232 both apply, **301 reports first**.
 
 ---
 
@@ -539,6 +553,7 @@ Please initial / date. Comment on the rule or program id if you disagree.
 | R3 JP parts top-up only (not vehicles) | | | |
 | R10 SPI zeros Col-1+MPF only | | | |
 | R11 Section 338 Canada (50% / `.15` / `.16`) | | | |
+| R13 Chapter 98 basis / suppress | | | |
 | Auto-parts annex auto-apply + 8544.42 **out** | | | |
 | Passenger vehicle HTS list + `9903.94.01` | | | |
 | `8704.60.00` default passenger | | | |
@@ -554,6 +569,7 @@ Please initial / date. Comment on the rule or program id if you disagree.
 
 ## Changelog
 
+- **1.6.1 (2026-08-27)** — R13 Chapter 98: repair/assembly dutiable basis for 9802.00.40/.50/.60/.80 across Col-1 and trade remedies; general 98xx suppresses 301 / 301-FL / Brazil 301 / 338; `9802.00.60` + Section 232 stays on full entered value (CSMS #68253075).
 - **1.6.0 (2026-08-24)** — Section 338 Canada (`9903.03.12`–`.16`, CSMS #69606660): 50% additional on listed products of Canada from 12:01 a.m. EST 2026-08-22; 3-day suspension 19–21 Aug; Note 51(c)/(d) exclusions; drawback eligible; USMCA does not exempt.
 - **1.5.0 (2026-08-17)** — Full review pack for developers and compliance: 232 vehicles / MHDV / wood / semiconductors with complete short HTS lists, claim vs auto, precedence, HTS-list behavior, sign-off table.
 - **1.4.0 (2026-08-14)** — New 232 packs wired from CSMS (see `FRAMEWORK.md`).

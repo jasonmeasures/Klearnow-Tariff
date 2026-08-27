@@ -59,7 +59,7 @@ export function materializeRules() {
             combined_to_cap_heading: c.combined_to_cap_heading,
           },
       basis: "ENTERED_VALUE",
-      stack_slot: "3.2",
+      stack_slot: "3.1",
       effective_start: String(flMeta.effective || `${STATE.pack.as_of}T00:00:00Z`),
       effective_end: null as string | null,
       authority: "Section 301 Forced Labor",
@@ -86,7 +86,7 @@ export function materializeRules() {
       when: { applies_to: e.applies_to },
       rate: { kind: "NONE" },
       basis: "ENTERED_VALUE",
-      stack_slot: "3.2",
+      stack_slot: "3.1",
       effective_start: String(flMeta.effective || `${STATE.pack.as_of}T00:00:00Z`),
       effective_end: null as string | null,
       authority: "US Note 52",
@@ -107,7 +107,7 @@ export function materializeRules() {
       when: { coo_in: e.origins },
       rate: { kind: "NONE" },
       basis: "ENTERED_VALUE",
-      stack_slot: "3.2",
+      stack_slot: "3.1",
       effective_start: String(flMeta.effective || `${STATE.pack.as_of}T00:00:00Z`),
       effective_end: null as string | null,
       authority: "US Note 52",
@@ -188,8 +188,8 @@ function uiProg(p: string): string {
 
 function slotFor(program: string, kind: string): string {
   if (program.includes("201")) return "3.4";
-  if (program.includes("338")) return "2";
-  if (program.includes("301_FL") || kind === "SUPPRESSION") return "3.2";
+  if (program.includes("338")) return "3.2";
+  if (program.includes("301_FL") || kind === "SUPPRESSION") return "3.1";
   if (program.includes("301")) return "3.1";
   if (program.includes("232") || program.includes("TRADE")) return "3.3";
   return "6.0";
@@ -246,8 +246,8 @@ rulesRouter.get("/programs", requireScope("calculate"), (_req, res) => {
     s338: {
       label: "Section 338 Canada",
       status: "ACTIVE",
-      authority: "19 U.S.C. §1338 / CSMS #69606660",
-      stack_slot: "2",
+      authority: "19 U.S.C. §1338 / CSMS #69668138",
+      stack_slot: "3.2",
     },
     s201: {
       label: "Section 201 QSP TRQ",
@@ -265,7 +265,7 @@ rulesRouter.get("/programs", requireScope("calculate"), (_req, res) => {
       label: "Section 301 Forced Labor",
       status: "ACTIVE",
       authority: "CSMS #69326983",
-      stack_slot: "3.2",
+      stack_slot: "3.1",
     },
     ch99: {
       label: "Ch99 reciprocal / IEEPA / Annex I",
@@ -277,7 +277,7 @@ rulesRouter.get("/programs", requireScope("calculate"), (_req, res) => {
       label: "Section 122",
       status: "SUNSET",
       authority: "Sunset 2026-07-24",
-      stack_slot: "3.2",
+      stack_slot: "3.25",
     },
     ieepa: {
       label: "IEEPA",

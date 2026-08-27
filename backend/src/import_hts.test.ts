@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 import * as XLSX from "xlsx";
 import {
   mergeHtsRateRows,
@@ -7,6 +7,7 @@ import {
   parseHtsClassificationWorkbook,
 } from "./import_hts.ts";
 import { resolveCol1, reloadHtsTable } from "./htsLookup.ts";
+import { isolateHtsPacks } from "./htsTestIsolate.ts";
 
 describe("HTS import", () => {
   it("normalizes CSV-style upload rows", () => {
@@ -69,25 +70,37 @@ describe("HTS import", () => {
     assert.ok(parsed.rates[0].col1_pct > 5);
   });
 
-  it("merges CSV rows into the live pack (upsert by hts|start|end)", () => {
-    const fake = {
-      hts: "9999999910",
-      start: "2026-01-01",
-      end: "9999-12-31",
-      col1_pct: 9.99,
-      desc: "UPLOAD-TEST-ONLY",
-    };
-    const beforeSrc = reloadHtsTable().source;
-    const result = mergeHtsRateRows([fake], {
-      source: beforeSrc || "unit-test-merge",
-      as_of: "2026-08-06",
-      replace: false,
+  describe("merge into pack (temp isolate)", () => {
+    let isolate: ReturnType<typeof isolateHtsPacks>;
+
+    before(() => {
+      isolate = isolateHtsPacks();
     });
-    reloadHtsTable();
-    const hit = resolveCol1("9999999910", "2026-08-06");
-    assert.ok(hit);
-    assert.equal(hit!.col1_pct, 9.99);
-    assert.ok(result.row_count > 1000);
-    assert.equal(result.upserted, 1);
+
+    after(() => {
+      isolate?.cleanup();
+    });
+
+    it("merges CSV rows into a temp pack (upsert by hts|start|end)", () => {
+      const fake = {
+        hts: "9999999910",
+        start: "2026-01-01",
+        end: "9999-12-31",
+        col1_pct: 9.99,
+        desc: "UPLOAD-TEST-ONLY",
+      };
+      const beforeSrc = reloadHtsTable().source;
+      const result = mergeHtsRateRows([fake], {
+        source: beforeSrc || "unit-test-merge",
+        as_of: "2026-08-06",
+        replace: false,
+      });
+      reloadHtsTable();
+      const hit = resolveCol1("9999999910", "2026-08-06");
+      assert.ok(hit);
+      assert.equal(hit!.col1_pct, 9.99);
+      assert.ok(result.row_count > 1000);
+      assert.equal(result.upserted, 1);
+    });
   });
 });

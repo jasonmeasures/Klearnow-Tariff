@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
-import { after, describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 import * as XLSX from "xlsx";
 import { coverOne } from "./coverage.ts";
 import {
@@ -12,21 +11,25 @@ import {
   suggestRelatedHts,
 } from "./htsLookup.ts";
 import {
-  HTS_REPLACEMENTS_PATH,
   mergeHtsRateRows,
   mergeHtsReplacements,
   normalizeCsvHtsRows,
   parseHtsClassificationWorkbook,
 } from "./import_hts.ts";
+import { isolateHtsPacks } from "./htsTestIsolate.ts";
 
 describe("HTS ended → replacement", () => {
   const ENDED = "8888888810";
   const REPL = "8888888820";
-  const snapshot = readFileSync(HTS_REPLACEMENTS_PATH, "utf8");
+  let isolate: ReturnType<typeof isolateHtsPacks>;
+
+  before(() => {
+    // Write only to a temp copy — never the live tariff-rules pack.
+    isolate = isolateHtsPacks();
+  });
 
   after(() => {
-    writeFileSync(HTS_REPLACEMENTS_PATH, snapshot);
-    reloadHtsTable();
+    isolate?.cleanup();
   });
 
   it("formats 10-digit HTS as XXXX.XX.XXXX", () => {

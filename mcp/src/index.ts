@@ -151,7 +151,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "stacking_order",
       description:
-        "CBP Form 7501 / CSMS #69606660 Chapter 99 reporting sequence, including Section 338 additional duties",
+        "CBP Form 7501 / CSMS #69668138 Chapter 99 reporting sequence (301 → 338 → 232 → 201)",
       inputSchema: { type: "object", properties: {} },
     },
       description: "Return OpenAPI document for integrating other tools with this API",

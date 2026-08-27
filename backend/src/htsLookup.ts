@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { lookupChina301List } from "../../tariff-rules/src/s301China.ts";
 import { lookupChina301Note31 } from "../../tariff-rules/src/s301ChinaNote31.ts";
 import { classify232Metals } from "../../tariff-rules/src/s232Metals.ts";
+import { resolvedHtsRatesPath, resolvedHtsReplacementsPath } from "./import_hts.ts";
 
 export type HtsRate = {
   hts: string;
@@ -41,7 +42,7 @@ type ReplacementPack = {
   replacements: HtsReplacement[];
 };
 
-const DATA = join(dirname(fileURLToPath(import.meta.url)), "../../tariff-rules/data/hts_rates.json");
+/** Live pack path (tests redirect via TARIFF_HTS_REPLACEMENTS_PATH). */
 export const HTS_REPLACEMENTS_PATH = join(
   dirname(fileURLToPath(import.meta.url)),
   "../../tariff-rules/data/hts_replacements.json",
@@ -58,14 +59,15 @@ let byFrom: Map<string, HtsReplacement> | null = null;
 
 function load(): Pack {
   if (pack) return pack;
-  if (!existsSync(DATA)) {
+  const ratesPath = resolvedHtsRatesPath();
+  if (!existsSync(ratesPath)) {
     pack = { version: "0", as_of: "", source: "", row_count: 0, rates: [] };
     byHts = new Map();
     byStem8 = new Map();
     sortedHtsKeys = [];
     return pack;
   }
-  pack = JSON.parse(readFileSync(DATA, "utf8")) as Pack;
+  pack = JSON.parse(readFileSync(ratesPath, "utf8")) as Pack;
   byHts = new Map();
   byStem8 = new Map();
   for (const r of pack.rates) {
@@ -85,12 +87,13 @@ function load(): Pack {
 
 function loadReplacements(): ReplacementPack {
   if (replPack) return replPack;
-  if (!existsSync(HTS_REPLACEMENTS_PATH)) {
+  const path = resolvedHtsReplacementsPath();
+  if (!existsSync(path)) {
     replPack = { version: "0", as_of: "", source: "", row_count: 0, replacements: [] };
     byFrom = new Map();
     return replPack;
   }
-  replPack = JSON.parse(readFileSync(HTS_REPLACEMENTS_PATH, "utf8")) as ReplacementPack;
+  replPack = JSON.parse(readFileSync(path, "utf8")) as ReplacementPack;
   byFrom = new Map();
   for (const r of replPack.replacements || []) {
     const from = normalizeHtsDigits(r.from);

@@ -24,6 +24,8 @@ const DOCS = [
     title: "KlearNow Tariff — User Manual",
     eyebrow: "Operator guide",
     companion: { href: "../tariff-rules/docs/RULES.html", label: "Rules review pack" },
+    appHref: "/",
+    copyTo: "frontend/public/docs/USER_MANUAL.html",
   },
 ];
 
@@ -366,7 +368,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 }
 `;
 
-function page({ title, eyebrow, companion, toc, body, sourceRel }) {
+function page({ title, eyebrow, companion, appHref, toc, body, sourceRel }) {
   const tocHtml = toc
     .filter((t) => t.level >= 2)
     .map(
@@ -374,6 +376,9 @@ function page({ title, eyebrow, companion, toc, body, sourceRel }) {
         `<a class="l${t.level}" href="#${t.id}">${escapeHtml(t.text.replace(/§/g, ""))}</a>`,
     )
     .join("\n");
+  const appLink = appHref
+    ? `<a href="${escapeHtml(appHref)}">Open app</a>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -393,6 +398,7 @@ function page({ title, eyebrow, companion, toc, body, sourceRel }) {
   </div>
   <div class="spacer"></div>
   <nav>
+    ${appLink}
     <a href="${companion.href}">${escapeHtml(companion.label)}</a>
     <a class="print-hide" href="#" onclick="window.print(); return false;">Print / PDF</a>
   </nav>
@@ -423,16 +429,21 @@ for (const doc of DOCS) {
   const md = readFileSync(srcPath, "utf8");
   const { html, toc } = mdToHtml(md);
   mkdirSync(dirname(destPath), { recursive: true });
-  writeFileSync(
-    destPath,
-    page({
-      title: doc.title,
-      eyebrow: doc.eyebrow,
-      companion: doc.companion,
-      toc,
-      body: html,
-      sourceRel: doc.src,
-    }),
-  );
+  const htmlPage = page({
+    title: doc.title,
+    eyebrow: doc.eyebrow,
+    companion: doc.companion,
+    appHref: doc.appHref,
+    toc,
+    body: html,
+    sourceRel: doc.src,
+  });
+  writeFileSync(destPath, htmlPage);
   console.log("wrote", relative(ROOT, destPath));
+  if (doc.copyTo) {
+    const publicPath = join(ROOT, doc.copyTo);
+    mkdirSync(dirname(publicPath), { recursive: true });
+    writeFileSync(publicPath, htmlPage);
+    console.log("wrote", relative(ROOT, doc.copyTo));
+  }
 }

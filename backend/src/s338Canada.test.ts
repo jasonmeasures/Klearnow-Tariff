@@ -27,7 +27,7 @@ function line(over: Record<string, unknown> = {}) {
   );
 }
 
-describe("Section 338 Canada (CSMS #69606660)", () => {
+describe("Section 338 Canada (CSMS #69668138 / #69606660)", () => {
   it("Canadian whiskey 2208.30.30 entered 2026-08-23 → 9903.03.12 +50% stacked on Column 1", () => {
     const L = line({ col1_rate_pct: 5 });
     assert.ok(L.ch99_sequence.includes("9903.03.12"));
@@ -159,7 +159,7 @@ describe("Section 338 Canada (CSMS #69606660)", () => {
     assert.ok(L.diagnostics.some((d) => d.code === "S338_FTZ_PRIVILEGED_FOREIGN"));
   });
 
-  it("sequencing: Ch.98 + 338 + 301 + 232 + Ch.1–97 in CSMS #69606660 order", () => {
+  it("sequencing: Ch.98 + 301 + 338 + 232 + Ch.1–97 in CSMS #69668138 order", () => {
     const L = line({
       hts: "7203.10.00",
       ch98_provision: "9823.01.01",
@@ -172,10 +172,12 @@ describe("Section 338 Canada (CSMS #69606660)", () => {
     assert.ok(seq.includes("9903.05.90"));
     assert.ok(seq.some((c: string) => String(c).startsWith("9903.82")));
     assert.equal(seq[seq.length - 1], "7203.10.00");
-    const i338 = seq.indexOf("9903.03.15");
     const i301 = seq.indexOf("9903.05.90");
+    const i338 = seq.indexOf("9903.03.15");
     const i232 = seq.findIndex((c: string) => String(c).startsWith("9903.82"));
-    assert.ok(i338 < i301 && i301 < i232 && i232 < seq.length - 1);
+    assert.ok(i301 < i338 && i338 < i232 && i232 < seq.length - 1);
+    assert.equal(L.layers[0]?.stack_slot, "1");
+    assert.equal(L.layers[0]?.ch99, "9823.01.01");
   });
 
   it("invariant: never emit 9903.03.12–.14 with a Note 51(c) heading", () => {

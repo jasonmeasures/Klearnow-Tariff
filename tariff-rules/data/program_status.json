@@ -94,7 +94,7 @@
       "id": "SECTION_338_CANADA",
       "ch99_family": "9903.03.12–.14 (50% additional) / 9903.03.15–.16 (0% exclusions)",
       "status": "ACTIVE",
-      "detail": "Section 338 (19 U.S.C. §1338) additional 50% on certain products of Canada. CSMS #69606660 / Proclamations 11046–11048, 11056. Original effective 2026-08-19 was suspended through 2026-08-21; live from 12:01 a.m. EST 2026-08-22. Product-of-Canada test (ISO CA; CATAIR X-codes normalize to CA). USMCA does not exempt. Drawback eligible. Note 51(c) 9903.03.15 when a 232-family heading already applies; 9903.03.16 civil aircraft needs civil_aircraft_gn6. Stacks on 301-FL / China 301 / AD/CVD / MPF/HMF. Evaluate after 232-family, report before trade remedies on the 7501.",
+      "detail": "Section 338 (19 U.S.C. §1338) additional 50% on certain products of Canada. CSMS #69606660 / #69668138 / Proclamations 11046–11048, 11056. Original effective 2026-08-19 was suspended through 2026-08-21; live from 12:01 a.m. EST 2026-08-22. Product-of-Canada test (ISO CA; CATAIR X-codes normalize to CA). USMCA does not exempt. Drawback eligible. Note 51(c) 9903.03.15 when a 232-family heading already applies; 9903.03.16 civil aircraft needs civil_aircraft_gn6. Stacks on 301-FL / China 301 / AD/CVD / MPF/HMF. Evaluate after 232-family; report after Section 301 and before Section 232 on the 7501 (CSMS #69668138).",
       "compute": true,
       "compute_caveat": "Do not apply during 2026-08-19–2026-08-21 suspension. Do not suppress because of SPI/USMCA."
     },

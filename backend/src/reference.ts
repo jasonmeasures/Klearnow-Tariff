@@ -7,6 +7,11 @@ import {
   mergeHtsReplacements,
   normalizeCsvHtsRows,
 } from "./import_hts.ts";
+import {
+  STACKING_ORDER_NOTE,
+  STACKING_SEQUENCE,
+  STACKING_CSMS,
+} from "./stackingOrder.ts";
 import { STACKING_CONTRACT } from "./rulesContract.ts";
 import { refreshRulepackState, STATE } from "./state.ts";
 import { lookupFlClaimExemption, matchFlPharmaHts } from "../../tariff-rules/src/s301fl.ts";
@@ -314,20 +319,9 @@ referenceRouter.get("/reference/rate-date-hierarchy", (_req, res) => {
 referenceRouter.get("/reference/stacking-order", (_req, res) => {
   void STATE;
   res.json({
-    authority: "CSMS #69606660 / CBP Form 7501 Chapter 99 reporting sequence",
-    sequence: [
-      { slot: "1", line: "Chapter 98 (if claimed)" },
-      { slot: "2", line: "Chapter 99 additional duties (Section 338 9903.03.12–.16)" },
-      { slot: "3.1", line: "Section 301 (China legacy / four-year review / Brazil country / 301-FL)" },
-      { slot: "3.2", line: "Section 122 (slot retained — inactive after 2026-07-23)" },
-      { slot: "3.3", line: "Section 232 (autos, metals, wood, MHDV, semiconductors, pharma)" },
-      { slot: "3.4", line: "Section 201 duty / quota" },
-      { slot: "4", line: "Chapter 99 replacement duty / MTB / other use" },
-      { slot: "5", line: "Chapter 99 other quota" },
-      { slot: "6.0", line: "Chapters 1–97 commodity line" },
-    ],
-    note:
-      "CSMS #69606660: Ch.98 → Ch.99 additional (338) → trade remedies 301 → 122 (inactive) → 232 → 201 → replacement/MTB → other quota → Ch.1–97. Entered value reports on the Ch.1–97 line unless Chapter 98 provisions dictate otherwise.",
+    authority: `CSMS #${STACKING_CSMS} / CBP Form 7501 Chapter 99 reporting sequence`,
+    sequence: STACKING_SEQUENCE.map(({ slot, line }) => ({ slot, line })),
+    note: STACKING_ORDER_NOTE,
     hts_table: htsTableMeta(),
   });
 });

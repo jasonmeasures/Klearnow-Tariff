@@ -16,9 +16,29 @@ import XLSX from "xlsx";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "../..");
+/** Default live pack path — prefer resolvedHtsRatesPath() for reads/writes. */
 export const HTS_RATES_PATH = join(ROOT, "tariff-rules/data/hts_rates.json");
 export const HTS_REPLACEMENTS_PATH = join(ROOT, "tariff-rules/data/hts_replacements.json");
 const DEFAULT_XLSX = join(ROOT, "HTS_Classification_Table (5).xlsx");
+
+/** Allow tests to redirect writes via TARIFF_HTS_RATES_PATH (never clobber the live pack). */
+export function resolvedHtsRatesPath(): string {
+  return process.env.TARIFF_HTS_RATES_PATH || HTS_RATES_PATH;
+}
+
+export function resolvedHtsReplacementsPath(): string {
+  return process.env.TARIFF_HTS_REPLACEMENTS_PATH || HTS_REPLACEMENTS_PATH;
+}
+
+function assertTestSafeWrite(path: string, livePath: string, label: string) {
+  if (process.env.NODE_TEST_CONTEXT && path === livePath) {
+    throw new Error(
+      `Refusing to write live ${label} during tests. Set ${
+        label.includes("replacement") ? "TARIFF_HTS_REPLACEMENTS_PATH" : "TARIFF_HTS_RATES_PATH"
+      } to a temp file before merge/import.`,
+    );
+  }
+}
 
 export type ReplacementRow = {
   from: string;
@@ -360,6 +380,8 @@ export function writeReplacementsPack(opts: {
   as_of?: string;
   version?: string;
 }): { path: string; row_count: number; as_of: string; source: string } {
+  const path = resolvedHtsReplacementsPath();
+  assertTestSafeWrite(path, HTS_REPLACEMENTS_PATH, "hts_replacements.json");
   const as_of = (opts.as_of || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const payload: ReplacementPack = {
     version: opts.version || "1.0.0",
@@ -370,9 +392,9 @@ export function writeReplacementsPack(opts: {
       .slice()
       .sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to)),
   };
-  writeFileSync(HTS_REPLACEMENTS_PATH, JSON.stringify(payload, null, 2) + "\n");
+  writeFileSync(path, JSON.stringify(payload, null, 2) + "\n");
   return {
-    path: HTS_REPLACEMENTS_PATH,
+    path,
     row_count: payload.row_count,
     as_of,
     source: opts.source,
@@ -386,10 +408,11 @@ export function mergeHtsReplacements(
   incoming: ReplacementRow[],
   opts: { source: string; as_of?: string; replace?: boolean },
 ): { upserted: number; row_count: number; as_of: string; source: string } {
+  const path = resolvedHtsReplacementsPath();
   let base: ReplacementRow[] = [];
-  if (!opts.replace && existsSync(HTS_REPLACEMENTS_PATH)) {
+  if (!opts.replace && existsSync(path)) {
     try {
-      const prev = JSON.parse(readFileSync(HTS_REPLACEMENTS_PATH, "utf8")) as ReplacementPack;
+      const prev = JSON.parse(readFileSync(path, "utf8")) as ReplacementPack;
       base = Array.isArray(prev.replacements) ? [...prev.replacements] : [];
     } catch {
       base = [];
@@ -419,6 +442,8 @@ export function writeHtsPack(opts: {
   as_of?: string;
   version?: string;
 }): ImportResult {
+  const path = resolvedHtsRatesPath();
+  assertTestSafeWrite(path, HTS_RATES_PATH, "hts_rates.json");
   const with_specific = opts.rates.filter((r) => (r.col1_specific_usd || 0) > 0).length;
   const as_of = (opts.as_of || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const payload: HtsPack = {
@@ -430,10 +455,10 @@ export function writeHtsPack(opts: {
     rates: opts.rates,
   };
   const json = JSON.stringify(payload);
-  writeFileSync(HTS_RATES_PATH, json);
+  writeFileSync(path, json);
   const hash = createHash("sha256").update(json).digest("hex").slice(0, 16);
   return {
-    path: HTS_RATES_PATH,
+    path,
     row_count: opts.rates.length,
     with_specific,
     skipped: 0,
@@ -471,9 +496,11 @@ export function importHtsFromBuffer(
     });
     replacements_upserted = merged.upserted;
     replacements_total = merged.row_count;
-  } else if (existsSync(HTS_REPLACEMENTS_PATH)) {
+  } else if (existsSync(resolvedHtsReplacementsPath())) {
     try {
-      const prev = JSON.parse(readFileSync(HTS_REPLACEMENTS_PATH, "utf8")) as ReplacementPack;
+      const prev = JSON.parse(
+        readFileSync(resolvedHtsReplacementsPath(), "utf8"),
+      ) as ReplacementPack;
       replacements_total = Array.isArray(prev.replacements) ? prev.replacements.length : 0;
     } catch {
       replacements_total = 0;
@@ -496,10 +523,11 @@ export function mergeHtsRateRows(
   incoming: RateRow[],
   opts: { source: string; as_of?: string; replace?: boolean },
 ): ImportResult & { upserted: number } {
+  const path = resolvedHtsRatesPath();
   let base: RateRow[] = [];
-  if (!opts.replace && existsSync(HTS_RATES_PATH)) {
+  if (!opts.replace && existsSync(path)) {
     try {
-      const prev = JSON.parse(readFileSync(HTS_RATES_PATH, "utf8")) as HtsPack;
+      const prev = JSON.parse(readFileSync(path, "utf8")) as HtsPack;
       base = Array.isArray(prev.rates) ? [...prev.rates] : [];
     } catch {
       base = [];

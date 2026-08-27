@@ -1,5 +1,6 @@
 /**
  * Frontend contract: Quick Check chips and Duty stack layout stay in sync with goldens.
+ * Run these on every change — including UI-only — so layout regressions fail CI.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -33,16 +34,26 @@ describe("QA UI contract", () => {
     }
   });
 
-  it("stack result is above multi-line tools in the DOM (PWA / mobile order)", () => {
+  it("split workspace: inputs left, Results sticky right, tools below", () => {
+    const workspaceAt = html.indexOf('class="calc-workspace"');
+    const inputsAt = html.indexOf('class="calc-inputs"');
     const resultAt = html.indexOf('class="calc-result"');
     const toolsAt = html.indexOf('class="calc-tools"');
-    assert.ok(resultAt > 0 && toolsAt > 0, "calc-result / calc-tools missing");
-    assert.ok(resultAt < toolsAt, "calc-result must come before calc-tools so phones show the stack first");
+    assert.ok(workspaceAt > 0, "calc-workspace missing");
+    assert.ok(inputsAt > workspaceAt, "calc-inputs inside workspace");
+    assert.ok(resultAt > inputsAt, "calc-result after inputs");
+    assert.ok(toolsAt > resultAt, "calc-tools after Results (DOM order for PWA / mobile)");
+    assert.ok(css.includes(".calc-workspace"), "styles define calc-workspace");
+    assert.ok(css.includes("position:sticky") && css.includes(".result-card"), "Results card sticky");
   });
 
-  it("narrow / PWA CSS stacks calc-body to one column", () => {
-    assert.ok(css.includes(".cols.c2.calc-body"));
-    assert.ok(/@media \(max-width:1180px\)[\s\S]*calc-body/.test(css));
+  it("narrow / PWA CSS collapses calc-workspace to one column", () => {
+    assert.ok(/@media \(max-width:1100px\)[\s\S]*\.calc-workspace\{grid-template-columns:1fr\}/.test(css));
+    assert.ok(
+      /@media \(max-width:700px\), \(display-mode: standalone\)[\s\S]*\.calc-workspace\{grid-template-columns:1fr/.test(
+        css,
+      ),
+    );
   });
 
   it("Run the stack is the primary Quick Check action", () => {
@@ -80,7 +91,7 @@ describe("QA UI contract", () => {
     assert.match(html, /id="qc-232-wrap"[^>]*\bhidden\b/);
     assert.match(html, /id="qc-fta-wrap"[^>]*\bhidden\b/);
     assert.match(html, /id="qc-cn-adv"[^>]*\bhidden\b/);
-    assert.ok(!html.includes("Shipment details"));
+    assert.ok(html.includes("Shipment details"));
     assert.ok(!html.includes('id="qc-loaded"'));
     assert.ok(!html.includes('id="qc-htsdesc"'));
   });

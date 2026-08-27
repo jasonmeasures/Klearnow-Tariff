@@ -44,6 +44,11 @@ import {
   s232PharmaClaimed,
 } from "../../tariff-rules/src/s232Pharma.ts";
 import {
+  classifyChapter98,
+  resolveCh98DutyBasis,
+  type Ch98Program,
+} from "../../tariff-rules/src/ch98Basis.ts";
+import {
   assessS338Canada,
   assertNoS338DutyWithNote51c,
   isS338Heading,
@@ -71,6 +76,12 @@ import {
   sec122AppliesOn,
   wrongEraFiledCode,
 } from "./programEras.ts";
+import {
+  REPORTING_SLOTS,
+  buildFilingSequence,
+  orderCh99Sequence,
+  sortLayersForDisplay,
+} from "./stackingOrder.ts";
 
 export type Diagnostic = {
   severity: "ERROR" | "WARNING" | "INFO";
@@ -310,6 +321,7 @@ function uiProgram(id: string): string {
     SEC_232_SEMI: "s232",
     SEC_232_UAS: "s232",
     SECTION_338_CANADA: "s338",
+    CH98: "ch98",
     SEC_201_QSP: "s201",
     SEC_122: "s122",
     TRADE_DEAL_JP: "s232",
@@ -458,6 +470,45 @@ export function assessLine(line: LineIn, index: number) {
   const caNorm = normalizeCanadaCoo(rawCoo);
   const coo = caNorm.coo;
   const entered = num(line.entered_value);
+  const ch98Input = {
+    provision: line.ch98_provision,
+    entered,
+    repair_value: line.ch98_repair_value,
+    us_content_value: line.ch98_us_content_value,
+  };
+  const ch98Basis = (program: Ch98Program) =>
+    resolveCh98DutyBasis({ ...ch98Input, program });
+  const ch98Claim = classifyChapter98(line.ch98_provision);
+  if (ch98Claim.kind === "repair" || ch98Claim.kind === "assembly") {
+    const probe = ch98Basis("col1");
+    if (probe.missing_value === "repair") {
+      diagnostics.push({
+        severity: "WARNING",
+        code: "CH98_REPAIR_VALUE_MISSING",
+        message: `Chapter 98 ${probe.provision} claimed but repair/processing value is blank — duties temporarily use full entered value $${entered.toFixed(2)}.`,
+        remediation: "Enter the value of repairs, alterations, or processing abroad (ch98_repair_value).",
+      });
+    } else if (probe.missing_value === "us_content") {
+      diagnostics.push({
+        severity: "WARNING",
+        code: "CH98_US_CONTENT_MISSING",
+        message: `Chapter 98 ${probe.provision} claimed but US-content value is blank — duties temporarily use full entered value $${entered.toFixed(2)}.`,
+        remediation: "Enter US-content cost/value (ch98_us_content_value) for 9802.00.80.",
+      });
+    } else if (probe.reason) {
+      diagnostics.push({
+        severity: "INFO",
+        code: "CH98_DUTIABLE_BASIS",
+        message: probe.reason,
+      });
+    }
+  } else if (ch98Claim.kind === "suppress") {
+    diagnostics.push({
+      severity: "INFO",
+      code: "CH98_SUPPRESSES_REMEDIES",
+      message: `Chapter 98 ${ch98Claim.provision}: classic Section 301, 301-FL, Brazil 301, and Section 338 are suppressed when properly claimed. Section 232 (if any) still applies under Chapter 98 terms.`,
+    });
+  }
   const rd = rateDate(line);
   if (caNorm.normalized_from) {
     diagnostics.push({
@@ -627,8 +678,15 @@ export function assessLine(line: LineIn, index: number) {
   let spiPref: SpiPreference | null = null;
 
   const pushCommodity = (zeroCommodity = false) => {
+    const col1Ch98 = ch98Basis("col1");
+    const col1BasisAmt = col1Ch98.basis_amount;
+    const col1BasisName = col1Ch98.basis;
+    const col1BasisNote =
+      col1Ch98.basis !== "ENTERED_VALUE" && col1Ch98.reason
+        ? ` ${col1Ch98.reason}`
+        : "";
     if (spiPref) {
-      const wouldAdValorem = money2(entered * col1);
+      const wouldAdValorem = money2(col1BasisAmt * col1);
       const wouldSpecific = specificDuty > 0 ? specificDuty : 0;
       const wouldTotal = money2(wouldAdValorem + wouldSpecific);
       layers.push(
@@ -637,9 +695,10 @@ export function assessLine(line: LineIn, index: number) {
           program: "base",
           ch99: null,
           label: `Column-1 Free — ${spiPref.label} (SPI ${spiPref.spi})`,
-          reason: `${spiPref.label} preferential claim (SPI ${spiPref.spi}) suppresses Chapters 1–97 / Column-1 duty and MPF. Other programs (301-FL, 232, China 301, etc.) are NOT auto-suppressed — each needs its own ${spiPref.label} / Note 52 Chapter 99 exemption when applicable.`,
+          reason: `${spiPref.label} preferential claim (SPI ${spiPref.spi}) suppresses Chapters 1–97 / Column-1 duty and MPF. Other programs (301-FL, 232, China 301, etc.) are NOT auto-suppressed — each needs its own ${spiPref.label} / Note 52 Chapter 99 exemption when applicable.${col1BasisNote}`,
           source_ref: "R10_SPI_FTA_COL1_MPF",
-          basis_amount: entered,
+          basis: col1BasisName,
+          basis_amount: col1BasisAmt,
           rate_pct: 0,
           rate_label: "Free",
         }),
@@ -651,9 +710,10 @@ export function assessLine(line: LineIn, index: number) {
             program: "base",
             ch99: null,
             label: "Column-1 (suppressed by preference)",
-            reason: `Suppressed by ${spiPref.label} SPI ${spiPref.spi}. Would otherwise assess $${wouldTotal.toFixed(2)}.`,
+            reason: `Suppressed by ${spiPref.label} SPI ${spiPref.spi}. Would otherwise assess $${wouldTotal.toFixed(2)}.${col1BasisNote}`,
             source_ref: "R10_SPI_FTA_COL1_MPF",
-            basis_amount: entered,
+            basis: col1BasisName,
+            basis_amount: col1BasisAmt,
             rate_pct: col1,
             rate_label: rateLabel || pctLabel(col1),
             duty_amount: wouldTotal,
@@ -670,8 +730,9 @@ export function assessLine(line: LineIn, index: number) {
           program: "base",
           ch99: null,
           label: "Column-1 / Chapters 1–97",
-          reason: "Commodity line rate zeroed on this path (Ch.99 reports the operative rate).",
-          basis_amount: entered,
+          reason: `Commodity line rate zeroed on this path (Ch.99 reports the operative rate).${col1BasisNote}`,
+          basis: col1BasisName,
+          basis_amount: col1BasisAmt,
           rate_pct: 0,
           rate_label: rateLabel || pctLabel(0),
         }),
@@ -685,8 +746,9 @@ export function assessLine(line: LineIn, index: number) {
           program: "base",
           ch99: null,
           label: "Column-1 ad valorem",
-          reason: "Ad valorem portion of Chapters 1–97 / Column 1.",
-          basis_amount: entered,
+          reason: `Ad valorem portion of Chapters 1–97 / Column 1.${col1BasisNote}`,
+          basis: col1BasisName,
+          basis_amount: col1BasisAmt,
           rate_pct: col1,
         }),
       );
@@ -716,8 +778,9 @@ export function assessLine(line: LineIn, index: number) {
           program: "base",
           ch99: null,
           label: "Column-1 / Chapters 1–97",
-          reason: rateLabel ? `Column-1 ${rateLabel}.` : "Commodity line rate.",
-          basis_amount: entered,
+          reason: (rateLabel ? `Column-1 ${rateLabel}.` : "Commodity line rate.") + col1BasisNote,
+          basis: col1BasisName,
+          basis_amount: col1BasisAmt,
           rate_pct: 0,
           rate_label: rateLabel || "Free",
         }),
@@ -1097,6 +1160,15 @@ export function assessLine(line: LineIn, index: number) {
 
   const applyEntered232Layer = (): boolean => {
     if (!s232Hit) return false;
+    const s232Ch98 = ch98Basis("s232");
+    const s232Amt = s232Ch98.basis_amount;
+    const s232Basis = s232Ch98.basis;
+    const s232Note =
+      s232Ch98.basis !== "ENTERED_VALUE" || s232Ch98.provision === "9802.00.60"
+        ? s232Ch98.reason
+          ? ` ${s232Ch98.reason}`
+          : ""
+        : "";
     if (s232Hit.combined_cap) {
       layers.push(
         layer({
@@ -1104,9 +1176,10 @@ export function assessLine(line: LineIn, index: number) {
           program: s232Hit.program,
           ch99: s232Hit.heading,
           label: s232Hit.label,
-          reason: s232Hit.reason,
+          reason: s232Hit.reason + s232Note,
           source_ref: s232Hit.source,
-          basis_amount: entered,
+          basis: s232Basis,
+          basis_amount: s232Amt,
           rate_pct: s232Hit.rate_pct_decimal,
         }),
       );
@@ -1129,9 +1202,10 @@ export function assessLine(line: LineIn, index: number) {
           program: "SEC_232_AUTOS",
           ch99: meta.code,
           label: "Section 232 — auto parts (rate known)",
-          reason: s232Hit.reason,
+          reason: s232Hit.reason + s232Note,
           source_ref: s232Hit.source || meta.notes,
-          basis_amount: entered,
+          basis: s232Basis,
+          basis_amount: s232Amt,
           rate_pct: meta.rate,
         }),
       );
@@ -1144,9 +1218,10 @@ export function assessLine(line: LineIn, index: number) {
         program: s232Hit.program,
         ch99: meta.code,
         label: s232Hit.label,
-        reason: s232Hit.reason,
+        reason: s232Hit.reason + s232Note,
         source_ref: s232Hit.source,
-        basis_amount: entered,
+        basis: s232Basis,
+        basis_amount: s232Amt,
         rate_pct: s232Hit.rate_pct_decimal,
       }),
     );
@@ -1157,42 +1232,56 @@ export function assessLine(line: LineIn, index: number) {
     try {
       const c301 = assertComputable(chinaCode);
       const note31 = chinaNote31 && chinaNote31.ch99 === c301.code;
-      layers.push(
-        layer({
-          slot: "3.1",
-          program: c301.program,
-          ch99: c301.code,
-          label: note31
-            ? chinaNote31!.label
-            : c301.notes.split(".")[0] || "Legacy China 301",
-          reason: note31
-            ? `${chinaNote31!.reason} Not suppressed by Section 232 (R2). Reports first.`
-            : "Legacy China 301 is not suppressed by Section 232 (R2). Reports first.",
-          source_ref: note31 ? chinaNote31!.source : c301.notes,
-          basis_amount: entered,
-          rate_pct: c301.rate,
-        }),
-      );
+      const s301Ch98 = ch98Basis("s301");
+      if (s301Ch98.suppress) {
+        diagnostics.push({
+          severity: "INFO",
+          code: "CH98_SUPPRESSES_CHINA_301",
+          message: `${s301Ch98.reason || `Chapter 98 suppresses China 301 ${c301.code}.`} Would otherwise assess $${money2(entered * c301.rate).toFixed(2)}.`,
+        });
+      } else {
+        const s301Note =
+          s301Ch98.basis !== "ENTERED_VALUE" && s301Ch98.reason
+            ? ` ${s301Ch98.reason}`
+            : "";
+        layers.push(
+          layer({
+            slot: "3.1",
+            program: c301.program,
+            ch99: c301.code,
+            label: note31
+              ? chinaNote31!.label
+              : c301.notes.split(".")[0] || "Legacy China 301",
+            reason: note31
+              ? `${chinaNote31!.reason} Not suppressed by Section 232 (R2). Reports first.${s301Note}`
+              : `Legacy China 301 is not suppressed by Section 232 (R2). Reports first.${s301Note}`,
+            source_ref: note31 ? chinaNote31!.source : c301.notes,
+            basis: s301Ch98.basis,
+            basis_amount: s301Ch98.basis_amount,
+            rate_pct: c301.rate,
+          }),
+        );
+      }
 
       if (s232Hit) {
         zeroCommodity232 = applyEntered232Layer();
         if (s232SuppressesFl(s232Hit)) {
-          push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
-          applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+          push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date, line);
+          applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true, line);
         } else {
-          applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
+          applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false, line);
           add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
         }
       } else if (metalsDutyHit) {
         // China 301 + 232 metals triage: China first; Sec 122 out via 9903.03.06; FL suppressed when metals ready
-        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true, line);
         if (applyMetals232) {
-          push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
+          push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date, line);
         } else {
           add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
         }
       } else {
-        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false, line);
         add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
       }
 
@@ -1212,12 +1301,12 @@ export function assessLine(line: LineIn, index: number) {
       addBrazil301(coo, hts, entered, layers, diagnostics, rd.date, {
         in232Universe: s232SuppressesFl(s232Hit),
         flags,
-      });
+      }, line);
       if (s232SuppressesFl(s232Hit)) {
-        push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
-        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+        push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date, line);
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true, line);
       } else {
-        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false, line);
         add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
       }
       pushCommodity(zero);
@@ -1234,32 +1323,40 @@ export function assessLine(line: LineIn, index: number) {
     addBrazil301(coo, hts, entered, layers, diagnostics, rd.date, {
       in232Universe: true,
       flags,
-    });
-    push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
-    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+    }, line);
+    push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date, line);
+    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true, line);
     pushCommodity(false);
   } else if (!blocked && metalsDutyHit) {
     // Metals triage without content yet: still carve Sec 122 out of the 232 universe
     addBrazil301(coo, hts, entered, layers, diagnostics, rd.date, {
       in232Universe: true,
       flags,
-    });
-    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+    }, line);
+    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true, line);
     add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
     pushCommodity(false);
   } else if (!blocked && pharma232?.applies && !flPharmaWanted) {
     // Section 232 patented / generic pharma — Proclamation 11020 (CSMS #69395344 / #69415934)
     try {
       const meta = assertComputable(pharma232.heading);
+      const s232Ch98 = ch98Basis("s232");
+      const s232Note =
+        s232Ch98.basis !== "ENTERED_VALUE" || s232Ch98.provision === "9802.00.60"
+          ? s232Ch98.reason
+            ? ` ${s232Ch98.reason}`
+            : ""
+          : "";
       layers.push(
         layer({
           slot: "3.3",
           program: "SEC_232_PHARMA",
           ch99: meta.code,
           label: pharma232.label,
-          reason: pharma232.reason,
+          reason: pharma232.reason + s232Note,
           source_ref: meta.notes,
-          basis_amount: entered,
+          basis: s232Ch98.basis,
+          basis_amount: s232Ch98.basis_amount,
           rate_pct: pharma232.rate_pct_decimal,
         }),
       );
@@ -1279,12 +1376,12 @@ export function assessLine(line: LineIn, index: number) {
       addBrazil301(coo, hts, entered, layers, diagnostics, rd.date, {
         in232Universe: pharma232.suppresses_301fl,
         flags,
-      });
+      }, line);
       if (pharma232.suppresses_301fl) {
-        push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date);
-        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true);
+        push301FlSuppression(coo, entered, col1, layers, suppressed, rd.date, line);
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, true, line);
       } else {
-        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
+        applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false, line);
         add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
       }
       pushCommodity(pharma232.rate_kind === "combined_col1_and_232");
@@ -1301,34 +1398,58 @@ export function assessLine(line: LineIn, index: number) {
     addBrazil301(coo, hts, entered, layers, diagnostics, rd.date, {
       in232Universe: false,
       flags,
-    });
-    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false);
+    }, line);
+    applySec122Or232Exclusion(entered, layers, suppressed, diagnostics, rd.date, false, line);
     add301Fl(coo, entered, col1, layers, suppressed, diagnostics, rd.date, line, ftaTrack);
     pushCommodity(false);
   }
 
   // Metals layer (R4) — 9903.82.02 on metal-content; 9903.82.09 on entered value
+  // Chapter 98 repair/assembly (except 9802.00.60) overrides to Ch98 dutiable value (CSMS #68253075).
   if (applyMetals232 && metalsDutyHit) {
     try {
       const steel = assertComputable(metalsDutyHit.duty_ch99);
       const onEntered = metalsDutyHit.basis === "ENTERED_VALUE";
+      const metalsCh98 = ch98Basis("s232_metals");
+      const useCh98Val =
+        metalsCh98.basis === "REPAIR_VALUE" ||
+        metalsCh98.basis === "ASSEMBLY_LESS_US_CONTENT";
+      const metalsBasis = useCh98Val
+        ? metalsCh98.basis
+        : onEntered
+          ? "ENTERED_VALUE"
+          : "METAL_CONTENT_VALUE";
+      const metalsAmt = useCh98Val
+        ? metalsCh98.basis_amount
+        : onEntered
+          ? entered
+          : metalVal;
+      const ch98Note =
+        metalsCh98.reason &&
+        (useCh98Val || metalsCh98.provision === "9802.00.60")
+          ? ` ${metalsCh98.reason}`
+          : "";
       const Lm = layer({
         slot: "3.3",
         program: steel.program,
         ch99: steel.code,
-        label: onEntered
+        label: onEntered && !useCh98Val
           ? `Section 232 metals / derivatives — ${steel.code} (${metalsDutyHit.rate_pct}% entered value)`
-          : `Section 232 metal products — ${metalsDutyHit.metal} (${metalsDutyHit.rate_pct}%)`,
-        reason: onEntered
-          ? `Entered-value basis $${entered.toFixed(2)}; U.S. note 16 derivative/copper path. ${steel.notes}`
-          : `Metal-content basis $${metalVal.toFixed(2)}${
-              metalParts.length
-                ? ` [${metalParts.map((p) => `${p.kind} $${p.basis.toFixed(2)}`).join(" + ")}]`
-                : ""
-            }; melt/pour ${metalParts.map((p) => (p.melt_pour ? `${p.kind}:${p.melt_pour}` : "")).filter(Boolean).join(", ") || meltPour}. ${steel.notes}`,
+          : useCh98Val
+            ? `Section 232 metals / derivatives — ${steel.code} (${metalsDutyHit.rate_pct}% ${metalsCh98.basis === "REPAIR_VALUE" ? "repair value" : "assembly less US content"})`
+            : `Section 232 metal products — ${metalsDutyHit.metal} (${metalsDutyHit.rate_pct}%)`,
+        reason: useCh98Val
+          ? `Chapter 98 dutiable basis $${metalsAmt.toFixed(2)}; U.S. note 16 / ${steel.code}. ${steel.notes}${ch98Note}`
+          : onEntered
+            ? `Entered-value basis $${entered.toFixed(2)}; U.S. note 16 derivative/copper path. ${steel.notes}${ch98Note}`
+            : `Metal-content basis $${metalVal.toFixed(2)}${
+                metalParts.length
+                  ? ` [${metalParts.map((p) => `${p.kind} $${p.basis.toFixed(2)}`).join(" + ")}]`
+                  : ""
+              }; melt/pour ${metalParts.map((p) => (p.melt_pour ? `${p.kind}:${p.melt_pour}` : "")).filter(Boolean).join(", ") || meltPour}. ${steel.notes}${ch98Note}`,
         source_ref: "CSMS #68253075 / U.S. note 16",
-        basis: onEntered ? "ENTERED_VALUE" : "METAL_CONTENT_VALUE",
-        basis_amount: onEntered ? entered : metalVal,
+        basis: metalsBasis,
+        basis_amount: metalsAmt,
         rate_pct: steel.rate,
       });
       layers.push(Lm);
@@ -1336,9 +1457,11 @@ export function assessLine(line: LineIn, index: number) {
       diagnostics.push({
         severity: "INFO",
         code: "METALS_SEPARATE_LINE",
-        message: onEntered
-          ? `232 metals derivative via ${steel.code} on entered value; kept out of parts subtotal (R4).`
-          : `232 metals on metal-content value via ${steel.code} (input as ${metalBasisMode === "PCT" ? "percent of entered" : metalBasisMode === "MIXED" ? "mixed USD/%" : "USD"}); kept out of parts subtotal (R4). Potential exclusions: ${metalsDutyHit.potential_exclusions.map((e) => e.ch99).join(", ")}.`,
+        message: useCh98Val
+          ? `232 metals via ${steel.code} on Chapter 98 dutiable value $${metalsAmt.toFixed(2)}; kept out of parts subtotal (R4).`
+          : onEntered
+            ? `232 metals derivative via ${steel.code} on entered value; kept out of parts subtotal (R4).`
+            : `232 metals on metal-content value via ${steel.code} (input as ${metalBasisMode === "PCT" ? "percent of entered" : metalBasisMode === "MIXED" ? "mixed USD/%" : "USD"}); kept out of parts subtotal (R4). Potential exclusions: ${metalsDutyHit.potential_exclusions.map((e) => e.ch99).join(", ")}.`,
       });
     } catch (e) {
       diagnostics.push({
@@ -1353,6 +1476,7 @@ export function assessLine(line: LineIn, index: number) {
   if (metalsHit?.kind === "EXCLUSION") {
     try {
       const ex = assertComputable(metalsHit.duty_ch99);
+      const exclCh98 = ch98Basis("s232_metals");
       layers.push(
         layer({
           slot: "3.3",
@@ -1364,8 +1488,8 @@ export function assessLine(line: LineIn, index: number) {
               ? `Aggregate metal ${metalContentPct}% is under 15% (U.S. note 16). Not for Ch.72–74/76 articles. 301-FL is not suppressed. ${ex.notes}`
               : `Note 16 exclusion ${ex.code} @ 0%. 301-FL is not suppressed. ${ex.notes}`,
           source_ref: "U.S. note 16 / CSMS #68253075",
-          basis: "ENTERED_VALUE",
-          basis_amount: entered,
+          basis: exclCh98.basis,
+          basis_amount: exclCh98.basis_amount,
           rate_pct: ex.rate,
         }),
       );
@@ -1396,42 +1520,33 @@ export function assessLine(line: LineIn, index: number) {
   const effective = entered > 0 ? money2((totalDuty / entered) * 100) : 0;
 
   const seq = layers.filter((l) => l.ch99).map((l) => l.ch99 as string);
-  const brazil301 = (c: string) => isBrazil301Heading(c);
-  const s338 = (c: string) => isS338Heading(c);
-  const ordered = [
-    // CSMS #69606660 slot 2 — Chapter 99 additional (Section 338) before trade remedies
-    ...seq.filter(s338),
-    ...seq.filter(
-      (c) =>
-        c.startsWith("9903.88") ||
-        c.startsWith("9903.91") ||
-        isChina301Note31Heading(c),
-    ),
-    ...seq.filter(brazil301), // Brazil country 301 before other 9903.05 / FL
-    ...seq.filter((c) => c === "9903.05.90" || c === "9903.03.06" || c === "9903.03.03"),
-    ...seq.filter((c) => c.startsWith("9903.82")),
-    ...seq.filter((c) => c.startsWith("9903.04")), // Proclamation 11020 pharma
-    ...seq.filter(
-      (c) =>
-        c.startsWith("9903.94") ||
-        c.startsWith("9903.74") ||
-        c.startsWith("9903.76") ||
-        c.startsWith("9903.79") ||
-        c.startsWith("9903.08"),
-    ),
-    ...seq.filter(
-      (c) => c.startsWith("9903.05") && c !== "9903.05.90" && !brazil301(c),
-    ),
-    ...seq.filter((c) => c.startsWith("9903.45")),
-    ...seq.filter((c) => c.startsWith("9903.03") && c !== "9903.03.06" && c !== "9903.03.03" && !s338(c)),
-  ];
-  const ch99_sequence_unique = [...new Set(ordered.length ? ordered : seq)];
+  const ch99_sequence_unique = orderCh99Sequence(seq);
   const ch98Filed = String(line.ch98_provision || "").trim();
-  const filing_sequence = [
-    ...(ch98Filed ? [ch98Filed] : []),
-    ...ch99_sequence_unique,
-    hts,
-  ];
+  if (ch98Filed && !layers.some((l) => l.program === "ch98")) {
+    const markerBasis = ch98Basis("col1");
+    layers.push(
+      layer({
+        slot: REPORTING_SLOTS.CH98,
+        program: "CH98",
+        ch99: ch98Filed,
+        label: "Chapter 98 provision",
+        reason:
+          markerBasis.reason ||
+          "Chapter 98 classification reports first on the entry summary line (CSMS #69668138).",
+        source_ref: "CSMS #69668138",
+        basis: markerBasis.basis,
+        basis_amount: markerBasis.basis_amount,
+        rate_pct: 0,
+        rate_label: "provision",
+      }),
+    );
+  }
+  const sortedLayers = sortLayersForDisplay(layers, ch99_sequence_unique);
+  const filing_sequence = buildFilingSequence({
+    ch98: ch98Filed,
+    ch99: ch99_sequence_unique,
+    commodityHts: hts,
+  });
 
   const pctOf = (d: number) => (entered > 0 ? money2((d / entered) * 100) : 0);
 
@@ -1581,7 +1696,7 @@ export function assessLine(line: LineIn, index: number) {
     usitc_url: resolved?.usitc_url || `https://hts.usitc.gov/search?query=${encodeURIComponent(hts.replace(/\D/g, "") || hts)}`,
     rate_determination_date: rd.date,
     rate_date_basis: rd.basis,
-    layers,
+    layers: sortedLayers,
     suppressed,
     diagnostics,
     ch99_sequence: ch99_sequence_unique,
@@ -1613,7 +1728,7 @@ export function assessLine(line: LineIn, index: number) {
       parts_duty: partsDuty,
       metals_duty: metalsDuty,
       specific_duty: spiPref ? 0 : specificDuty,
-      ad_valorem_commodity_duty: spiPref ? 0 : money2(entered * col1),
+      ad_valorem_commodity_duty: spiPref ? 0 : money2(ch98Basis("col1").basis_amount * col1),
       effective_duty_rate_pct: effective,
     },
     blocked,
@@ -1633,17 +1748,30 @@ function push301FlSuppression(
   layers: DutyLayer[],
   suppressed: SuppressedLayer[],
   rateDay?: string,
+  line?: LineIn,
 ) {
   if (rateDay && !s301flAppliesOn(rateDay)) return;
+  const flCh98 = resolveCh98DutyBasis({
+    provision: line?.ch98_provision,
+    entered,
+    repair_value: line?.ch98_repair_value,
+    us_content_value: line?.ch98_us_content_value,
+    program: "s301fl",
+  });
+  // General Chapter 98 suppresses FL entirely — do not report 9903.05.90.
+  if (flCh98.suppress) return;
+
+  const dutiable = flCh98.basis_amount;
   layers.push(
     layer({
-      slot: "3.2",
+      slot: REPORTING_SLOTS.S301,
       program: "SEC_301_FL",
       ch99: "9903.05.90",
       label: "301-FL suppressed — Section 232 exclusion (9903.05.90)",
       reason: "232 autos/parts/metals and 301-FL are mutually exclusive; 232 wins (US Note 52(f)).",
       source_ref: "CSMS #69326983 — 9903.05.90",
-      basis_amount: entered,
+      basis: flCh98.basis,
+      basis_amount: dutiable,
       rate_pct: 0,
     }),
   );
@@ -1653,16 +1781,17 @@ function push301FlSuppression(
   const rate =
     would.kind === "threshold_no_add" ? 0 : would.rate_pct_decimal;
   const heading = would.heading;
-  const wouldDuty = money2(entered * rate);
+  const wouldDuty = money2(dutiable * rate);
   suppressed.push({
     ...layer({
-      slot: "3.2",
+      slot: REPORTING_SLOTS.S301,
       program: "SEC_301_FL",
       ch99: heading,
       label: `${would.label} (suppressed)`,
       reason: `Suppressed by 9903.05.90. Would otherwise have assessed $${wouldDuty.toFixed(2)}. ${would.reason}`,
       source_ref: "CSMS #69326983",
-      basis_amount: entered,
+      basis: flCh98.basis,
+      basis_amount: dutiable,
       rate_pct: rate,
     }),
     reason: `Suppressed by 9903.05.90. Would otherwise have assessed $${wouldDuty.toFixed(2)}.`,
@@ -1674,20 +1803,33 @@ function addSec122(
   layers: DutyLayer[],
   diagnostics: Diagnostic[],
   rateDay?: string,
+  line?: LineIn,
 ) {
   if (!rateDay || !sec122AppliesOn(rateDay)) return;
   if (layers.some((l) => l.ch99 === SEC_122_CH99)) return;
   try {
     const meta = assertComputable(SEC_122_CH99);
+    const s122Ch98 = resolveCh98DutyBasis({
+      provision: line?.ch98_provision,
+      entered,
+      repair_value: line?.ch98_repair_value,
+      us_content_value: line?.ch98_us_content_value,
+      program: "s122",
+    });
+    const note =
+      s122Ch98.basis !== "ENTERED_VALUE" && s122Ch98.reason
+        ? ` ${s122Ch98.reason}`
+        : "";
     layers.push(
       layer({
-        slot: "3.2",
+        slot: REPORTING_SLOTS.S122,
         program: "SEC_122",
         ch99: meta.code,
         label: "Section 122 — 10% surcharge",
-        reason: `Entry/rate date ${rateDay} falls in the Sec 122 window (${filingEraLabel("sec_122")}: 2026-02-24–2026-07-23). Sunset 2026-07-24 when 301-FL replaced it.`,
+        reason: `Entry/rate date ${rateDay} falls in the Sec 122 window (${filingEraLabel("sec_122")}: 2026-02-24–2026-07-23). Sunset 2026-07-24 when 301-FL replaced it.${note}`,
         source_ref: meta.notes,
-        basis_amount: entered,
+        basis: s122Ch98.basis,
+        basis_amount: s122Ch98.basis_amount,
         rate_pct: meta.rate,
       }),
     );
@@ -1713,40 +1855,50 @@ function applySec122Or232Exclusion(
   diagnostics: Diagnostic[],
   rateDay: string | undefined,
   in232Universe: boolean,
+  line?: LineIn,
 ) {
   if (!rateDay || !sec122AppliesOn(rateDay)) return;
   if (!in232Universe) {
-    addSec122(entered, layers, diagnostics, rateDay);
+    addSec122(entered, layers, diagnostics, rateDay, line);
     return;
   }
+  const s122Ch98 = resolveCh98DutyBasis({
+    provision: line?.ch98_provision,
+    entered,
+    repair_value: line?.ch98_repair_value,
+    us_content_value: line?.ch98_us_content_value,
+    program: "s122",
+  });
   if (!layers.some((l) => l.ch99 === "9903.03.06")) {
     layers.push(
       layer({
-        slot: "3.2",
+        slot: REPORTING_SLOTS.S122,
         program: "SEC_232_METALS",
         ch99: "9903.03.06",
         label: "Excluded from Section 122 (232 universe)",
         reason:
           "Section 232 autos/parts or metals coverage removes the Section 122 surcharge — report 9903.03.06 (R2b).",
         source_ref: getCh99("9903.03.06")?.notes || "Sec 122 vs 232 carve-out",
-        basis_amount: entered,
+        basis: s122Ch98.basis,
+        basis_amount: s122Ch98.basis_amount,
         rate_pct: 0,
       }),
     );
   }
   try {
     const meta = assertComputable(SEC_122_CH99);
-    const would = money2(entered * meta.rate);
+    const would = money2(s122Ch98.basis_amount * meta.rate);
     if (!suppressed.some((s) => s.ch99 === SEC_122_CH99)) {
       suppressed.push({
         ...layer({
-          slot: "3.2",
+          slot: REPORTING_SLOTS.S122,
           program: "SEC_122",
           ch99: meta.code,
           label: "Section 122 — 10% surcharge (suppressed)",
           reason: `Suppressed by 9903.03.06. Would otherwise have assessed $${would.toFixed(2)}.`,
           source_ref: meta.notes,
-          basis_amount: entered,
+          basis: s122Ch98.basis,
+          basis_amount: s122Ch98.basis_amount,
           rate_pct: meta.rate,
         }),
         reason: `Suppressed by 9903.03.06. Would otherwise have assessed $${would.toFixed(2)}.`,
@@ -1802,15 +1954,27 @@ function addS201Qsp(
   }
   try {
     const meta = assertComputable(hit.heading);
+    const s201Ch98 = resolveCh98DutyBasis({
+      provision: line.ch98_provision,
+      entered,
+      repair_value: line.ch98_repair_value,
+      us_content_value: line.ch98_us_content_value,
+      program: "s201",
+    });
+    const note =
+      s201Ch98.basis !== "ENTERED_VALUE" && s201Ch98.reason
+        ? ` ${s201Ch98.reason}`
+        : "";
     layers.push(
       layer({
         slot: "3.4",
         program: "SEC_201_QSP",
         ch99: hit.heading,
         label: hit.label,
-        reason: hit.reason,
+        reason: hit.reason + note,
         source_ref: meta.notes,
-        basis_amount: entered,
+        basis: s201Ch98.basis,
+        basis_amount: s201Ch98.basis_amount,
         rate_pct: hit.rate_pct_decimal,
       }),
     );
@@ -1849,6 +2013,7 @@ function addBrazil301(
   diagnostics: Diagnostic[],
   rateDay: string | undefined,
   opts: { in232Universe: boolean; flags?: Record<string, boolean> },
+  line?: LineIn,
 ) {
   if (coo !== "BR") return;
   if (rateDay && !brazil301AppliesOn(rateDay)) {
@@ -1861,6 +2026,22 @@ function addBrazil301(
   }
   if (layers.some((l) => l.ch99 && isBrazil301Heading(l.ch99))) return;
 
+  const brCh98 = resolveCh98DutyBasis({
+    provision: line?.ch98_provision,
+    entered,
+    repair_value: line?.ch98_repair_value,
+    us_content_value: line?.ch98_us_content_value,
+    program: "s301_brazil",
+  });
+  if (brCh98.suppress) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "CH98_SUPPRESSES_BRAZIL_301",
+      message: brCh98.reason || "Chapter 98 suppresses Brazil Section 301.",
+    });
+    return;
+  }
+
   const br = assessBrazil301({
     coo,
     hts,
@@ -1871,15 +2052,18 @@ function addBrazil301(
 
   try {
     const meta = assertComputable(br.heading);
+    const note =
+      brCh98.basis !== "ENTERED_VALUE" && brCh98.reason ? ` ${brCh98.reason}` : "";
     layers.push(
       layer({
         slot: "3.1",
         program: "SEC_301_BRAZIL",
         ch99: br.heading,
         label: br.label,
-        reason: br.reason,
+        reason: br.reason + note,
         source_ref: meta.notes,
-        basis_amount: entered,
+        basis: brCh98.basis,
+        basis_amount: brCh98.basis_amount,
         rate_pct: br.rate_pct_decimal,
       }),
     );
@@ -1934,23 +2118,21 @@ function addS338Canada(
   });
   if (!hit) return;
 
-  let basisAmount = entered;
-  let basis: string = "ENTERED_VALUE";
-  if (hit.basis === "REPAIR_VALUE") {
-    const repair = num(line.ch98_repair_value, NaN);
-    basisAmount = Number.isFinite(repair) && repair >= 0 ? repair : entered;
-    basis = "REPAIR_VALUE";
-  } else if (hit.basis === "ASSEMBLY_LESS_US_CONTENT") {
-    const us = Math.max(0, num(line.ch98_us_content_value));
-    basisAmount = Math.max(0, money2(entered - us));
-    basis = "ASSEMBLY_LESS_US_CONTENT";
-  }
+  const s338Ch98 = resolveCh98DutyBasis({
+    provision: ch98,
+    entered,
+    repair_value: line.ch98_repair_value,
+    us_content_value: line.ch98_us_content_value,
+    program: "s338",
+  });
+  const basisAmount = s338Ch98.basis_amount;
+  const basis = s338Ch98.basis;
 
   try {
     const meta = assertComputable(hit.heading);
     layers.push(
       layer({
-        slot: "2",
+        slot: REPORTING_SLOTS.S338,
         program: "SECTION_338_CANADA",
         ch99: hit.heading,
         label: hit.label,
@@ -2026,6 +2208,24 @@ function add301Fl(
     });
     return;
   }
+  const flCh98 = resolveCh98DutyBasis({
+    provision: line?.ch98_provision,
+    entered,
+    repair_value: line?.ch98_repair_value,
+    us_content_value: line?.ch98_us_content_value,
+    program: "s301fl",
+  });
+  if (flCh98.suppress) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "CH98_SUPPRESSES_301FL",
+      message:
+        flCh98.reason ||
+        "Chapter 98 properly claimed — 301-FL not reported (no Ch.99 heading).",
+    });
+    return;
+  }
+
   const fl = assessS301fl(coo, col1);
   if (fl.kind === "out_of_scope") {
     diagnostics.push({
@@ -2036,8 +2236,13 @@ function add301Fl(
     return;
   }
 
+  const dutiable = flCh98.basis_amount;
+  const flBasis = flCh98.basis;
+  const flBasisNote =
+    flCh98.basis !== "ENTERED_VALUE" && flCh98.reason ? ` ${flCh98.reason}` : "";
+
   const wouldRate = fl.kind === "threshold_no_add" ? 0 : fl.rate_pct_decimal;
-  const wouldDuty = money2(entered * wouldRate);
+  const wouldDuty = money2(dutiable * wouldRate);
   if (ftaTrack) {
     ftaTrack.without_fl_heading = fl.heading;
     ftaTrack.without_fl_rate_pct = money2(wouldRate * 100);
@@ -2055,25 +2260,27 @@ function add301Fl(
     if (ftaTrack) ftaTrack.claimed = matched;
     layers.push(
       layer({
-        slot: "3.2",
+        slot: REPORTING_SLOTS.S301,
         program: "SEC_301_FL",
         ch99: matched.heading,
         label: `301-FL exempt — ${matched.label}`,
-        reason: `${matched.basis}. Claimed ${matched.label}: report ${matched.heading} @ 0% instead of ${fl.heading}. SPI Free (Column-1 / MPF) is separate — applied only for USMCA / CAFTA-DR preferential claims.`,
+        reason: `${matched.basis}. Claimed ${matched.label}: report ${matched.heading} @ 0% instead of ${fl.heading}. SPI Free (Column-1 / MPF) is separate — applied only for USMCA / CAFTA-DR preferential claims.${flBasisNote}`,
         source_ref: "CSMS #69326983 — Note 52 economy exemption",
-        basis_amount: entered,
+        basis: flBasis,
+        basis_amount: dutiable,
         rate_pct: 0,
       }),
     );
     suppressed.push({
       ...layer({
-        slot: "3.2",
+        slot: REPORTING_SLOTS.S301,
         program: "SEC_301_FL",
         ch99: fl.heading,
         label: `${fl.label} (not claimed)`,
         reason: `Superseded by ${matched.label} claim (${matched.heading}). Would otherwise assess $${wouldDuty.toFixed(2)}. ${fl.reason}`,
         source_ref: "CSMS #69326983",
-        basis_amount: entered,
+        basis: flBasis,
+        basis_amount: dutiable,
         rate_pct: wouldRate,
       }),
       reason: `Not applied — ${matched.label} claim (${matched.heading}). Would otherwise assess $${wouldDuty.toFixed(2)}.`,
@@ -2115,25 +2322,27 @@ function add301Fl(
   if (flExcept) {
     layers.push(
       layer({
-        slot: "3.2",
+        slot: REPORTING_SLOTS.S301,
         program: "SEC_301_FL",
         ch99: flExcept.heading,
         label: `301-FL exempt — ${flExcept.basis}`,
-        reason: `${flExcept.basis}. HTS matches imported exception list (stem ${flExcept.matched_stem}).`,
+        reason: `${flExcept.basis}. HTS matches imported exception list (stem ${flExcept.matched_stem}).${flBasisNote}`,
         source_ref: "CSMS #69326983 — Forced Labor HTS exception list",
-        basis_amount: entered,
+        basis: flBasis,
+        basis_amount: dutiable,
         rate_pct: 0,
       }),
     );
     suppressed.push({
       ...layer({
-        slot: "3.2",
+        slot: REPORTING_SLOTS.S301,
         program: "SEC_301_FL",
         ch99: fl.heading,
         label: `${fl.label} (HTS except)`,
         reason: `Superseded by ${flExcept.heading} (${flExcept.basis}). Would otherwise assess $${wouldDuty.toFixed(2)}.`,
         source_ref: "CSMS #69326983",
-        basis_amount: entered,
+        basis: flBasis,
+        basis_amount: dutiable,
         rate_pct: wouldRate,
       }),
       reason: `Not applied — ${flExcept.heading} HTS exception. Would otherwise assess $${wouldDuty.toFixed(2)}.`,
@@ -2170,25 +2379,27 @@ function add301Fl(
       }
       layers.push(
         layer({
-          slot: "3.2",
+          slot: REPORTING_SLOTS.S301,
           program: "SEC_301_FL",
           ch99: heading,
           label: "301-FL exempt — pharmaceutical applications",
-          reason: `${pharmaHit?.basis || flPharmaMeta().basis}. ${copy.layerReason}`,
+          reason: `${pharmaHit?.basis || flPharmaMeta().basis}. ${copy.layerReason}${flBasisNote}`,
           source_ref: "CSMS #69326983 — U.S. Note 52(e)",
-          basis_amount: entered,
+          basis: flBasis,
+          basis_amount: dutiable,
           rate_pct: 0,
         }),
       );
       suppressed.push({
         ...layer({
-          slot: "3.2",
+          slot: REPORTING_SLOTS.S301,
           program: "SEC_301_FL",
           ch99: fl.heading,
           label: `${fl.label} (pharma exempt)`,
           reason: copy.suppressed,
           source_ref: "CSMS #69326983",
-          basis_amount: entered,
+          basis: flBasis,
+          basis_amount: dutiable,
           rate_pct: wouldRate,
         }),
         reason: copy.suppressed,
@@ -2234,13 +2445,14 @@ function add301Fl(
   const rate = wouldRate;
   layers.push(
     layer({
-      slot: "3.2",
+      slot: REPORTING_SLOTS.S301,
       program: "SEC_301_FL",
       ch99: fl.heading,
       label: fl.label,
-      reason: fl.reason,
+      reason: fl.reason + flBasisNote,
       source_ref: "CSMS #69326983",
-      basis_amount: entered,
+      basis: flBasis,
+      basis_amount: dutiable,
       rate_pct: rate,
     }),
   );

@@ -44,12 +44,14 @@ const ENGINE_TITLE = {
 const PROGRAM_COLOR = {
   s301: "var(--color-blue-500)", s301fl: "var(--color-indigo-500)",
   s232: "var(--color-teal-500)", s122: "var(--color-purple-500)",
+  s338: "var(--color-orange-500)", ch98: "var(--color-blue-gray-600)",
   ieepa: "var(--color-cyan-500)", s201: "var(--color-pink-500)",
   ch99: "var(--color-blue-sapphire-500)", base: "var(--color-blue-gray-400)",
 };
 const PROGRAM_NAME = {
   s301: "Section 301", s301fl: "Section 301 forced labor", s232: "Section 232",
-  s122: "Section 122", ieepa: "IEEPA", s201: "Section 201",
+  s122: "Section 122", s338: "Section 338 Canada", ch98: "Chapter 98",
+  ieepa: "IEEPA", s201: "Section 201",
   ch99: "Ch99 reciprocal", base: "Column 1",
 };
 
@@ -732,7 +734,7 @@ async function previewHtsMeta() {
     const s338 = r.section_338 || {};
     if (s338.duty) {
       bits.push(
-        `<span class="pill pill-232" title="CSMS #69606660">Section 338 Canada → ${esc(s338.duty.heading)} @ 50%</span>`,
+        `<span class="pill pill-232" title="CSMS #69668138">Section 338 Canada → ${esc(s338.duty.heading)} @ 50%</span>`,
       );
     }
     if (s338.aircraft) {
@@ -1224,7 +1226,7 @@ function syncS338ClaimUi(s338 = {}) {
   wrap.hidden = !show;
   if (!show) box.checked = false;
   wrap.title =
-    "Claim when the article is civil aircraft (not military/unmanned) meeting General Note 6. Reports 9903.03.16 @ 0% additional (CSMS #69606660). Default is off — dual-list HTS then takes the 50% 338 duty heading.";
+    "Claim when the article is civil aircraft (not military/unmanned) meeting General Note 6. Reports 9903.03.16 @ 0% additional (CSMS #69668138). Default is off — dual-list HTS then takes the 50% 338 duty heading.";
   syncClaimEmptyState();
 }
 
@@ -1317,9 +1319,9 @@ function lineDetail(L, i) {
       ${fld("Metal content USD", "metal_content_value", 'inputmode="decimal"', "num", "Dollar value of metal content (or use % field)")}
       ${fld("Metal content % of entered", "metal_content_pct", 'inputmode="decimal"', "num", "Percent of entered value that is metal content")}
       ${fld("Country of melt &amp; pour", "country_of_melt_pour", "data-country", "country-field", "Primary melt/pour ISO-2 or name")}
-      ${fld("Chapter 98 provision", "ch98_provision", "", "mono", "Chapter 98 provision if claimed")}
-      ${fld("US content value", "ch98_us_content_value", 'inputmode="decimal"', "num", "For 9802.00.80 — US-content cost/value")}
-      ${fld("Repair / processing value", "ch98_repair_value", 'inputmode="decimal"', "num", "For 9802.00.40 / .50 / .60 — value of repairs, alterations, or processing")}
+      ${fld("Chapter 98 provision", "ch98_provision", "", "mono", "e.g. 9802.00.50 — reports first; may change dutiable basis or suppress 301/FL")}
+      ${fld("US content value", "ch98_us_content_value", 'inputmode="decimal"', "num", "For 9802.00.80 — US-content cost/value (duty on entered − US content)")}
+      ${fld("Repair / processing value", "ch98_repair_value", 'inputmode="decimal"', "num", "For 9802.00.40 / .50 / .60 — 301/232/Col-1 on this value (9802.00.60 + 232 uses full entered value)")}
       ${fld("Net weight (kg)", "net_weight_kg", 'inputmode="decimal"', "num")}
       ${fld("Quantity", "quantity", 'inputmode="decimal"', "num", "HTS quantity when Column 1 is specific")}
     </div>
@@ -1482,6 +1484,14 @@ function validateLines() {
   return bad;
 }
 
+function focusResultsPane() {
+  const el = $(".calc-result") || $("#results");
+  if (!el) return;
+  // On phone / installed PWA the result sits under the form — bring it into view.
+  const narrow = window.matchMedia("(max-width:1100px), (display-mode: standalone)").matches;
+  if (narrow) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 async function run(mode) {
   const bad = validateLines();
   if (bad.length) { banner("#calcbanner", "err", "Fix these first", bad.join(" · ")); return; }
@@ -1500,6 +1510,7 @@ async function run(mode) {
     S.last._mode = mode;
     S.last._engine = mode === "audit" ? "auto" : S.engine;
     renderResults(S.last);
+    focusResultsPane();
     const blocked = (S.last.lines || []).filter(l => l.blocked ||
       (l.diagnostics || []).some(d => d.severity === "ERROR" && (d.code === "UNKNOWN_HTS" || d.code === "MISSING_COL1")));
     if (blocked.length) {
@@ -1713,7 +1724,7 @@ $("#runboth").onclick = () => runBothEngines();
 
 function renderResults(R) {
   const audit = R._mode === "audit";
-  $("#resulttitle").textContent = audit ? "Audit against filed" : "Stack result";
+  $("#resulttitle").textContent = audit ? "Audit against filed" : "Results";
   $("#exportcsv").hidden = $("#copyall").hidden = false;
   const engChip = $("#resultengine");
   if (engChip) {
@@ -1725,51 +1736,50 @@ function renderResults(R) {
     a + (l.diagnostics || []).filter(d => d.severity === sev).length, 0);
   const nErr = count("ERROR"), nWarn = count("WARNING"), nInfo = count("INFO");
   const landed = R.totals?.landed_cost ?? ((Number(R.totals?.entered_value)||0) + (Number(R.totals?.duty)||0) + (Number(R.totals?.fees)||0));
+  const rateTxt = nErr || R.totals?.effective_duty_rate_pct == null
+    ? "—"
+    : `${pct(R.totals?.effective_duty_rate_pct)}%`;
+  const dutyTxt = nErr ? "—" : `$${money(R.totals?.duty)}`;
 
   let html = `<div class="body" style="padding:var(--sp-4) var(--sp-4) 0">
     ${guestQuotaHtml()}
-    <div class="summary">
-      <div class="stat"><div class="k">Duty rate</div>
-        <div class="v">${
-          nErr || R.totals?.effective_duty_rate_pct == null
-            ? `<span class="cap" style="font-size:1rem;font-weight:600;color:var(--color-red-700)">—</span>`
-            : `${pct(R.totals?.effective_duty_rate_pct)}%`
-        }</div></div>
-      <div class="stat"><div class="k">Total duties</div><div class="v">${
-          nErr ? `<span class="cap" style="color:var(--color-red-700)">—</span>` : `$${money(R.totals?.duty)}`
-        }</div></div>
-      <div class="stat"><div class="k">Fees</div><div class="v">$${money(R.totals?.fees ?? 0)}</div></div>
-      <div class="stat"><div class="k">Landed</div>
-        <div class="v">${
-          nErr
-            ? `<span class="cap" style="color:var(--color-red-700)">—</span>`
-            : `$${money(landed)}`
-        }</div></div>
+    <div class="result-hero">
+      <div class="stat duty-rate${nErr ? " bad" : ""}">
+        <div class="k">Duty rate</div>
+        <div class="v">${rateTxt}</div>
+        <div class="foot">Total duties <b>${dutyTxt}</b></div>
+      </div>
+      <div class="cost-break">
+        <div class="eyebrow">Cost breakdown</div>
+        <div class="cost-row"><span>Entered value</span><span>$${money(R.totals?.entered_value)}</span></div>
+        <div class="cost-row"><span>Total duties</span><span>${dutyTxt}</span></div>`;
+
+  if (R.entry_fees?.length && !nErr) {
+    html += R.entry_fees.map(f =>
+      `<div class="cost-row"><span>${esc(f.label)}${f.floored ? " (floor)" : f.capped ? " (cap)" : ""}${
+        f.code === "HMF" && f.rate_note ? ` <span class="cap">${esc(f.rate_note)}</span>` : ""
+      }</span><span>$${money(f.amount)}</span></div>`
+    ).join("");
+  } else {
+    html += `<div class="cost-row"><span>Fees</span><span>$${money(R.totals?.fees ?? 0)}</span></div>`;
+  }
+
+  html += `<div class="cost-row total"><span>Landed cost</span><span>${
+    nErr ? "—" : `$${money(landed)}`
+  }</span></div>
+      </div>
     </div>
-    <p class="cap" style="margin:var(--sp-2) 0 0">${
+    <p class="cap" style="margin:0 0 var(--sp-2)">${
       nErr ? `<b style="color:var(--color-red-700)">${nErr} error${nErr > 1 ? "s" : ""}</b> — the duty is wrong or indeterminate until resolved. `
            : `<b style="color:var(--color-green-700)">No errors.</b> `}${
       nWarn ? `${nWarn} warning${nWarn > 1 ? "s" : ""} worth a look` : "No warnings"}${
-      nInfo ? `, ${nInfo} note${nInfo > 1 ? "s" : ""}` : ""}.</p>`;
-
-  if (R.entry_fees?.length && !nErr) {
-    html += `<div class="cost-break">
-      <div class="eyebrow">Cost breakdown</div>
-      <div class="cost-row"><span>Entered value</span><span>$${money(R.totals?.entered_value)}</span></div>
-      <div class="cost-row"><span>Total duties</span><span>$${money(R.totals?.duty)}</span></div>` +
-      R.entry_fees.map(f =>
-        `<div class="cost-row"><span>${esc(f.label)}${f.floored ? " (floor)" : f.capped ? " (cap)" : ""}${
-          f.code === "HMF" && f.rate_note ? ` <span class="cap">${esc(f.rate_note)}</span>` : ""
-        }</span><span>$${money(f.amount)}</span></div>`
-      ).join("") +
-      `<div class="cost-row total"><span>Landed cost</span><span>$${money(landed)}</span></div>
-    </div>`;
-  }
-  html += `</div>`;
+      nInfo ? `, ${nInfo} note${nInfo > 1 ? "s" : ""}` : ""}.</p>
+  </div>
+  <div class="stack-section-label">Layer stack · reporting order</div>`;
 
   if (audit) {
     const F = R.findings || [];
-    html += `<div style="margin-top:var(--sp-4);border-top:1px solid var(--color-blue-gray-200)">
+    html += `<div style="margin-top:var(--sp-2);border-top:1px solid var(--color-blue-gray-200)">
       <div style="padding:var(--sp-3) var(--sp-4) var(--sp-2)"><span class="eyebrow">Findings</span>
       <span class="cap"> — net duty impact $${money(R.summary?.net_duty_impact ?? 0)}</span></div>`;
     html += F.length ? F.map(f => `<div class="finding ${esc(f.severity)}">
@@ -1916,7 +1926,8 @@ function renderLedger(L) {
     return `<tr class="${x.program === "base" ? "commodity" : ""}">
       <td><span class="slot p-${esc(x.program)}">${esc(x.stack_slot)}</span></td>
       <td>${x.ch99 ? `<span class="ch99 ${exempt ? "exempt" : ""}">${esc(x.ch99)}</span>`
-                   : `<span class="cap">commodity line</span>`}
+                   : x.program === "base" ? `<span class="cap">commodity line</span>`
+                   : `<span class="cap">${esc(x.label || "")}</span>`}
         <div class="why">${esc(x.label || "")}</div>
         ${x.reason ? `<div class="why">${esc(x.reason)}</div>` : ""}
         ${x.source_ref ? `<div class="src">${esc(x.source_ref)}</div>` : ""}</td>
@@ -1962,7 +1973,7 @@ function renderLedger(L) {
       ${L.usitc_url
         ? `<a class="usitc-link" href="${esc(L.usitc_url)}" target="_blank" rel="noopener noreferrer">USITC</a>`
         : ""}
-      <span class="cap mono">${(L.ch99_sequence || []).join(" → ") || "no Chapter 99"}</span></div>
+      <span class="cap mono">${(L.filing_sequence || L.ch99_sequence || []).join(" → ") || "no filing sequence"}</span></div>
     <div class="ratedate"><span>Rate-determination date</span>
       <b>${esc(L.rate_determination_date)}</b>
       <span class="cap">${esc(L.rate_date_basis || "")}</span>
@@ -2776,8 +2787,8 @@ async function loadInsights() {
           <div class="body">${barChart(cooRows, { padL: 52, title: "Rules by origin" })}</div></div>
         <div class="card"><header><h5>Reporting slot distribution</h5></header>
           <div class="body">${barChart(slotRows, { padL: 74, title: "Rules by reporting slot" })}
-          <p class="cap" style="margin-top:var(--sp-2)">3.1 is Section 301, 3.2 Section 122,
-            3.3 Section 232, 3.4 Section 201.</p></div></div>
+          <p class="cap" style="margin-top:var(--sp-2)">3.1 is Section 301, 3.2 Section 338,
+            3.3 Section 232, 3.4 Section 201 (CSMS #69668138).</p></div></div>
         <div class="card"><header><h5>Confidence</h5></header>
           <div class="body">${confBar}
           <p class="cap" style="margin-top:var(--sp-3)">Draft rules are claim-gated: they fire only

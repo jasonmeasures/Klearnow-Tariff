@@ -172,6 +172,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
   </div>
   <div class="spacer"></div>
   <nav>
+    
     <a href="../../docs/USER_MANUAL.html">User manual</a>
     <a class="print-hide" href="#" onclick="window.print(); return false;">Print / PDF</a>
   </nav>
@@ -184,19 +185,20 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <a class="l2" href="#2-legal-landscape-what-s-alive-what-s-dead">2. Legal landscape — what's alive, what's dead</a>
 <a class="l2" href="#3-filing-eras-rate-determination-date">3. Filing eras (rate-determination date)</a>
 <a class="l2" href="#4-how-a-line-is-decided-plain-english">4. How a line is decided (plain English)</a>
-<a class="l2" href="#5-stacking-rules-r1-r10">5. Stacking rules (R1–R10)</a>
+<a class="l2" href="#5-stacking-rules-r1-r11">5. Stacking rules (R1–R11)</a>
 <a class="l3" href="#r1-232-vs-301-fl-mutually-exclusive-232-wins">R1 — 232 vs 301-FL: mutually exclusive, 232 wins</a>
-<a class="l3" href="#r2-legacy-china-301-is-not-suppressed">R2 — Legacy China 301 is not suppressed</a>
+<a class="l3" href="#r2-china-301-is-not-suppressed">R2 — China 301 is not suppressed</a>
 <a class="l3" href="#r2b-section-122-does-not-stack-with-232">R2b — Section 122 does not stack with 232</a>
 <a class="l3" href="#r2c-brazil-country-301-stacks-with-301-fl">R2c — Brazil country 301 stacks with 301-FL</a>
-<a class="l3" href="#r3-japan-232-auto-parts-top-up">R3 — Japan 232 auto-parts top-up</a>
+<a class="l3" href="#r3-232-automobiles-are-origin-driven">R3 — 232 automobiles are origin-driven</a>
 <a class="l3" href="#r4-metals-on-a-separate-line-basis">R4 — Metals on a separate line / basis</a>
 <a class="l3" href="#r5-metals-vs-autos-on-ch-73-74-tbc">R5 — Metals vs autos on Ch.73/74 — **TBC**</a>
-<a class="l3" href="#r6-trade-deal-mfn-cap-blocking">R6 — Trade-deal MFN cap — **BLOCKING**</a>
+<a class="l3" href="#r6-leftover-trade-deal-flags-blocking">R6 — Leftover trade-deal flags — **BLOCKING**</a>
 <a class="l3" href="#r7-9903-94-xx-program-label-tbc">R7 — 9903.94.xx program label — **TBC**</a>
 <a class="l3" href="#r8-hts-authority">R8 — HTS authority</a>
 <a class="l3" href="#r9-ad-cvd">R9 — AD/CVD</a>
 <a class="l3" href="#r10-usmca-cafta-dr">R10 — USMCA / CAFTA-DR</a>
+<a class="l3" href="#r11-section-338-canada">R11 — Section 338 Canada</a>
 <a class="l3" href="#reporting-order">Reporting order</a>
 <a class="l2" href="#6-section-232-programs-review-in-detail">6. Section 232 programs (review in detail)</a>
 <a class="l3" href="#6-1-auto-parts-proclamation-10908-u-s-note-33">6.1 Auto parts — Proclamation 10908 / U.S. note 33</a>
@@ -219,7 +221,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
   <article class="prose">
     <p class="note">Shareable HTML generated from <code>tariff-rules/docs/RULES.md</code>. Markdown remains the source of truth. Print this page to PDF if you need a file for review.</p>
     <h1 id="klearnow-tariff-stacking-rules-review-pack">KlearNow Tariff Stacking Rules — Review Pack</h1>
-<p><strong>Version 1.5.0 · as of 2026-08-17 · United States only (HTSUS)</strong> <strong>Audience:</strong> developers integrating the engine, and compliance / trade reviewing the logic before it is used in production.</p>
+<p><strong>Version 1.6.0 · as of 2026-08-24 · United States only (HTSUS)</strong> <strong>Audience:</strong> developers integrating the engine, and compliance / trade reviewing the logic before it is used in production.</p>
 <p>This is the document to <strong>read, mark up, and sign off</strong>. Machine tables in <code>tariff-rules/data/</code> are the authority if this prose and a JSON file ever disagree.</p>
 <p>Shareable HTML (same content): <a href="./RULES.html"><code>RULES.html</code></a> — open in a browser or Print → PDF.</p>
 <div class="table-wrap"><table><thead><tr><th>If you are…</th><th>Start here</th><th>Then check</th></tr></thead><tbody><tr><td><strong>Compliance / trade</strong></td><td>§1–§3 (what's live), §5 (stacking), §6 (each 232 program + HTS lists)</td><td>§12 claim flags, §15 open items, <strong>sign-off</strong> at the end</td></tr>
@@ -234,7 +236,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <p>Mark the sign-off table at the end when you agree — or file a comment against the rule id (R1, R2, …) or program id (<code>s232_wood</code>, etc.).</p>
 <hr />
 <h2 id="1-what-this-engine-does">1. What this engine does</h2>
-<p>Given <strong>HTS</strong>, <strong>country of origin</strong>, <strong>entered value</strong>, <strong>rate-determination date</strong> (Entry Date under 19 CFR 141.68 / 141.69), and optional <strong>claims</strong> (232 part, semiconductor params, USMCA, metal content), it returns:</p>
+<p>Given <strong>HTS</strong>, <strong>country of origin</strong>, <strong>entered value</strong>, <strong>mode of transport</strong> (MOT — required for HMF), <strong>rate-determination date</strong> (Entry Date under 19 CFR 141.68 / 141.69), and optional <strong>claims</strong> (232 part, semiconductor params, USMCA, metal content), it returns:</p>
 <ol><li>Column 1 (Chapters 1–97) duty from the HTS table.</li><li>The Chapter 99 layers that should report, in CBP order, with rates and reasons.</li><li>Suppressions (especially 301-FL killed by 232).</li><li>Diagnostics when a claim is needed, a heading is TBC, or the HTS is unknown.</li></ol>
 <p>It does <strong>not</strong> classify the product, invent Column 1 for an unknown 10-digit line, or auto-certify claim-gated facts (Note 39(b) TPP/DRAM, “this is an MHDV part,” patented vs generic pharma).</p>
 <p><strong>Safety (non-negotiable):</strong></p>
@@ -246,14 +248,18 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td><strong>301-FL</strong></td><td><code>9903.05.20+</code></td><td><strong>Live</strong> from 2026-07-24 (CSMS #69326983). Functional replacement for 122 — no sunset.</td><td>Yes</td></tr>
 <tr><td>Brazil country 301</td><td><code>9903.05.01</code>–<code>.09</code></td><td><strong>Live</strong> from 2026-07-22 @ 25% (CSMS #69302472). Distinct from 301-FL Brazil <code>.27</code>.</td><td>Yes</td></tr>
 <tr><td>Legacy China 301</td><td><code>9903.88.xx</code></td><td><strong>Live.</strong> Not suppressed by 232 or 122.</td><td>Yes</td></tr>
-<tr><td>232 auto parts</td><td><code>9903.94.05</code> (+ JP top-up <code>.43</code>)</td><td><strong>Live.</strong> Proclamation 10908 annex.</td><td>Yes (in-annex auto)</td></tr>
-<tr><td>232 passenger vehicles / light trucks</td><td><code>9903.94.01</code>–<code>.04</code></td><td><strong>Live.</strong> CSMS #64624801.</td><td>Yes (list auto)</td></tr>
+<tr><td><strong>China 301 four-year review</strong></td><td><code>9903.91.xx</code> / <code>9903.92.10</code></td><td><strong>Live.</strong> U.S. note 31 / <a href="https://www.federalregister.gov/documents/2024/09/18/2024-21217/notice-of-modification-chinas-acts-policies-and-practices-related-to-technology-transfer" target="_blank" rel="noopener noreferrer">89 FR 76581</a> / <a href="https://content.govdelivery.com/accounts/USDHSCBP/bulletins/3b85471" target="_blank" rel="noopener noreferrer">CSMS #62411889</a>. Products of China. Replaces <code>9903.88.xx</code> on the same HTS.</td><td>Yes (HTS + date)</td></tr>
+<tr><td>232 auto parts</td><td><code>9903.94.05</code> (+ origin splits <code>.43</code>/<code>.53</code>/<code>.63</code>/<code>.32</code>)</td><td><strong>Live.</strong> Proclamation 10908 annex. COO may change the heading.</td><td>Yes (in-annex auto)</td></tr>
+<tr><td>232 passenger vehicles / light trucks</td><td><code>9903.94.01</code>–<code>.04</code> (+ origin splits <code>.41</code>/<code>.51</code>/<code>.61</code>)</td><td><strong>Live.</strong> CSMS #64624801. COO drives the heading.</td><td>Yes (list auto)</td></tr>
 <tr><td>232 MHDV / buses / parts</td><td><code>9903.74.01</code>–<code>.11</code></td><td><strong>Live.</strong> Proclamation 10984 / CSMS #66665333.</td><td>Vehicles/buses auto; <strong>parts claim-gated</strong></td></tr>
 <tr><td>232 wood</td><td><code>9903.76.xx</code></td><td><strong>Live.</strong> Proclamation 10976 / CSMS #66492057.</td><td>Yes (list auto)</td></tr>
 <tr><td>232 semiconductors</td><td><code>9903.79.01</code>–<code>.09</code></td><td><strong>Live.</strong> CSMS #67400472.</td><td><strong>Claim-gated</strong> Note 39(b)</td></tr>
 <tr><td>232 metals</td><td><code>9903.82.xx</code></td><td><strong>Live.</strong> Separate line; metal-content or entered-value derivative.</td><td>Yes (chapter triage + content)</td></tr>
 <tr><td>232 patented pharma</td><td><code>9903.04.60</code>–<code>.67</code></td><td><strong>Live.</strong> Proclamation 11020 / CSMS #69395344, #69415934.</td><td><strong>Claim-gated</strong> Ch.29/30</td></tr>
-<tr><td>JP / EU / KR trade-deal caps</td><td><code>9903.94.43/.45/.55/.63</code></td><td>Rate known; <strong>MFN mechanic TBC (R6)</strong></td><td>Rate yes; <strong>totals blocked</strong></td></tr></tbody></table></div>
+<tr><td><strong>Section 338 Canada</strong></td><td><code>9903.03.12</code>–<code>.16</code></td><td><strong>Live</strong> from 12:01 a.m. EST <strong>2026-08-22</strong> (CSMS #69606660). Original 2026-08-19 start was suspended 19–21 Aug (Proc. 11056).</td><td>Yes (product of Canada + HTS list). Aircraft <code>.16</code> is <strong>claim-gated</strong> (<code>civil_aircraft_gn6</code>)</td></tr>
+<tr><td><strong>Section 201 QSP</strong></td><td><code>9903.45.30</code> / <code>.31</code></td><td><strong>Live</strong> from <strong>2026-08-15</strong> through 2030-08-14 (U.S. note 41). In-quota 25% year 1; over-quota 50%. HTS <code>6810.99.0020</code> / <code>.0040</code> / <code>7020.00.6000</code>. VN/CN/IN in scope. Stacks with 301-FL.</td><td>Yes (list auto; over-quota claim)</td></tr>
+<tr><td><strong>232 UAS / drones</strong></td><td><code>9903.08.21</code> / <code>.22</code></td><td><strong>Live</strong> from <strong>2026-09-03</strong> (Proc. 11055 / note 43). Large UAS 100%; small UAS 25%. Suppresses 301-FL.</td><td>Yes (list auto; thermal / docking / 8807 claim-gated)</td></tr>
+<tr><td>JP / EU leftover trade-deal flags</td><td><code>9903.94.45/.55</code></td><td>Rate known; <strong>MFN mechanic TBC (R6)</strong></td><td>Rate yes; <strong>totals blocked</strong></td></tr></tbody></table></div>
 <hr />
 <h2 id="3-filing-eras-rate-determination-date">3. Filing eras (rate-determination date)</h2>
 <p>Calendar days are <strong>inclusive</strong>. Entry Date is the usual proxy.</p>
@@ -268,8 +274,8 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <pre class="mermaid">flowchart TD
   A[HTS + origin + rate date + claims] --> B{On a Section 232 list or valid 232 claim?}
   B -->|Yes — pick the 232 winner by precedence| C[Report 232 Ch.99 + 9903.05.90]
-  C --> D{China 301 list?}
-  D -->|Yes| E[Also report 9903.88.xx first]
+  C --> D{China 301 note 31 or legacy list?}
+  D -->|Yes| E[Also report 9903.91.xx or 9903.88.xx first]
   D -->|No| F[Done with remedies]
   B -->|No| G{Rate date ≥ 2026-07-24?}
   G -->|Yes| H[301-FL by origin — flat or threshold]
@@ -279,29 +285,36 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <ol><li><strong>Claimed semiconductors</strong> <code>9903.79.01</code> (beats autos / MHDV / metals).</li><li><strong>MHDV vehicles / buses</strong> (auto from HTS). MHDV <strong>parts</strong> only when claimed.</li><li><strong>Passenger vehicles / light trucks</strong> (auto from HTS).</li><li><strong>Auto-parts annex</strong> (auto) or off-list auto-part <strong>claim</strong>. Chapter 73/74 metals still win over parts (R5 TBC).</li><li><strong>Wood</strong> (auto from HTS) — skipped if autos/parts already won.</li></ol>
 <p><code>8704.60.00</code> is on <strong>both</strong> the passenger-vehicle and MHDV vehicle lists. Default is passenger <code>9903.94.01</code> unless the filer claims <code>s232_mhdv</code>.</p>
 <hr />
-<h2 id="5-stacking-rules-r1-r10">5. Stacking rules (R1–R10)</h2>
+<h2 id="5-stacking-rules-r1-r11">5. Stacking rules (R1–R11)</h2>
 <p>Authoritative copies: <code>interaction_rules.json</code> + <code>framework_contract.json</code>.</p>
 <h3 id="r1-232-vs-301-fl-mutually-exclusive-232-wins">R1 — 232 vs 301-FL: mutually exclusive, 232 wins</h3>
 <p>When a line is a valid 232 determination (any family in §6), report <strong><code>9903.05.90</code></strong> and do <strong>not</strong> assess 301-FL additional duty.</p>
 <p>A valid 232 determination is <strong>list + (auto or claim)</strong> — not “this chapter looks automotive.”</p>
-<h3 id="r2-legacy-china-301-is-not-suppressed">R2 — Legacy China 301 is not suppressed</h3>
-<p><code>9903.88.xx</code> reports <strong>in addition to</strong> 232 (and in addition to historical Sec 122). China 301 reports <strong>first</strong>.</p>
+<h3 id="r2-china-301-is-not-suppressed">R2 — China 301 is not suppressed</h3>
+<p>Legacy <code>9903.88.xx</code> <strong>and</strong> four-year review <code>9903.91.xx</code> / <code>9903.92.10</code> report <strong>in addition to</strong> 232 (and historical Sec 122). China 301 reports <strong>first</strong>. Note 31 <strong>replaces</strong> <code>9903.88.xx</code> on the same HTS — do not stack both 301 headings.</p>
 <p>Worked: CN <code>8708</code> List 3 @ 2.5% col-1 → 25% (301) + 25% (232) + 2.5% = <strong>52.5%</strong>.</p>
+<p>Worked: CN <code>7601.10.30</code> on/after 2024-09-27 → <code>9903.91.01</code> 25% + <code>9903.82.02</code> 50% metal-content + 2.6% col-1.</p>
 <h3 id="r2b-section-122-does-not-stack-with-232">R2b — Section 122 does not stack with 232</h3>
 <p>When 232 applies in the 122 window, report <code>9903.03.06</code> and suppress <code>9903.03.01</code>. China 301 still reports (R2).</p>
 <h3 id="r2c-brazil-country-301-stacks-with-301-fl">R2c — Brazil country 301 stacks with 301-FL</h3>
 <p>Brazil <code>9903.05.01</code> @ 25% (from 2026-07-22) <strong>and</strong> 301-FL Brazil <code>9903.05.27</code> @ 12.5% (from 2026-07-24) both apply when the line is not in the 232 universe. In the 232 universe: Brazil exemption <code>.07</code> + FL <code>.90</code>.</p>
-<h3 id="r3-japan-232-auto-parts-top-up">R3 — Japan 232 auto-parts top-up</h3>
-<p>For <strong>auto parts only</strong> (not passenger vehicles): if col-1 &amp;lt; 15%, 232 tops up to 15% via <code>9903.94.43</code> (15% on the Ch.99 line; <strong>zero</strong> on the Ch.1–97 line).</p>
-<p>Worked: JP part @ 2.5% col-1 → 232 of 12.5% → <strong>15.0%</strong> total. Same part <em>not</em> a 232 auto part → 301-FL threshold (e.g. <code>9903.05.49</code> +10%) → <strong>12.5%</strong> total.</p>
-<p>A JP <strong>passenger vehicle</strong> uses <code>9903.94.01</code> @ 25% additional — <strong>not</strong> the 15% parts top-up.</p>
+<h3 id="r3-232-automobiles-are-origin-driven">R3 — 232 automobiles are origin-driven</h3>
+<p>Default (most COO): passenger vehicles <code>9903.94.01</code> @ 25% additional; auto parts <code>9903.94.05</code> @ 25% additional. Column 1 stacks.</p>
+<p>When Column 1 is under the cap, CSMS default reports the <strong>cap on the Ch.99 line</strong> and <strong>$0 on Ch.1–97</strong> (drawback split is <code>s232_drawback_col1</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Origin</th><th>From</th><th>Vehicles (col-1 &amp;lt; cap / ≥ cap)</th><th>Parts (col-1 &amp;lt; cap / ≥ cap)</th><th>Cap</th></tr></thead><tbody><tr><td>Japan</td><td>2025-09-16</td><td><code>9903.94.41</code> / <code>.40</code></td><td><code>9903.94.43</code> / <code>.42</code></td><td>15%</td></tr>
+<tr><td>EU</td><td>2025-08-01</td><td><code>9903.94.51</code> / <code>.50</code></td><td><code>9903.94.53</code> / <code>.52</code></td><td>15%</td></tr>
+<tr><td>Korea</td><td>2025-11-01</td><td><code>9903.94.61</code> / <code>.60</code></td><td><code>9903.94.63</code> / <code>.62</code></td><td>15%</td></tr>
+<tr><td>UK parts</td><td>2025-06-30</td><td>(vehicles stay <code>.01</code> unless TRQ)</td><td><code>9903.94.32</code></td><td>10%</td></tr></tbody></table></div>
+<p>Worked: JP <code>8703.23.01</code> @ 2.5% col-1 → <code>9903.94.41</code>, <strong>15.0%</strong> total (not <code>.01</code> @ 27.5%, not parts <code>.43</code>). JP part @ 2.5% → <code>9903.94.43</code>, <strong>15.0%</strong>. Same JP part <em>not</em> a 232 auto part → 301-FL <code>9903.05.49</code> +10% → <strong>12.5%</strong>.</p>
+<p>UK passenger-vehicle TRQ <code>9903.94.31</code> is <strong>claim-gated</strong> (<code>s232_uk_auto_trq</code>): +7.5% additional stacking with Column 1 (typically 10% combined). Over-quota stays <code>9903.94.01</code>.</p>
+<p>Vintage <code>9903.94.04</code> still beats origin splits when claimed.</p>
 <h3 id="r4-metals-on-a-separate-line-basis">R4 — Metals on a separate line / basis</h3>
 <ul><li><strong>R4a</strong> <code>9903.82.02</code> — primary steel / aluminum / copper articles: <strong>+50% on metal-content</strong> (needs content + melt/pour).</li><li><strong>R4b</strong> <code>9903.82.09</code> — copper / derivative alu+steel: <strong>+25% on entered value</strong>.</li><li><strong>R4c</strong> Sec 122 is <strong>entry-level</strong>: <code>9903.03.01</code> on any ESL of an Entry Summary Number satisfies the entry.</li></ul>
 <p>Do not fold metals duty into the parts TOTAL.</p>
 <h3 id="r5-metals-vs-autos-on-ch-73-74-tbc">R5 — Metals vs autos on Ch.73/74 — <strong>TBC</strong></h3>
 <p>Conflicting published guidance. Engine currently lets chapter metals win over auto-parts on those chapters. <strong>Do not treat as signed off.</strong></p>
-<h3 id="r6-trade-deal-mfn-cap-blocking">R6 — Trade-deal MFN cap — <strong>BLOCKING</strong></h3>
-<p>Unresolved whether MFN is zeroed or conditionally capped on <code>9903.94.43/.45/.55/.63</code>. Engine <strong>refuses a total</strong> on those paths until resolved.</p>
+<h3 id="r6-leftover-trade-deal-flags-blocking">R6 — Leftover trade-deal flags — <strong>BLOCKING</strong></h3>
+<p>Explicit <code>trade_deal_*</code> flags and leftover headings <code>9903.94.45</code> / <code>.55</code> still refuse a total. JP/EU/KR CSMS origin-split 232 headings are computed under R3.</p>
 <h3 id="r7-9903-94-xx-program-label-tbc">R7 — <code>9903.94.xx</code> program label — <strong>TBC</strong></h3>
 <p>232 autos vs trade-deal framing. Rates may still be confirmed; legal-basis / drawback labeling is not.</p>
 <h3 id="r8-hts-authority">R8 — HTS authority</h3>
@@ -309,7 +322,12 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <h3 id="r9-ad-cvd">R9 — AD/CVD</h3>
 <p>Outside Chapter 99 math. Flag for producer/exporter case coverage; do not invent AD/CVD in this stack.</p>
 <h3 id="r10-usmca-cafta-dr">R10 — USMCA / CAFTA-DR</h3>
-<p>SPI S/S+ (and CAFTA-DR) zeros <strong>Column 1 + MPF only</strong>. It does <strong>not</strong> automatically clear 301-FL, 232, China 301, or Brazil 301. Those need their <strong>own</strong> Ch.99 exception (e.g. 301-FL Note 52 → <code>9903.05.93</code> CA / <code>.94</code> MX). MHDV parts with USMCA claim use <code>9903.74.10</code> @ 0% additional (still in the 232 universe → FL <code>.90</code>).</p>
+<p>SPI S/S+ (and CAFTA-DR) zeros <strong>Column 1 + MPF only</strong>. It does <strong>not</strong> automatically clear 301-FL, 232, China 301, Brazil 301, or <strong>Section 338</strong>. Those need their <strong>own</strong> Ch.99 exception (e.g. 301-FL Note 52 → <code>9903.05.93</code> CA / <code>.94</code> MX). MHDV parts with USMCA claim use <code>9903.74.10</code> @ 0% additional (still in the 232 universe → FL <code>.90</code>). Section 338 has <strong>no</strong> SPI exemption — USMCA-originating Canadian goods still pay the 50% additional.</p>
+<h3 id="r11-section-338-canada">R11 — Section 338 Canada</h3>
+<p>Products of Canada on the Note 51(b) lists pay <strong>+50%</strong> additional (<code>9903.03.12</code> alcohol, <code>.13</code> dairy, <code>.14</code> broad goods) from <strong>12:01 a.m. EST 2026-08-22</strong>. Stacks on Column 1, 301-FL, China 301, 201, AD/CVD, MPF/HMF. <strong>Drawback eligible.</strong></p>
+<p>If the line already attracts a listed 232-family heading (metals <code>9903.82.02</code> / <code>.04</code>–<code>.26</code>, autos, wood, MHDV, semiconductors <code>.01</code>, patented pharma <code>.60</code>–<code>.66</code>), report <strong><code>9903.03.15</code> @ 0%</strong> instead — never both a 50% 338 heading and a Note 51(c) heading.</p>
+<p>Civil aircraft (General Note 6) on the Note 51(d) list reports <strong><code>9903.03.16</code> @ 0%</strong> only when <code>civil_aircraft_gn6</code> is claimed.</p>
+<p>Evaluate 232-family <strong>first</strong>, then gate 338. On the 7501, 338 reports in the Chapter 99 <strong>additional</strong> slot <strong>before</strong> 301 / 232 (CSMS #69606660). CBP’s Ch.98/drawback text citing <code>9903.04.12</code>–<code>.14</code> is a typo for <code>9903.03.12</code>–<code>.14</code>.</p>
 <h3 id="reporting-order">Reporting order</h3>
 <p>CBP: Chapter 99 lines <strong>before</strong> Chapters 1–97. Where China 301 and 232 both apply, <strong>301 reports first</strong>.</p>
 <hr />
@@ -323,7 +341,10 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td>Duty</td><td><strong><code>9903.94.05</code> @ 25% additional</strong> (auto if in annex)</td></tr>
 <tr><td>301-FL</td><td>Suppressed via <code>9903.05.90</code></td></tr>
 <tr><td>Off-list</td><td>No auto-232. Optional claim <code>s232_auto_part</code> with evidence (claim-gated warning).</td></tr>
-<tr><td>Japan</td><td>Top-up <code>9903.94.43</code> (R3) — parts only</td></tr></tbody></table></div>
+<tr><td>Japan</td><td>Origin split <code>9903.94.43</code> / <code>.42</code> (R3) — parts only</td></tr>
+<tr><td>EU</td><td>Origin split <code>9903.94.53</code> / <code>.52</code> from 2025-08-01</td></tr>
+<tr><td>Korea</td><td>Origin split <code>9903.94.63</code> / <code>.62</code> from 2025-11-01</td></tr>
+<tr><td>UK</td><td>Origin split <code>9903.94.32</code> combined 10%</td></tr></tbody></table></div>
 <p><strong>In annex (examples):</strong> <code>8544.30.00</code>, <code>8708.10.30</code>, <code>8708.29</code>, <code>8471</code> (whole heading). <strong>Not in annex (examples):</strong> <code>8544.42.90</code>, <code>8544.49</code>, sign plates <code>8310…</code>.</p>
 <p>Chapter membership (e.g. “it's Ch.87”) is <strong>triage, not a determination</strong>.</p>
 <h3 id="6-2-passenger-vehicles-and-light-trucks-csms-64624801">6.2 Passenger vehicles and light trucks — CSMS #64624801</h3>
@@ -331,7 +352,11 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td>Pack</td><td><code>data/s232_autos_vehicles.json</code></td></tr>
 <tr><td>Proclamation</td><td>10908 (U.S. note 33 subdiv. (a)–(e))</td></tr>
 <tr><td>Effective</td><td>2025-04-03</td></tr>
-<tr><td>Duty</td><td><strong><code>9903.94.01</code> @ 25% additional</strong> — <strong>auto from HTS list</strong></td></tr>
+<tr><td>Duty (default)</td><td><strong><code>9903.94.01</code> @ 25% additional</strong> — <strong>auto from HTS list</strong></td></tr>
+<tr><td>Japan (from 2025-09-16)</td><td><strong><code>9903.94.41</code></strong> combined 15% if col-1 &amp;lt; 15%; <strong><code>9903.94.40</code></strong> @ 0% if col-1 ≥ 15%</td></tr>
+<tr><td>EU (from 2025-08-01)</td><td><strong><code>9903.94.51</code></strong> / <strong><code>.50</code></strong> (same 15% cap)</td></tr>
+<tr><td>Korea (from 2025-11-01)</td><td><strong><code>9903.94.61</code></strong> / <strong><code>.60</code></strong> (same 15% cap)</td></tr>
+<tr><td>UK TRQ</td><td><strong><code>9903.94.31</code></strong> @ 7.5% additional — <strong>claim</strong> <code>s232_uk_auto_trq</code></td></tr>
 <tr><td>Not a PV / light truck</td><td><code>9903.94.02</code> @ 0% (claim <code>s232_auto_not_pv</code>)</td></tr>
 <tr><td>25-year vehicle</td><td><code>9903.94.04</code> @ 0% (claim <code>s232_vehicle_vintage</code>)</td></tr>
 <tr><td>USMCA non-U.S. content</td><td><code>9903.94.03</code> — Commerce approval; <strong>not auto-assessed</strong></td></tr></tbody></table></div>
@@ -341,8 +366,8 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 8703.40.00  8703.50.00  8703.60.00  8703.70.00  8703.80.00
 8703.90.01
 8704.21.01  8704.31.01  8704.41.00  8704.51.00  8704.60.00</code></pre>
-<p><code>8704.60.00</code> also appears on the MHDV vehicle list. <strong>Default = passenger <code>9903.94.01</code></strong> unless <code>flags.s232_mhdv</code>.</p>
-<p>Japan 15% top-up <strong>does not</strong> apply to this heading.</p>
+<p><code>8704.60.00</code> also appears on the MHDV vehicle list. <strong>Default = passenger heading</strong> (origin-split or <code>9903.94.01</code>) unless <code>flags.s232_mhdv</code>.</p>
+<p>Japan <strong>vehicles</strong> use <code>9903.94.41</code>, not the parts heading <code>9903.94.43</code>.</p>
 <h3 id="6-3-mhdv-buses-and-mhdv-parts-proclamation-10984-csms-66665333">6.3 MHDV, buses, and MHDV parts — Proclamation 10984 / CSMS #66665333</h3>
 <div class="table-wrap"><table><thead><tr><th>&nbsp;</th><th>&nbsp;</th></tr></thead><tbody><tr><td>--</td><td>--</td></tr>
 <tr><td>Pack</td><td><code>data/s232_mhdv.json</code></td></tr>
@@ -425,6 +450,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <hr />
 <h2 id="8-other-301-programs">8. Other 301 programs</h2>
 <p><strong>Legacy China 301</strong> — <code>data/s301_china_lists.json</code>. Membership is 8-digit HTS, not a checkbox. Lists map to <code>9903.88.01</code> / <code>.02</code> / <code>.03</code> / <code>.15</code>. Stacks with 232 (R2).</p>
+<p><strong>China 301 four-year review</strong> — <code>data/s301_china_note31.json</code>. U.S. note 31 / CSMS #62411889 / 89 FR 76581. Products of China. Auto from 8-digit HTS (or 10-digit stats for masks/EV batteries). <code>9903.91.01</code> @ 25% from 2024-09-27 covers steel/aluminum (including <code>7601.10.30</code>) plus listed minerals and battery parts. Later headings: <code>.02</code> solar 50%, <code>.03</code> EVs/syringes 100%, <code>.05</code> semiconductors 50% (2025-01-01), <code>.06</code>–<code>.08</code> 2026 waves. Replaces <code>9903.88.xx</code> on the same HTS; still stacks with 232. Ship-to-shore cranes (<code>8426.19.00</code>) are claim-gated (<code>s301_sts_crane</code> / <code>_exclusion</code> / <code>_other_crane</code>).</p>
 <p><strong>Brazil country 301</strong> — <code>data/s301_brazil.json</code>. <code>9903.05.01</code> @ 25% from 2026-07-22; exemptions <code>.02</code>–<code>.09</code>. Stacks with 301-FL Brazil <code>.27</code> when 232 does not apply (R2c).</p>
 <hr />
 <h2 id="9-claim-flags-what-a-human-must-still-assert">9. Claim flags (what a human must still assert)</h2>
@@ -439,7 +465,12 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td><code>s232_wood_not_cabinet</code></td><td>On cabinet HTS list, not a completed cabinet</td><td><code>9903.76.04</code></td></tr>
 <tr><td><code>s232_pharma_patented</code> / <code>_generic</code></td><td>Ch.29/30 patented vs generic</td><td><code>9903.04.60</code>–<code>.67</code></td></tr>
 <tr><td><code>s301fl_pharma</code></td><td>Pharmaceutical <strong>use</strong> Note 52(e)</td><td><code>9903.05.89</code></td></tr>
-<tr><td><code>fta_usmca</code></td><td>SPI S/S+</td><td>Col-1 + MPF; FL <code>.93</code>/<code>.94</code> if Note 52</td></tr></tbody></table></div>
+<tr><td><code>fta_usmca</code></td><td>SPI S/S+</td><td>Col-1 + MPF; FL <code>.93</code>/<code>.94</code> if Note 52</td></tr>
+<tr><td><code>civil_aircraft_gn6</code></td><td>Civil aircraft meeting General Note 6</td><td><code>9903.03.16</code> @ 0% (Section 338)</td></tr>
+<tr><td><code>ftz_admission</code></td><td>Admitted to a US FTZ</td><td>privileged-foreign warning for 338</td></tr>
+<tr><td><code>s301_sts_crane</code></td><td><code>8426.19.00</code> is a ship-to-shore gantry crane</td><td><code>9903.92.10</code></td></tr>
+<tr><td><code>s301_sts_exclusion</code></td><td>STS crane with pre-May 14 2024 contract (through 2026-05-13)</td><td><code>9903.91.09</code></td></tr>
+<tr><td><code>s301_sts_other_crane</code></td><td><code>8426.19.00</code> is <strong>not</strong> an STS gantry crane</td><td><code>9903.92.80</code></td></tr></tbody></table></div>
 <p>Do not treat a UI checkbox as authority when the annex JSON already auto-applies.</p>
 <hr />
 <h2 id="10-hts-list-coverage-how-the-new-rules-show-up">10. HTS list (coverage) — how the new rules show up</h2>
@@ -452,7 +483,9 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td>VN upholstered wood furniture</td><td><code>9401.61.4011</code></td><td>VN</td><td><code>9903.76.02</code> @ 25% + <code>.90</code></td></tr>
 <tr><td>DE same furniture</td><td><code>9401.61.4011</code></td><td>DE</td><td><code>9903.76.22</code> @ 15% (EU) + <code>.90</code></td></tr>
 <tr><td>GB kitchen cabinets</td><td><code>9403.40.9060</code></td><td>GB</td><td><code>9903.76.20</code> @ 10% + <code>.90</code></td></tr>
-<tr><td>JP passenger vehicle</td><td><code>8703.23.01</code></td><td>JP</td><td><code>9903.94.01</code> @ 25% additional — <strong>not</strong> <code>.43</code></td></tr>
+<tr><td>JP passenger vehicle</td><td><code>8703.23.01</code></td><td>JP</td><td><code>9903.94.41</code> combined 15% — <strong>not</strong> <code>.01</code> @ 25% and <strong>not</strong> parts <code>.43</code></td></tr>
+<tr><td>DE passenger vehicle</td><td><code>8703.23.01</code></td><td>DE</td><td><code>9903.94.51</code> combined 15%</td></tr>
+<tr><td>TH passenger vehicle</td><td><code>8703.23.01</code></td><td>TH</td><td><code>9903.94.01</code> @ 25% additional</td></tr>
 <tr><td>DE dump truck</td><td><code>8704.23.01</code></td><td>DE</td><td><code>9903.74.01</code> @ 25% + <code>.90</code></td></tr>
 <tr><td>KR bus</td><td><code>8702.10.31</code></td><td>KR</td><td><code>9903.74.02</code> @ 10% + <code>.90</code></td></tr>
 <tr><td>MHDV parts, no claim</td><td><code>8709.90.00</code></td><td>DE</td><td>Diagnostic only — <strong>no</strong> <code>.08</code></td></tr>
@@ -467,9 +500,10 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td><code>interaction_rules.json</code></td><td>R1–R10</td></tr>
 <tr><td><code>ch99_codes.json</code></td><td>Chapter 99 registry</td></tr>
 <tr><td><code>s301fl_pack.json</code></td><td>60 economies</td></tr>
-<tr><td><code>s301_brazil.json</code></td><td>Brazil 301</td></tr>
+<tr><td><code>s338_canada.json</code></td><td>Section 338 Canada HTS lists + dates</td></tr>
 <tr><td><code>s301_china_lists.json</code></td><td>China 301 HTS membership</td></tr>
 <tr><td><code>s232_auto_parts_annex.json</code></td><td>Auto-parts stems</td></tr>
+<tr><td><code>s232_auto_origin.json</code></td><td>JP/EU/KR/UK 232 vehicle and parts heading map</td></tr>
 <tr><td><code>s232_autos_vehicles.json</code></td><td>Passenger / light truck stems</td></tr>
 <tr><td><code>s232_mhdv.json</code></td><td>MHDV / bus / parts stems</td></tr>
 <tr><td><code>s232_wood.json</code></td><td>Wood buckets</td></tr>
@@ -503,6 +537,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td>R2c Brazil 301 + FL stack</td><td class="blank"></td><td class="blank"></td><td class="blank"></td></tr>
 <tr><td>R3 JP parts top-up only (not vehicles)</td><td class="blank"></td><td class="blank"></td><td class="blank"></td></tr>
 <tr><td>R10 SPI zeros Col-1+MPF only</td><td class="blank"></td><td class="blank"></td><td class="blank"></td></tr>
+<tr><td>R11 Section 338 Canada (50% / <code>.15</code> / <code>.16</code>)</td><td class="blank"></td><td class="blank"></td><td class="blank"></td></tr>
 <tr><td>Auto-parts annex auto-apply + 8544.42 <strong>out</strong></td><td class="blank"></td><td class="blank"></td><td class="blank"></td></tr>
 <tr><td>Passenger vehicle HTS list + <code>9903.94.01</code></td><td class="blank"></td><td class="blank"></td><td class="blank"></td></tr>
 <tr><td><code>8704.60.00</code> default passenger</td><td class="blank"></td><td class="blank"></td><td class="blank"></td></tr>
@@ -515,10 +550,10 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td>HTS list shows new 232 lists + claim chips</td><td class="blank"></td><td class="blank"></td><td class="blank"></td></tr></tbody></table></div>
 <hr />
 <h2 id="changelog">Changelog</h2>
-<ul><li><strong>1.5.0 (2026-08-17)</strong> — Full review pack for developers and compliance: 232 vehicles / MHDV / wood / semiconductors with complete short HTS lists, claim vs auto, precedence, HTS-list behavior, sign-off table.</li><li><strong>1.4.0 (2026-08-14)</strong> — New 232 packs wired from CSMS (see <code>FRAMEWORK.md</code>).</li><li><strong>1.3.x</strong> — Brazil 301; shareable framework.</li><li><strong>1.0.0 (2026-07-31)</strong> — Initial cut from the 2026-07-27 full-stack build.</li></ul>
+<ul><li><strong>1.6.0 (2026-08-24)</strong> — Section 338 Canada (<code>9903.03.12</code>–<code>.16</code>, CSMS #69606660): 50% additional on listed products of Canada from 12:01 a.m. EST 2026-08-22; 3-day suspension 19–21 Aug; Note 51(c)/(d) exclusions; drawback eligible; USMCA does not exempt.</li><li><strong>1.5.0 (2026-08-17)</strong> — Full review pack for developers and compliance: 232 vehicles / MHDV / wood / semiconductors with complete short HTS lists, claim vs auto, precedence, HTS-list behavior, sign-off table.</li><li><strong>1.4.0 (2026-08-14)</strong> — New 232 packs wired from CSMS (see <code>FRAMEWORK.md</code>).</li><li><strong>1.3.x</strong> — Brazil 301; shareable framework.</li><li><strong>1.0.0 (2026-07-31)</strong> — Initial cut from the 2026-07-27 full-stack build.</li></ul>
 <hr />
 <p><em>Machine truth: <code>tariff-rules/data/</em>.json</code>. If prose and JSON disagree, JSON wins.*</p>
-    <p class="foot">KlearNow Tariff · generated 2026-08-17</p>
+    <p class="foot">KlearNow Tariff · generated 2026-08-27</p>
   </article>
 </div>
 <script type="module">

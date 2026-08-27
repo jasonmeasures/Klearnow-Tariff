@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compileStems, matchStem } from "./s232Stems.ts";
+import { classifyChapter98 } from "./ch98Basis.ts";
 
 export const S338_DUTY_HEADINGS = ["9903.03.12", "9903.03.13", "9903.03.14"] as const;
 export const S338_EXCLUSION_15 = "9903.03.15";
@@ -189,11 +190,7 @@ function parseRateInstant(raw: string): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-function normalizeCh98(code: string): string {
-  const d = String(code || "").replace(/\D/g, "");
-  if (d.length < 8) return String(code || "").trim();
-  return `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6, 8)}`;
-}
+import { classifyChapter98 } from "./ch98Basis.ts";
 
 export type S338Ch98 =
   | { kind: "exempt" }
@@ -202,18 +199,14 @@ export type S338Ch98 =
   | { kind: "subchapter_xxiii"; provision: string }
   | { kind: "none" };
 
+/** Map shared Chapter 98 classifier → Section 338 outcomes (general 98xx = exempt). */
 export function classifyS338Chapter98(provision: string | null | undefined): S338Ch98 {
-  const p = load();
-  const code = normalizeCh98(provision || "");
-  if (!code || !code.startsWith("98")) return { kind: "none" };
-  if (code.startsWith("9823")) return { kind: "subchapter_xxiii", provision: code };
-  if ((p.chapter_98.repair_provisions || []).includes(code)) {
-    return { kind: "repair", provision: code };
-  }
-  if (code === p.chapter_98.assembly_provision) {
-    return { kind: "assembly", provision: code };
-  }
-  return { kind: "exempt" };
+  const cls = classifyChapter98(provision);
+  if (cls.kind === "none") return { kind: "none" };
+  if (cls.kind === "suppress") return { kind: "exempt" };
+  if (cls.kind === "repair") return { kind: "repair", provision: cls.provision };
+  if (cls.kind === "assembly") return { kind: "assembly", provision: cls.provision };
+  return { kind: "subchapter_xxiii", provision: cls.provision };
 }
 
 export type S338Assessment = {
