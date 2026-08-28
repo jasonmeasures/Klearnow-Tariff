@@ -929,6 +929,7 @@ export function assessLine(line: LineIn, index: number) {
     col1Rate: col1,
   });
   const s232Hit = s232Res.hit;
+  const s232Companion = s232Res.companion || null;
   for (const n of s232Res.notes) {
     diagnostics.push({
       severity: n.severity,
@@ -1011,8 +1012,8 @@ export function assessLine(line: LineIn, index: number) {
   } else if (metalsHit) {
     const basisNote =
       metalsHit.basis === "ENTERED_VALUE"
-        ? `${metalsHit.duty_ch99} @ ${metalsHit.rate_pct}% on entered value (derivative / copper path — U.S. note 16 / CSMS #68253075).`
-        : `Chapter ${metalsHit.chapter} ${metalsHit.metal} article → ${metalsHit.duty_ch99} at ${metalsHit.rate_pct}% on metal-content value (CSMS #68253075). Mixed steel/aluminum/copper content is summed. Enter melt/pour (or smelt) per metal.`;
+        ? `${metalsHit.duty_ch99} @ ${metalsHit.rate_pct}% on entered value (derivative / copper path — U.S. note 16 / CSMS #68253075 / #68855869).`
+        : `Chapter ${metalsHit.chapter} ${metalsHit.metal} article → ${metalsHit.duty_ch99} at ${metalsHit.rate_pct}% on metal-content value (CSMS #68253075 / #68855869). Mixed steel/aluminum/copper content is summed. Enter melt/pour (or smelt) per metal.`;
     diagnostics.push({
       severity: "INFO",
       code: metalsHit.claim_gated ? "S232_METALS_CLAIM" : "S232_METALS_TRIAGE",
@@ -1183,6 +1184,21 @@ export function assessLine(line: LineIn, index: number) {
           rate_pct: s232Hit.rate_pct_decimal,
         }),
       );
+      if (s232Companion) {
+        layers.push(
+          layer({
+            slot: "3.3",
+            program: "SEC_232_MHDV",
+            ch99: s232Companion.heading,
+            label: "232 MHDV parts list — not an MHDV part",
+            reason: s232Companion.reason + s232Note,
+            source_ref: s232Companion.source,
+            basis: s232Basis,
+            basis_amount: s232Amt,
+            rate_pct: 0,
+          }),
+        );
+      }
       return s232Hit.zero_commodity;
     }
     if (s232Hit.family === "autos_parts") {
@@ -1209,6 +1225,21 @@ export function assessLine(line: LineIn, index: number) {
           rate_pct: meta.rate,
         }),
       );
+      if (s232Companion) {
+        layers.push(
+          layer({
+            slot: "3.3",
+            program: "SEC_232_MHDV",
+            ch99: s232Companion.heading,
+            label: "232 MHDV parts list — not an MHDV part",
+            reason: s232Companion.reason + s232Note,
+            source_ref: s232Companion.source,
+            basis: s232Basis,
+            basis_amount: s232Amt,
+            rate_pct: 0,
+          }),
+        );
+      }
       return false;
     }
     const meta = assertComputable(s232Hit.heading);
@@ -1447,7 +1478,7 @@ export function assessLine(line: LineIn, index: number) {
                   ? ` [${metalParts.map((p) => `${p.kind} $${p.basis.toFixed(2)}`).join(" + ")}]`
                   : ""
               }; melt/pour ${metalParts.map((p) => (p.melt_pour ? `${p.kind}:${p.melt_pour}` : "")).filter(Boolean).join(", ") || meltPour}. ${steel.notes}${ch98Note}`,
-        source_ref: "CSMS #68253075 / U.S. note 16",
+        source_ref: "CSMS #68253075 / #68855869 / U.S. note 16",
         basis: metalsBasis,
         basis_amount: metalsAmt,
         rate_pct: steel.rate,
@@ -1487,7 +1518,7 @@ export function assessLine(line: LineIn, index: number) {
             metalContentPct != null
               ? `Aggregate metal ${metalContentPct}% is under 15% (U.S. note 16). Not for Ch.72–74/76 articles. 301-FL is not suppressed. ${ex.notes}`
               : `Note 16 exclusion ${ex.code} @ 0%. 301-FL is not suppressed. ${ex.notes}`,
-          source_ref: "U.S. note 16 / CSMS #68253075",
+          source_ref: "U.S. note 16 / CSMS #68253075 / #68855869",
           basis: exclCh98.basis,
           basis_amount: exclCh98.basis_amount,
           rate_pct: ex.rate,

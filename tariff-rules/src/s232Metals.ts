@@ -1,18 +1,20 @@
 /**
  * Section 232 metals / copper triage (HTS chapter → content type + duty heading).
  *
- * Source framing: CSMS #68253075 / U.S. note 16 —
+ * Source framing: U.S. note 16 / CSMS #68253075 (Apr 2026) as amended by
+ * CSMS #68855869 (Jun 2026 Metals HTS List) —
  *   - 9903.82.02 — +50% on metal-content value for primary steel/alu/copper articles
  *   - 9903.82.09 — +25% on entered value for copper articles and derivative alu/steel
  *     (note 16(c)(vi)–(viii)/(xi)), including annex derivatives outside Ch.72–76
  *   - 9903.82.03 — 0% when aggregate metal weight is under 15% (not Ch.72–74/76)
  *
  * Chapters 72–74 and 76 are in-scope article triage. Derivative annex lines outside
- * those chapters are claim-gated via filed 9903.82.09 / 9903.03.06, or by entering
- * metal content % (under 15% → 9903.82.03; 15%+ → 9903.82.09).
+ * those chapters apply only when the HTS is on the metals matrix (CSMS list), via
+ * filed 9903.82.09 / 9903.03.06, or an explicit s232_metals claim — **not** from
+ * metal-content entry alone on an off-list HTS (e.g. solar 8541.43).
  */
 
-import { selectMetalsExtendedHeading } from "./s232MetalsMatrix.ts";
+import { lookupMetalsMatrix, selectMetalsExtendedHeading } from "./s232MetalsMatrix.ts";
 
 export type MetalKind = "steel" | "aluminum" | "copper";
 
@@ -153,11 +155,21 @@ export function classify232Metals(hts: string): MetalsHit | null {
   return hitFor(metal, chapter, hts10, "9903.82.02");
 }
 
+function metalKindFromLabel(label: string | undefined, fallback: MetalKind): MetalKind {
+  const m = String(label || "").toLowerCase();
+  if (m.includes("aluminum") || m.includes("aluminium")) return "aluminum";
+  if (m.includes("copper")) return "copper";
+  if (m.includes("steel")) return "steel";
+  return fallback;
+}
+
 /**
- * Resolve metals scope from chapter triage, filed Ch.99, metal content %, or claim flags.
+ * Resolve metals scope from chapter triage, published metals HTS list, filed Ch.99,
+ * metal content %, or claim flags.
  * Filed 9903.82.09 wins over the default Ch.72–76 article heading 9903.82.02.
- * Outside those chapters, metal content under 15% selects 9903.82.03 (keeps 301-FL);
- * 15% or more selects 9903.82.09 (suppresses 301-FL).
+ * Outside those chapters, content % selects .03 / .09 **only** when the HTS is on
+ * the metals matrix (CSMS Metals HTS List). Off-list HTS (e.g. 8541.43) need an
+ * explicit filed metals heading or s232_metals claim — content alone is ignored.
  */
 export function resolve232Metals(opts: {
   hts: string;
@@ -183,6 +195,7 @@ export function resolve232Metals(opts: {
   );
   const pct = opts.aggregate_metal_pct;
   const metal = opts.primary_metal || "steel";
+  const matrix = lookupMetalsMatrix(opts.hts);
 
   const applyExtended = (
     base: MetalsHit,
@@ -222,21 +235,27 @@ export function resolve232Metals(opts: {
 
   const hts10 = digits10(opts.hts);
   const chapter = hts10.slice(0, 2) || "??";
-  const gated = (code: string, kind: MetalKind = metal) =>
+  const matrixKind = metalKindFromLabel(matrix?.metal, metal);
+  const gated = (code: string, kind: MetalKind = matrixKind) =>
     hitFor(kind, chapter, hts10 || "0000000000", code, { claim_gated: true });
 
   if (dutyFiled) return gated(dutyFiled);
-  if (deMinimisFiled) return gated(deMinimisFiled, metal === "steel" ? "copper" : metal);
-  if (pct != null && pct > 0) {
-    return gated(pct < METALS_DE_MINIMIS_PCT ? "9903.82.03" : "9903.82.09");
+  if (deMinimisFiled) return gated(deMinimisFiled, matrixKind === "steel" ? "copper" : matrixKind);
+
+  // Annex / derivative HTS on the published Metals HTS List (outside Ch.72–74/76).
+  if (matrix && pct != null && pct > 0) {
+    return gated(pct < METALS_DE_MINIMIS_PCT ? "9903.82.03" : "9903.82.09", matrixKind);
   }
-  // Derivative annex outside Ch.72–76 — claim / 9903.03.06 filing (e.g. 9406 prefab).
+
+  // Explicit claim / 9903.03.06 filing (e.g. 9406 prefab) — still allowed off-list.
   if (filedExclusion || claimFlag) {
-    return gated("9903.82.09");
+    return gated("9903.82.09", matrixKind);
   }
+
+  // Off-list HTS: ignore stray metal-content fields (do not invent 9903.82.09).
   return null;
 }
 
 export function is232MetalsHts(hts: string): boolean {
-  return classify232Metals(hts) != null;
+  return classify232Metals(hts) != null || lookupMetalsMatrix(hts) != null;
 }

@@ -884,6 +884,7 @@ function applyQuickToLines() {
   if (cn === "list_4a") flags.s301_list_4a = true;
   if ($("#qc-232")?.checked) flags.s232_auto_part = true;
   if ($("#qc-s232-mhdv")?.checked) flags.s232_mhdv_part = true;
+  if ($("#qc-s232-mhdv-not")?.checked) flags.s232_mhdv_not_part = true;
   if ($("#qc-s232-semi")?.checked) flags.s232_semiconductor = true;
   if ($("#qc-s232-vintage")?.checked) flags.s232_vehicle_vintage = true;
   if ($("#qc-gn6")?.checked) flags.civil_aircraft_gn6 = true;
@@ -974,6 +975,7 @@ async function loadQuickExample(id) {
   if ($("#qc-s232-pharma")) $("#qc-s232-pharma").checked = Boolean(ex.flags?.s232_pharma_patented);
   if ($("#qc-pharma")) $("#qc-pharma").checked = Boolean(ex.flags?.s301fl_pharma);
   if ($("#qc-s232-mhdv")) $("#qc-s232-mhdv").checked = Boolean(ex.flags?.s232_mhdv_part);
+  if ($("#qc-s232-mhdv-not")) $("#qc-s232-mhdv-not").checked = Boolean(ex.flags?.s232_mhdv_not_part);
   if ($("#qc-s232-semi")) $("#qc-s232-semi").checked = Boolean(ex.flags?.s232_semiconductor);
   if ($("#qc-s232-vintage")) $("#qc-s232-vintage").checked = Boolean(ex.flags?.s232_vehicle_vintage);
   await syncFtaClaimUi();
@@ -1168,16 +1170,42 @@ function syncS232ClaimUi(uni = {}) {
   const mhdvWrap = $("#qc-s232-mhdv-wrap");
   const mhdvBox = $("#qc-s232-mhdv");
   const mhdvLabel = $("#qc-s232-mhdv-label");
+  const mhdvNotWrap = $("#qc-s232-mhdv-not-wrap");
+  const mhdvNotBox = $("#qc-s232-mhdv-not");
+  const mhdvNotLabel = $("#qc-s232-mhdv-not-label");
+  const onMhdvParts = Boolean(uni.mhdv_part_list);
+  // Dual-list (auto-parts annex + MHDV parts): .11 stacks automatically — hide
+  // the exclusion checkbox so operators are not asked to re-assert a list fact.
+  const dualList = onMhdvParts && Boolean(uni.auto_parts);
   if (mhdvWrap && mhdvBox) {
-    const show = Boolean(uni.mhdv_part_list);
+    const show = onMhdvParts;
     mhdvWrap.hidden = !show;
     if (!show) mhdvBox.checked = false;
     if (mhdvLabel && uni.mhdv_part_list) {
       mhdvLabel.innerHTML = `232 MHDV part <span class="cap">(list stem ${esc(uni.mhdv_part_list.matched_stem)} → 9903.74.08 @ 25%)</span>`;
     }
-    if (mhdvWrap) {
-      mhdvWrap.title = "Claim when the article is a part of a medium- or heavy-duty vehicle. On-list goods that are not MHDV parts use 9903.74.11 @ 0%.";
+    mhdvWrap.title =
+      "Claim when the article is a part of a medium- or heavy-duty vehicle. Leave unchecked (or use Not an MHDV part) when the HTS is on the MHDV parts list but the article is not an MHDV part — then 9903.74.11 @ 0%.";
+  }
+  if (mhdvNotWrap && mhdvNotBox) {
+    // Show exclusion only for MHDV-parts-list-only HTS (not dual-list auto-stack).
+    const show = onMhdvParts && !dualList;
+    mhdvNotWrap.hidden = !show;
+    if (!show) mhdvNotBox.checked = false;
+    if (mhdvNotLabel && uni.mhdv_part_list) {
+      mhdvNotLabel.innerHTML =
+        `Not an MHDV part <span class="cap">(list stem ${esc(uni.mhdv_part_list.matched_stem)} → 9903.74.11 @ 0%)</span>`;
     }
+    mhdvNotWrap.title =
+      "On the MHDV parts list but the article is not a part of a medium- or heavy-duty vehicle. Reports 9903.74.11 @ 0%. Mutually exclusive with 232 MHDV part.";
+  }
+  if (mhdvBox && mhdvNotBox) {
+    mhdvBox.onchange = () => {
+      if (mhdvBox.checked) mhdvNotBox.checked = false;
+    };
+    mhdvNotBox.onchange = () => {
+      if (mhdvNotBox.checked) mhdvBox.checked = false;
+    };
   }
   const semiWrap = $("#qc-s232-semi-wrap");
   const semiBox = $("#qc-s232-semi");

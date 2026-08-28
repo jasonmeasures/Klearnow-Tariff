@@ -452,7 +452,7 @@ export function coverOne(
       rate: `${m.rate_pct}% ${m.basis === "METAL_CONTENT_VALUE" ? "on metal content" : "on entered value"}`,
       rate_pct: m.rate_pct / 100,
       reason: m.content_prompt,
-      source_ref: "CSMS #68253075 / U.S. note 16",
+      source_ref: "CSMS #68253075 / #68855869 / U.S. note 16",
       status: m.basis === "METAL_CONTENT_VALUE" ? "info" : "applies",
     });
   }

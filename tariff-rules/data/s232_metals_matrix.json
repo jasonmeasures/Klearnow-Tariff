@@ -3,6 +3,8 @@
   "as_of": "2026-08-26",
   "source": "Trump_Tariffs_Summary_20260824 1.xlsx \u2014 Sec 232 Metals",
   "source_csms": "68253075",
+  "source_csms_amended": "68855869",
+  "source_note": "Base framework CSMS #68253075 (Apr 2026). Product list / June 2026 adjustments per CSMS #68855869 Metals HTS List (Proc. 11032). Re-diff attachment when replacing entries.",
   "row_count": 809,
   "heading_columns": {
     "D": "9903.82.01",

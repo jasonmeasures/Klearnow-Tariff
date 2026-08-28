@@ -25,7 +25,7 @@ export const METALS_PARTNER_ISO2 = new Set([
 
 export const METALS_RU_FAMILY = new Set(["RU", "BY", "CU", "KP"]);
 
-/** Known rates for extended headings (CSMS #68253075 / workbook matrix). */
+/** Known rates for extended headings (CSMS #68253075 / #68855869 workbook matrix). */
 export const METALS_EXTENDED_RATES: Record<string, number> = {
   "9903.82.01": 0,
   "9903.82.02": 50,

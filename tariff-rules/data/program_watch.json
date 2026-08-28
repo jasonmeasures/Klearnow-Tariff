@@ -1,6 +1,6 @@
 {
   "as_of": "2026-08-25",
-  "pull_process": "A pack exists only after a proclamation / FR annex / CSMS names Chapter 99 headings and an HTS list. Investigations are PENDING until that happens. Every program_status ACTIVE+compute row must appear here as LIVE with an engine_module or CI fails. Sources to check weekly: White House presidential actions, Federal Register (HTS annex PDFs), CBP CSMS RSS (already in /v1/csms).",
+  "pull_process": "A pack exists only after a proclamation / FR annex / CSMS names Chapter 99 headings and an HTS list. Investigations are PENDING until that happens. Every program_status ACTIVE+compute row must appear here as LIVE with an engine_module or CI fails. Sources to check weekly: White House presidential actions, Federal Register (HTS annex PDFs), CBP CSMS RSS (already in /v1/csms). Full intake checklist + weekly scorecard: tariff-rules/docs/PACK_INTAKE.md.",
   "sources": [
     "https://www.whitehouse.gov/presidential-actions/",
     "https://www.federalregister.gov/",
@@ -87,7 +87,7 @@
       "status": "LIVE",
       "effective": "2026-04-06",
       "engine_module": "tariff-rules/src/s232Metals.ts",
-      "why": "Note 16 / CSMS #68253075. Steel/alu/copper + derivatives. Outside Ch.72–74/76, content or filed heading required."
+      "why": "Note 16 / CSMS #68253075 as amended by #68855869 Metals HTS List. Steel/alu/copper + derivatives. Outside Ch.72–74/76, HTS must be on the list (content selects .03/.09) or filed heading / claim — content alone on off-list HTS does not invent metals."
     },
     {
       "id": "SEC_232_PHARMA",

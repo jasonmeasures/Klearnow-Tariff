@@ -68,7 +68,7 @@ export const STACKING_CONTRACT = {
     },
     {
       id: "R4b",
-      text: "9903.82.09 — copper / derivative alu+steel (U.S. note 16): +25% on entered value. Outside Ch.72–76, 15%+ metal content (or filed 9903.82.09) selects this path. Under 15% selects 9903.82.03 at 0% and keeps 301-FL.",
+      text: "9903.82.09 — copper / derivative alu+steel (U.S. note 16 / CSMS #68855869 list): +25% on entered value. Outside Ch.72–76, applies when HTS is on the metals matrix and content is 15%+ (or filed 9903.82.09 / claim). Under 15% on a listed HTS selects 9903.82.03 at 0% and keeps 301-FL. Off-list HTS (e.g. 8541.43) ignore bare metal-content fields.",
     },
     {
       id: "R4c",

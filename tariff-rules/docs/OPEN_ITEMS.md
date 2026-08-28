@@ -1,5 +1,7 @@
 # Open Items — resolve before shipping duty math
 
+New CSMS / pack work: use [`PACK_INTAKE.md`](./PACK_INTAKE.md) (weekly scorecard + PR intake block). Broker disputes that reveal pack gaps land here with owner + blocking flag.
+
 | # | Item | Blocking? | Owner |
 |---|---|---|---|
 | 1 | **MFN cap mechanic** on trade-deal codes (9903.94.43/.45/.55/.63): (A) MFN zeroed entirely, or (B) conditional cap? Material for Ch39 5.9% / Ch73 5.8% MFN lines. `computeTradeDealTotal()` throws until resolved. | **YES** | Jason |

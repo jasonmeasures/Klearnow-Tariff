@@ -245,9 +245,66 @@ describe("Section 232 new packs (wood / vehicles / MHDV / semiconductors)", () =
       0,
     );
     assert.ok(L.ch99_sequence.includes("9903.94.53"));
+    // Dual-list: MHDV parts-list exclusion stacks @ 0% alongside auto-parts.
+    assert.ok(L.ch99_sequence.includes("9903.74.11"));
     assert.ok(!L.ch99_sequence.includes("9903.74.08"));
     assert.ok(!L.ch99_sequence.includes("9903.94.05"));
     assert.equal(L.totals.effective_duty_rate_pct, 15);
+  });
+
+  it("dual-list 9401.20.00 / AT stacks EU auto-parts .53 with MHDV not-part .11", () => {
+    const L = assessLine(
+      {
+        hts: "9401.20.00",
+        coo: "AT",
+        entered_value: 10000,
+        col1_rate_pct: 0,
+        entry_date: DATE,
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.94.53"), `got ${L.ch99_sequence.join(",")}`);
+    assert.ok(L.ch99_sequence.includes("9903.74.11"), `got ${L.ch99_sequence.join(",")}`);
+    assert.ok(L.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!L.ch99_sequence.includes("9903.74.08"));
+    assert.equal(L.totals.effective_duty_rate_pct, 15);
+  });
+
+  it("MHDV-only parts list with s232_mhdv_not_part → 9903.74.11 alone", () => {
+    const L = assessLine(
+      {
+        hts: "8709.90.00",
+        coo: "DE",
+        entered_value: 10000,
+        col1_rate_pct: 0,
+        entry_date: DATE,
+        flags: { s232_mhdv_not_part: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.74.11"));
+    assert.ok(L.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!L.ch99_sequence.includes("9903.74.08"));
+    assert.equal(L.totals.duty, 0);
+  });
+
+  it("dual-list with s232_mhdv_part claim uses .08 not auto-parts", () => {
+    const L = assessLine(
+      {
+        hts: "9401.20.00",
+        coo: "AT",
+        entered_value: 10000,
+        col1_rate_pct: 0,
+        entry_date: DATE,
+        flags: { s232_mhdv_part: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.74.08"));
+    assert.ok(!L.ch99_sequence.includes("9903.94.53"));
+    assert.ok(!L.ch99_sequence.includes("9903.74.11"));
+    assert.equal(L.totals.duty, 2500);
   });
 
   it("semiconductor HTS without claim stays auto-parts for 8471.50; 8473.30 only warns", () => {

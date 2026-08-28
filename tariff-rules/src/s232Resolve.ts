@@ -55,6 +55,17 @@ export type S232EnteredHit = {
   suppresses_wood: boolean;
 };
 
+/**
+ * 9903.74.11 @ 0% — MHDV parts-list exclusion stacked alongside an auto-parts
+ * (or other non-MHDV) 232 winner when the HTS is on both lists.
+ */
+export type S232MhdvNotPartCompanion = {
+  heading: "9903.74.11";
+  matched_stem: string;
+  reason: string;
+  source: string;
+};
+
 export type S232Note = {
   severity: "INFO" | "WARNING";
   code: string;
@@ -133,6 +144,15 @@ const NO_CAP = {
   jp_parts_topup: false,
 };
 
+function mhdvNotPartCompanion(matchedStem: string, source: string): S232MhdvNotPartCompanion {
+  return {
+    heading: "9903.74.11",
+    matched_stem: matchedStem,
+    reason: `On MHDV parts list stem ${matchedStem} but not claimed as an MHDV part — 9903.74.11 @ 0% (CSMS #66665333). Auto-parts / other 232 duty remains the operative additional when applicable.`,
+    source,
+  };
+}
+
 export function resolveS232EnteredValue(opts: {
   hts: string;
   coo: string;
@@ -141,7 +161,12 @@ export function resolveS232EnteredValue(opts: {
   chapterMetals?: boolean;
   /** Decimal Column-1 rate (0.025 = 2.5%). Used to pick JP/EU/KR .40 vs .41 (etc.). */
   col1Rate?: number;
-}): { hit: S232EnteredHit | null; notes: S232Note[] } {
+}): {
+  hit: S232EnteredHit | null;
+  /** Dual-list: stack 9903.74.11 with auto-parts (or when s232_mhdv_not_part is claimed with annex). */
+  companion?: S232MhdvNotPartCompanion | null;
+  notes: S232Note[];
+} {
   const notes: S232Note[] = [];
   const flags = opts.flags || {};
   const hts = opts.hts;
@@ -305,24 +330,31 @@ export function resolveS232EnteredValue(opts: {
 
   if (mp) {
     if (flag(flags, "s232_mhdv_not_part")) {
-      return {
-        hit: {
-          family: "mhdv",
-          program: "SEC_232_MHDV",
-          heading: "9903.74.11",
-          rate_pct_decimal: 0,
-          label: "232 MHDV parts list — not an MHDV part",
-          reason: `On MHDV parts list stem ${mp.matched_stem} but claimed not an MHDV part — 9903.74.11 @ 0% (CSMS #66665333). 301-FL suppressed via 9903.05.90.`,
-          source: mp.source,
-          matched_stem: mp.matched_stem,
-          ...NO_CAP,
-          suppresses_metals: true,
-          suppresses_wood: true,
-        },
-        notes,
-      };
-    }
-    if (flag(flags, "s232_mhdv_part", "s232_mhdv")) {
+      // Dual-list: fall through to auto-parts and stack .11 as companion.
+      // MHDV-parts-list-only: report .11 alone (exclusion claim).
+      const annexForNotPart = match232AutoPartsAnnex(hts);
+      if (
+        !annexForNotPart &&
+        !flag(flags, "s232_auto_part", "s232_auto", "s232")
+      ) {
+        return {
+          hit: {
+            family: "mhdv",
+            program: "SEC_232_MHDV",
+            heading: "9903.74.11",
+            rate_pct_decimal: 0,
+            label: "232 MHDV parts list — not an MHDV part",
+            reason: `On MHDV parts list stem ${mp.matched_stem} but claimed not an MHDV part — 9903.74.11 @ 0% (CSMS #66665333). 301-FL suppressed via 9903.05.90.`,
+            source: mp.source,
+            matched_stem: mp.matched_stem,
+            ...NO_CAP,
+            suppresses_metals: true,
+            suppresses_wood: true,
+          },
+          notes,
+        };
+      }
+    } else if (flag(flags, "s232_mhdv_part", "s232_mhdv")) {
       const usmca = flag(flags, "fta_usmca");
       const heading = usmca ? "9903.74.10" : "9903.74.08";
       const rate = usmca ? 0 : 0.25;
@@ -346,14 +378,15 @@ export function resolveS232EnteredValue(opts: {
         },
         notes,
       };
-    }
-    const annex = match232AutoPartsAnnex(hts);
-    if (!annex && !flag(flags, "s232_auto_part", "s232_auto", "s232")) {
-      notes.push({
-        severity: "INFO",
-        code: "S232_MHDV_PARTS_LIST",
-        message: `HTS matches MHDV parts list stem ${mp.matched_stem}. 9903.74.08 @ 25% applies only if the article is a part of an MHDV (claim s232_mhdv_part). Otherwise 9903.74.11 @ 0% (not an MHDV part).`,
-      });
+    } else {
+      const annexOnly = match232AutoPartsAnnex(hts);
+      if (!annexOnly && !flag(flags, "s232_auto_part", "s232_auto", "s232")) {
+        notes.push({
+          severity: "INFO",
+          code: "S232_MHDV_PARTS_LIST",
+          message: `HTS matches MHDV parts list stem ${mp.matched_stem}. 9903.74.08 @ 25% applies only if the article is a part of an MHDV (claim s232_mhdv_part). Otherwise 9903.74.11 @ 0% (not an MHDV part).`,
+        });
+      }
     }
   }
 
@@ -420,6 +453,20 @@ export function resolveS232EnteredValue(opts: {
       krSelfCert,
       matchedStem: annex?.matched_stem,
     });
+    // Dual-list (annex + MHDV parts) or explicit not-part claim with annex:
+    // stack 9903.74.11 @ 0% alongside auto-parts. Pack note: auto-parts is the
+    // default unless MHDV part is claimed.
+    const companion =
+      mp && !flag(flags, "s232_mhdv_part", "s232_mhdv")
+        ? mhdvNotPartCompanion(mp.matched_stem, mp.source)
+        : null;
+    if (companion) {
+      notes.push({
+        severity: "INFO",
+        code: "S232_MHDV_NOT_PART_STACKED",
+        message: companion.reason,
+      });
+    }
     return {
       hit: {
         family: "autos_parts",
@@ -439,6 +486,7 @@ export function resolveS232EnteredValue(opts: {
         suppresses_metals: false,
         suppresses_wood: true,
       },
+      companion,
       notes,
     };
   }
