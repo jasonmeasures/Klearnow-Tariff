@@ -112,7 +112,53 @@ export type RateRow = {
   uom2?: string;
   duty_code?: string;
   desc?: string;
+  /** Partner Government Agency codes from workbook PGACD (e.g. AM7, FD3). */
+  pga_codes?: string[];
+  /** Antidumping duty flag (ADD = Y). */
+  add?: boolean;
+  /** Countervailing duty flag (CVD = Y). */
+  cvd?: boolean;
+  /** Additional HTS reporting may be required (Add. HTS = Y). */
+  add_hts?: boolean;
 };
+
+/** Split PGACD cell into ordered unique codes. */
+export function parsePgaCodes(v: unknown): string[] | undefined {
+  const raw = String(v ?? "").trim();
+  if (!raw) return undefined;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of raw.split(/[,;|/]+/)) {
+    const code = part.trim().toUpperCase();
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
+    out.push(code);
+  }
+  return out.length ? out : undefined;
+}
+
+/** True only for explicit Y; N/blank → undefined (omit from pack). */
+export function parseYnFlag(v: unknown): boolean | undefined {
+  const s = String(v ?? "").trim().toUpperCase();
+  if (s === "Y" || s === "YES" || s === "1" || s === "TRUE") return true;
+  return undefined;
+}
+
+function applyFlagFields(row: RateRow, src: Record<string, unknown>): void {
+  const pga = parsePgaCodes(
+    src.PGACD ?? src.pgacd ?? src.pga_codes ?? src.pga ?? src["PGA CD"],
+  );
+  if (pga) row.pga_codes = pga;
+  if (parseYnFlag(src.ADD ?? src.add ?? src.ad) === true) row.add = true;
+  if (parseYnFlag(src.CVD ?? src.cvd) === true) row.cvd = true;
+  if (
+    parseYnFlag(
+      src["Add. HTS"] ?? src.add_hts ?? src.additional_hts ?? src["Add HTS"],
+    ) === true
+  ) {
+    row.add_hts = true;
+  }
+}
 
 export type HtsPack = {
   version: string;
@@ -256,6 +302,7 @@ export function parseHtsClassificationWorkbook(buf: Buffer): {
     if (uom2) row.uom2 = uom2;
     if (duty_code) row.duty_code = duty_code;
     if (desc) row.desc = desc.slice(0, 80);
+    applyFlagFields(row, r);
 
     const key = rateKey(row);
     if (seen.has(key)) continue;
@@ -364,6 +411,7 @@ export function normalizeCsvHtsRows(
     if (uom) row.uom1 = uom;
     const desc = String(o.description ?? o.desc ?? "").trim();
     if (desc) row.desc = desc.slice(0, 80);
+    applyFlagFields(row, o);
 
     const key = rateKey(row);
     if (seen.has(key)) return;

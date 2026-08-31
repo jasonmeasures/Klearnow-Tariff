@@ -5,6 +5,11 @@ import { lookupChina301List } from "../../tariff-rules/src/s301China.ts";
 import { lookupChina301Note31 } from "../../tariff-rules/src/s301ChinaNote31.ts";
 import { classify232Metals } from "../../tariff-rules/src/s232Metals.ts";
 import { resolvedHtsRatesPath, resolvedHtsReplacementsPath } from "./import_hts.ts";
+import {
+  joinDescPath,
+  resolvedHtsDescPath,
+  type DescPathPack,
+} from "./import_hts_desc.ts";
 
 export type HtsRate = {
   hts: string;
@@ -17,6 +22,18 @@ export type HtsRate = {
   uom2?: string;
   duty_code?: string;
   desc?: string;
+  pga_codes?: string[];
+  add?: boolean;
+  cvd?: boolean;
+  add_hts?: boolean;
+};
+
+export type HtsFlags = {
+  pga: string[];
+  fda: string[];
+  add: boolean;
+  cvd: boolean;
+  add_hts: boolean;
 };
 
 export type HtsReplacement = {
@@ -56,6 +73,8 @@ let byStem8: Map<string, string[]> | null = null;
 let sortedHtsKeys: string[] | null = null;
 let replPack: ReplacementPack | null = null;
 let byFrom: Map<string, HtsReplacement> | null = null;
+let descPack: DescPathPack | null = null;
+let byDescPath: Map<string, string[]> | null = null;
 
 function load(): Pack {
   if (pack) return pack;
@@ -104,6 +123,35 @@ function loadReplacements(): ReplacementPack {
   return replPack;
 }
 
+function loadDescPaths(): DescPathPack {
+  if (descPack) return descPack;
+  const path = resolvedHtsDescPath();
+  if (!existsSync(path)) {
+    descPack = { version: "0", as_of: "", source: "", row_count: 0, paths: [] };
+    byDescPath = new Map();
+    return descPack;
+  }
+  descPack = JSON.parse(readFileSync(path, "utf8")) as DescPathPack;
+  byDescPath = new Map();
+  for (const row of descPack.paths || []) {
+    const key = normalizeHtsDigits(row.hts);
+    if (!key || !Array.isArray(row.path) || !row.path.length) continue;
+    byDescPath.set(key, row.path);
+  }
+  return descPack;
+}
+
+export function flagsFromRate(pick: HtsRate): HtsFlags {
+  const pga = (pick.pga_codes || []).map((c) => String(c).trim().toUpperCase()).filter(Boolean);
+  return {
+    pga,
+    fda: pga.filter((c) => c.startsWith("FD")),
+    add: pick.add === true,
+    cvd: pick.cvd === true,
+    add_hts: pick.add_hts === true,
+  };
+}
+
 /** Drop cache after re-import or external HTS table update. */
 export function reloadHtsTable(): ReturnType<typeof htsTableMeta> {
   pack = null;
@@ -112,8 +160,11 @@ export function reloadHtsTable(): ReturnType<typeof htsTableMeta> {
   sortedHtsKeys = null;
   replPack = null;
   byFrom = null;
+  descPack = null;
+  byDescPath = null;
   load();
   loadReplacements();
+  loadDescPaths();
   return htsTableMeta();
 }
 
@@ -134,6 +185,7 @@ export function formatHtsDisplay(hts: string): string {
 export function htsTableMeta() {
   const p = load();
   const rp = loadReplacements();
+  const dp = loadDescPaths();
   return {
     loaded: p.row_count > 0,
     version: p.version,
@@ -142,6 +194,9 @@ export function htsTableMeta() {
     row_count: p.row_count,
     replacements: rp.row_count,
     replacements_source: rp.source || null,
+    desc_paths: dp.row_count,
+    desc_paths_source: dp.source || null,
+    desc_paths_as_of: dp.as_of || null,
   };
 }
 
@@ -168,6 +223,13 @@ export function usitcSearchUrl(hts: string): string {
   return `https://hts.usitc.gov/search?query=${encodeURIComponent(q)}`;
 }
 
+export function lookupDescPath(hts: string): string[] | null {
+  loadDescPaths();
+  const key = normalizeHtsDigits(hts);
+  if (!key || !byDescPath) return null;
+  return byDescPath.get(key) || null;
+}
+
 export type ResolvedCol1 = HtsRate & {
   as_of: string;
   rate_label: string;
@@ -177,6 +239,9 @@ export type ResolvedCol1 = HtsRate & {
   metals: ReturnType<typeof classify232Metals>;
   needs_metal_content: boolean;
   usitc_url: string;
+  flags: HtsFlags;
+  desc_path: string[] | null;
+  desc_full: string | null;
 };
 
 export type WindowStatus = "active" | "ended" | "unknown";
@@ -201,6 +266,7 @@ export type HtsLookupResult = {
 function enrich(pick: HtsRate, day: string): ResolvedCol1 {
   const needs_quantity = Boolean(pick.col1_specific_usd && pick.col1_specific_usd > 0);
   const metals = classify232Metals(pick.hts);
+  const desc_path = lookupDescPath(pick.hts);
   return {
     ...pick,
     as_of: day,
@@ -211,6 +277,9 @@ function enrich(pick: HtsRate, day: string): ResolvedCol1 {
     metals,
     needs_metal_content: Boolean(metals),
     usitc_url: usitcSearchUrl(pick.hts),
+    flags: flagsFromRate(pick),
+    desc_path,
+    desc_full: desc_path?.length ? joinDescPath(desc_path) : null,
   };
 }
 
@@ -334,6 +403,7 @@ export function resolveCol1(hts: string, asOf: string): ResolvedCol1 | null {
 export function lookupHts(hts: string, asOf: string): HtsLookupResult {
   load();
   loadReplacements();
+  loadDescPaths();
   const key = normalizeHtsDigits(hts);
   const day = (asOf || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
   const repl = key ? findReplacement(key) : null;

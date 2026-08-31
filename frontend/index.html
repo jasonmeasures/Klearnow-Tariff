@@ -27,7 +27,7 @@
   <span class="chip juris" title="Jurisdiction. Other customs territories are not yet modelled.">US</span>
   <div class="spacer"></div>
   <a class="tool-link" id="manual-link" href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer"
-     title="Operator guide — how to use Duty stack, HTS list, and Audit">
+     title="Operator guide — how to use Duty stack, Coverage, and Audit">
     Help <span aria-hidden="true">↗</span>
   </a>
   <a class="tool-link" id="csms-link" href="https://www.cbp.gov/trade/automated/cargo-systems-messaging-service"
@@ -59,7 +59,7 @@
   <nav class="side" aria-label="Sections">
     <div class="navgroup eyebrow">Use</div>
     <button data-view="calc" aria-current="page">Duty stack</button>
-    <button data-view="lookup">HTS list</button>
+    <button data-view="lookup">Coverage</button>
     <button data-view="chat" data-user-surface>Chat</button>
     <button data-view="csms" data-user-surface>CSMS</button>
     <button data-view="audit">Audit</button>
@@ -90,7 +90,7 @@
               <li>Enter <b>HTS</b> (type 4+ digits for suggestions), <b>origin</b>, <b>entered value</b>, and <b>rate date</b>.</li>
               <li>Set <b>MOT</b> to Ocean if Harbor Maintenance Fee applies.</li>
               <li>Tick any <b>claims</b> that appear — they only show when relevant.</li>
-              <li>Click <b>Run the stack</b>. Use <b>HTS list</b> for bulk coverage or <b>Audit</b> for ACE ES-003.</li>
+              <li>Click <b>Run the stack</b>. Use <b>Coverage</b> for bulk rule checks or <b>Audit</b> for ACE ES-003.</li>
             </ol>
             <p class="cap" style="margin:0">Full walkthrough:
               <a href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer">User manual ↗</a></p>
@@ -295,6 +295,7 @@
               <span class="chip-inline" id="resultengine" hidden></span>
               <button class="btn-ghost btn-sm" id="exportcsv" hidden>Export CSV</button>
               <button class="btn-ghost btn-sm" id="copyall" hidden>Copy</button></header>
+            <div id="hts-context" class="hts-context" hidden></div>
             <div id="results">
               <div class="empty"><h4>Stack is empty</h4>
                 <p class="cap" style="max-width:40ch;margin:0 auto">Drop in an HTS, origin, value, and rate date—
@@ -489,22 +490,22 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
       </div>
     </section>
 
-    <!-- ============================ HTS LIST / COVERAGE ============================ -->
+    <!-- ============================ COVERAGE (bulk which-rules-apply) ============================ -->
     <section class="view hide" id="view-lookup">
       <div class="viewhead">
         <h2>Which rules apply?</h2>
-        <p class="cap">Drop a spreadsheet, paste a list, or upload CSV / JSON / Excel.
-          See Column&nbsp;1 and Chapter&nbsp;99 for each HTS — including the new Section&nbsp;232
-          vehicle, MHDV, wood, and semiconductor lists. Claim-gated headings show as
-          <b>claim</b>. Unknown codes get clear guidance, same-heading alternatives from the table,
-          and USITC links — no invented duty stacks.
-          <a href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer">HTS list guide ↗</a></p>
+        <p class="cap">Drop a spreadsheet, paste codes, or upload CSV / JSON / Excel.
+          See Column&nbsp;1, Chapter&nbsp;99, and <b>Watch for</b> signals (PGA / FDA, AD/CVD, additional HTS)
+          for each line — including Section&nbsp;232 vehicle, MHDV, wood, and semiconductor lists.
+          Claim-gated headings show as <b>claim</b>. Unknown codes get clear guidance and USITC links —
+          no invented duty stacks.
+          <a href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer">Coverage guide ↗</a></p>
       </div>
       <div id="lookupbanner"></div>
 
       <div class="lookup-layout">
         <div class="card lookup-input">
-          <header><h5>Your HTS list</h5>
+          <header><h5>Codes to check</h5>
             <div class="spacer"></div>
             <span class="cap" id="lookup-count">0 codes</span></header>
           <div class="body">
@@ -556,10 +557,10 @@ placeholder="hts,coo
             <button class="btn-ghost btn-sm" id="lookup-export" type="button" hidden>Export CSV</button></header>
           <div id="lookup-out">
             <div class="empty">
-              <h4>No list yet</h4>
+              <h4>No codes yet</h4>
               <p class="cap" style="max-width:36ch;margin:0 auto">Add HTS codes on the left.
-                You’ll see Column&nbsp;1, 301-FL, 232 vehicles / MHDV / wood / semiconductors,
-                and other Chapter&nbsp;99 headings — then open any row for the full rule trail.</p>
+                You’ll see Column&nbsp;1, Watch for (PGA / AD/CVD), 232 lists, and other Chapter&nbsp;99
+                headings — then open any row for the full rule trail.</p>
             </div>
           </div>
         </div>

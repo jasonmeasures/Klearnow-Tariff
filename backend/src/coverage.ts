@@ -1,6 +1,6 @@
 /**
- * HTS list coverage — which baseline rates + Chapter 99 rules apply.
- * No entered value required (duty dollars are not the goal).
+ * HTS coverage — which baseline rates + Chapter 99 rules apply (bulk, no value).
+ * Also surfaces PGA / AD / CVD / Add. HTS watch signals from the Column-1 table.
  */
 import * as XLSX from "xlsx";
 import { assessS301fl, lookupS301fl } from "../../tariff-rules/src/s301fl.ts";
@@ -10,12 +10,14 @@ import {
 } from "../../tariff-rules/src/s232Resolve.ts";
 import { assessLine, type LineIn } from "./assess.ts";
 import {
+  flagsFromRate,
   formatHtsDisplay,
   lookupHts,
   normalizeHtsDigits,
   resolveCol1,
   suggestRelatedHts,
   usitcSearchUrl,
+  type HtsFlags,
 } from "./htsLookup.ts";
 import { LIMITS, assertMaxItems, decodeXlsxBase64, yieldEventLoop } from "./loadGuard.ts";
 import { rulepackPublic } from "./state.ts";
@@ -298,6 +300,11 @@ function universeHitCount(uni: S232UniversePreview): number {
   ].filter(Boolean).length;
 }
 
+function hasWatchFlags(f: HtsFlags | null | undefined): boolean {
+  if (!f) return false;
+  return Boolean(f.pga?.length || f.add || f.cvd || f.add_hts);
+}
+
 export function coverOne(
   row: CoverageRowIn,
   opts: { as_of: string; default_coo: string | null; assume_cn_list3?: boolean },
@@ -400,6 +407,7 @@ export function coverOne(
       },
       col1_pct: null,
       desc: null,
+      flags: null,
       rules,
       ch99_sequence: [],
       stack_preview: [],
@@ -415,6 +423,8 @@ export function coverOne(
       notes,
     };
   }
+
+  const htsFlags: HtsFlags | null = hit ? flagsFromRate(hit) : null;
 
   if (look.window_status === "ended") {
     notes.push(
@@ -612,6 +622,7 @@ export function coverOne(
     help: null,
     col1_pct: col1Pts,
     desc: hit?.desc || null,
+    flags: htsFlags,
     rules,
     ch99_sequence,
     stack_preview,
@@ -674,6 +685,15 @@ function coverResult(
           Array.isArray(r.rules) &&
           (r.rules as AppliedRule[]).some((x) => x.status === "needs_claim"),
       ).length,
+      with_watch: rows.filter((r) => hasWatchFlags(r.flags as HtsFlags | null)).length,
+      with_pga: rows.filter((r) => {
+        const f = r.flags as HtsFlags | null;
+        return Boolean(f?.pga?.length);
+      }).length,
+      with_ad_cvd: rows.filter((r) => {
+        const f = r.flags as HtsFlags | null;
+        return Boolean(f?.add || f?.cvd);
+      }).length,
     },
     rows,
   };

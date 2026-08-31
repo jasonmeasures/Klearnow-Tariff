@@ -167,7 +167,7 @@ async function boot() {
     if (!isEmbed()) {
       const notes = {
         admin: "You are Admin: sidebar shows Manage. Chat answers from the live tables; pack writes stay a preview.",
-        user: "You are User: Duty stack, HTS list, Chat, CSMS, and Audit.",
+        user: "You are User: Duty stack, Coverage, Chat, CSMS, and Audit.",
         guest: "You are Guest: 5 stacks / 2 extracts per day. Sign in for unlimited.",
       };
       banner("#calcbanner", "info", notes[role] || "Signed in",
@@ -654,6 +654,7 @@ async function previewHtsMeta() {
   if (!el) return;
   if (!hts || hts.replace(/\D/g, "").length < 6) {
     el.innerHTML = "";
+    clearHtsContext();
     if (wrap) wrap.hidden = true;
     syncMetalPanel(null);
     syncPharmaClaimUi();
@@ -681,7 +682,6 @@ async function previewHtsMeta() {
     if (r.rate_label || r.col1_pct != null) {
       bits.push(`Column 1 <b class="mono">${esc(r.rate_label || formatQuickCol1(r))}</b>`);
     }
-    if (r.desc) bits.push(esc(r.desc));
     if (r.start && r.end) bits.push(`<span class="cap">(${esc(r.start)} → ${esc(r.end)})</span>`);
     if (r.replacement_hts) {
       const replLabel = r.replacement_hts_display || r.replacement_hts;
@@ -781,9 +781,14 @@ async function previewHtsMeta() {
         );
       }
     }
+
     const url = r.usitc_url || `https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}`;
     bits.push(`<a class="usitc-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">USITC HTS</a>`);
-    el.innerHTML = bits.join(" · ");
+
+    // Rate / program feedback stays under the form; HTS narrative + compliance live in Stack result.
+    el.innerHTML = `<div class="qc-meta-row">${bits.join(" · ")}</div>`;
+    renderHtsContext(r, hts);
+
     const useBtn = el.querySelector("[data-use-hts]");
     if (useBtn) {
       useBtn.addEventListener("click", (e) => {
@@ -827,6 +832,7 @@ async function previewHtsMeta() {
 
     syncMetalPanel(r.metals);
   } catch (err) {
+    clearHtsContext();
     const detail = err?.payload || null;
     if (detail?.replacement_hts) {
       const replLabel = detail.replacement_hts_display || detail.replacement_hts;
@@ -854,6 +860,288 @@ async function previewHtsMeta() {
     syncMetalPanel(null);
     sync232AutoPartClaimUi(null);
   }
+}
+
+function clearHtsContext() {
+  const ctx = $("#hts-context");
+  if (!ctx) return;
+  ctx.hidden = true;
+  ctx.innerHTML = "";
+  syncStackEmptyHint();
+}
+
+/** Map ACE PGA tariff-flag prefixes → agency names users recognize. */
+const PGA_AGENCY_BY_PREFIX = {
+  FD: { name: "FDA", detail: "Food and Drug Administration — PGA message set may be required" },
+  AM: { name: "USDA AMS", detail: "USDA Agricultural Marketing Service (incl. National Organic Program)" },
+  FS: { name: "USDA FSIS", detail: "USDA Food Safety and Inspection Service" },
+  AQ: { name: "APHIS", detail: "USDA Animal and Plant Health Inspection Service" },
+  AP: { name: "APHIS", detail: "USDA Animal and Plant Health Inspection Service" },
+  AE: { name: "APHIS", detail: "USDA Animal and Plant Health Inspection Service" },
+  EP: { name: "EPA", detail: "Environmental Protection Agency" },
+  NW: { name: "NOAA Fisheries", detail: "National Marine Fisheries Service / NOAA" },
+  NM: { name: "NOAA Fisheries", detail: "National Marine Fisheries Service / NOAA" },
+  FW: { name: "Fish & Wildlife", detail: "U.S. Fish and Wildlife Service" },
+  DT: { name: "DOT", detail: "Department of Transportation" },
+  CP: { name: "CPSC", detail: "Consumer Product Safety Commission" },
+  TT: { name: "TTB", detail: "Alcohol and Tobacco Tax and Trade Bureau" },
+};
+
+function agencyForPgaCode(code) {
+  const c = String(code || "").trim().toUpperCase();
+  if (!c) return null;
+  const prefix = c.slice(0, 2);
+  const known = PGA_AGENCY_BY_PREFIX[prefix];
+  if (known) return { ...known, codes: [c] };
+  return {
+    name: "Partner agency",
+    detail: `ACE PGA tariff flag ${c} — confirm which agency message set applies before filing`,
+    codes: [c],
+  };
+}
+
+/** Group PGA codes by agency; FDA first, then others by name. */
+function groupPgaAgencies(flags) {
+  const codes = Array.isArray(flags?.pga) ? flags.pga : [];
+  const byName = new Map();
+  for (const code of codes) {
+    const agency = agencyForPgaCode(code);
+    if (!agency) continue;
+    const prev = byName.get(agency.name);
+    if (prev) prev.codes.push(...agency.codes);
+    else byName.set(agency.name, { ...agency, codes: [...agency.codes] });
+  }
+  return [...byName.values()].sort((a, b) => {
+    if (a.name === "FDA") return -1;
+    if (b.name === "FDA") return 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/** Human-readable compliance notices — collapsed one line; expand for detail (design: Watch for). */
+function renderHtsFlagPills(flags) {
+  if (!flags) return "";
+  const rows = [];
+  for (const agency of groupPgaAgencies(flags)) {
+    const codeList = agency.codes.join(", ");
+    rows.push(
+      `<div class="hts-watch" data-expanded="0">` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle>` +
+          `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
+          `<span class="hts-watch-agency">${esc(agency.name)}</span>` +
+          `<span class="hts-watch-short">May need PGA filing</span>` +
+        `</button>` +
+        `<div class="hts-watch-detail" hidden>` +
+          `<p>${esc(agency.detail)}</p>` +
+          `<p class="cap">ACE flag${agency.codes.length > 1 ? "s" : ""}: ${esc(codeList)}</p>` +
+        `</div>` +
+      `</div>`,
+    );
+  }
+  if (flags.add) {
+    rows.push(
+      `<div class="hts-watch hts-watch-warn" data-expanded="0">` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle>` +
+          `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
+          `<span class="hts-watch-agency">Antidumping</span>` +
+          `<span class="hts-watch-short">May apply — verify order</span>` +
+        `</button>` +
+        `<div class="hts-watch-detail" hidden>` +
+          `<p>Confirm open antidumping orders for this HTS and exporter. Case rates are not calculated here.</p>` +
+        `</div>` +
+      `</div>`,
+    );
+  }
+  if (flags.cvd) {
+    rows.push(
+      `<div class="hts-watch hts-watch-warn" data-expanded="0">` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle>` +
+          `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
+          `<span class="hts-watch-agency">Countervailing</span>` +
+          `<span class="hts-watch-short">May apply — verify order</span>` +
+        `</button>` +
+        `<div class="hts-watch-detail" hidden>` +
+          `<p>Confirm open countervailing duty orders for this HTS and exporter. Case rates are not calculated here.</p>` +
+        `</div>` +
+      `</div>`,
+    );
+  }
+  if (flags.add_hts) {
+    rows.push(
+      `<div class="hts-watch" data-expanded="0">` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle>` +
+          `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
+          `<span class="hts-watch-agency">Additional HTS</span>` +
+          `<span class="hts-watch-short">Reporting may be required</span>` +
+        `</button>` +
+        `<div class="hts-watch-detail" hidden>` +
+          `<p>Classification table marks additional HTS reporting as required (beyond Chapter 99 layers in this stack).</p>` +
+        `</div>` +
+      `</div>`,
+    );
+  }
+  return rows.join("");
+}
+
+/** Compact chips for Coverage table cells (not expandable). */
+function renderHtsFlagChipsCompact(flags) {
+  if (!flags) return "";
+  const chips = [];
+  for (const agency of groupPgaAgencies(flags)) {
+    chips.push(`<span class="pill pill-flag" title="${esc(agency.detail)}">${esc(agency.name)}</span>`);
+  }
+  if (flags.add) chips.push(`<span class="pill pill-flag-warn" title="Antidumping may apply">AD</span>`);
+  if (flags.cvd) chips.push(`<span class="pill pill-flag-warn" title="Countervailing may apply">CVD</span>`);
+  if (flags.add_hts) chips.push(`<span class="pill pill-flag" title="Additional HTS reporting may be required">Add. HTS</span>`);
+  return chips.join("");
+}
+
+function bindHtsWatchRows(root) {
+  root?.querySelectorAll?.("[data-hts-watch-toggle]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const row = btn.closest(".hts-watch");
+      if (!row) return;
+      const on = row.dataset.expanded !== "1";
+      row.dataset.expanded = on ? "1" : "0";
+      btn.setAttribute("aria-expanded", on ? "true" : "false");
+      const detail = row.querySelector(".hts-watch-detail");
+      const chev = row.querySelector(".hts-watch-chevron");
+      if (detail) detail.hidden = !on;
+      if (chev) chev.textContent = on ? "▾" : "▸";
+    });
+  });
+}
+
+/** Soften the empty Stack card when HTS context is already visible above it. */
+function syncStackEmptyHint() {
+  const results = $("#results");
+  const ctx = $("#hts-context");
+  if (!results) return;
+  const empty = results.querySelector(":scope > .empty");
+  if (!empty) return;
+  if (ctx && !ctx.hidden) {
+    empty.innerHTML =
+      `<h4>Ready to stack</h4>` +
+      `<p class="cap" style="max-width:40ch;margin:0 auto">HTS notes are above. Add origin, value, and date — then <b>Run the stack</b> for duties and layer order.</p>`;
+  } else {
+    empty.innerHTML =
+      `<h4>Stack is empty</h4>` +
+      `<p class="cap" style="max-width:40ch;margin:0 auto">Drop in an HTS, origin, value, and rate date—` +
+      ` then <b>Run the stack</b>. Rates, application order, and suppressions show here.</p>`;
+  }
+}
+
+/** Primary HTS narrative + compliance — lives in Stack result where users look. */
+function renderHtsContext(r, htsInput) {
+  const ctx = $("#hts-context");
+  if (!ctx) return;
+  const display = r.hts_display || formatHtsDisplayClient(htsInput) || htsInput;
+  const flagBits = renderHtsFlagPills(r.flags);
+  const descHtml = renderHtsDescStack(r);
+  const hasDesc = Boolean(descHtml);
+  const hasFlags = Boolean(flagBits);
+  // Only surface when there is something useful — never dump ACE codes or "nothing found" noise.
+  if (!hasDesc && !hasFlags) {
+    clearHtsContext();
+    return;
+  }
+  ctx.hidden = false;
+  ctx.innerHTML =
+    `<div class="hts-context-head">` +
+      `<div class="eyebrow">About this HTS</div>` +
+      `<div class="hts-context-code mono">${esc(display)}</div>` +
+    `</div>` +
+    (hasFlags
+      ? `<div class="hts-context-section">` +
+          `<div class="hts-context-label">Watch for</div>` +
+          `<div class="hts-notices">${flagBits}</div>` +
+        `</div>`
+      : "") +
+    (hasDesc
+      ? `<div class="hts-context-section">` +
+          `<div class="hts-context-label">Description</div>` +
+          descHtml +
+        `</div>`
+      : "");
+  bindHtsDescStack(ctx);
+  bindHtsWatchRows(ctx);
+  syncStackEmptyHint();
+}
+
+function formatHtsDisplayClient(hts) {
+  const d = String(hts || "").replace(/\D/g, "");
+  if (d.length < 8) return String(hts || "");
+  const ten = d.padEnd(10, "0").slice(0, 10);
+  return `${ten.slice(0, 4)}.${ten.slice(4, 6)}.${ten.slice(6)}`;
+}
+
+/** Collapsible description: show readable summary; expand for full indent path. */
+function renderHtsDescStack(r) {
+  const path = Array.isArray(r.desc_path) && r.desc_path.length ? r.desc_path : null;
+  const leaf = path ? path[path.length - 1] : (r.desc || "");
+  if (!leaf && !path) return "";
+  const full = r.desc_full || (path ? path.join(": ") : leaf);
+  if (!path || path.length <= 1) {
+    return `<div class="hts-desc-stack"><p class="hts-desc-summary">${esc(leaf)}</p></div>`;
+  }
+  const levels = path
+    .map((seg, i) => {
+      const label = i === 0 ? "Heading" : i === path.length - 1 ? "Line" : "Subheading";
+      return (
+        `<div class="hts-desc-level" style="--lvl:${i}" data-lvl="${i}">` +
+          `<span class="hts-desc-lvl-label">${label}</span>` +
+          `<span class="hts-desc-lvl-text">${esc(seg)}</span>` +
+        `</div>`
+      );
+    })
+    .join("");
+  return (
+    `<div class="hts-desc-stack" data-expanded="0">` +
+    `<p class="hts-desc-summary" title="${esc(full)}">${esc(full)}</p>` +
+    `<div class="hts-desc-toolbar">` +
+    `<button type="button" class="btn-ghost btn-sm hts-desc-toggle" data-hts-desc-toggle>Show hierarchy</button>` +
+    `</div>` +
+    `<div class="hts-desc-levels" hidden>${levels}</div>` +
+    `</div>`
+  );
+}
+
+function bindHtsDescStack(root) {
+  const stack = root?.querySelector?.(".hts-desc-stack");
+  if (!stack) return;
+  const toggle = stack.querySelector("[data-hts-desc-toggle]");
+  const summary = stack.querySelector(".hts-desc-summary");
+  const levels = stack.querySelector(".hts-desc-levels");
+  if (!toggle || !levels) return;
+
+  const setExpanded = (on) => {
+    stack.dataset.expanded = on ? "1" : "0";
+    levels.hidden = !on;
+    if (summary) summary.hidden = on;
+    toggle.textContent = on ? "Hide hierarchy" : "Show hierarchy";
+    if (on) {
+      levels.querySelectorAll(".hts-desc-level").forEach((n) => {
+        n.hidden = false;
+      });
+    }
+  };
+
+  toggle.addEventListener("click", (e) => {
+    e.preventDefault();
+    setExpanded(stack.dataset.expanded !== "1");
+  });
+
+  levels.querySelectorAll(".hts-desc-level").forEach((node) => {
+    node.addEventListener("click", (e) => {
+      e.preventDefault();
+      const lvl = Number(node.getAttribute("data-lvl") || 0);
+      levels.querySelectorAll(".hts-desc-level").forEach((n) => {
+        const nLvl = Number(n.getAttribute("data-lvl") || 0);
+        n.hidden = nLvl > lvl;
+      });
+    });
+  });
 }
 
 function formatQuickCol1(r) {
@@ -1832,6 +2120,7 @@ function renderResults(R) {
     · Snapshot <b class="mono">${esc(v)}</b>
     <span class="mono">${esc(h)}</span>. Pin this hash to reproduce the assessment exactly.</p></div>`;
   $("#results").innerHTML = html;
+  bindStackLayers($("#results"));
 }
 
 function ftaCompareHtml(fc) {
@@ -1949,30 +2238,45 @@ function renderLedger(L) {
           esc(PROGRAM_NAME[x.program] || x.program)} $${money(x.duty_amount)}</span>`).join("") +
       `</div>` : "";
 
-  const rows = layers.map(x => {
-    const exempt = Number(x.duty_amount) === 0 && x.ch99;
-    return `<tr class="${x.program === "base" ? "commodity" : ""}">
-      <td><span class="slot p-${esc(x.program)}">${esc(x.stack_slot)}</span></td>
-      <td>${x.ch99 ? `<span class="ch99 ${exempt ? "exempt" : ""}">${esc(x.ch99)}</span>`
-                   : x.program === "base" ? `<span class="cap">commodity line</span>`
-                   : `<span class="cap">${esc(x.label || "")}</span>`}
-        <div class="why">${esc(x.label || "")}</div>
-        ${x.reason ? `<div class="why">${esc(x.reason)}</div>` : ""}
-        ${x.source_ref ? `<div class="src">${esc(x.source_ref)}</div>` : ""}</td>
-      <td class="r"><div>${x.basis === "QUANTITY"
-        ? `${esc(String(x.basis_amount))} ${esc((L.quantity_uom || "").toLowerCase() || "units")}`
-        : `$${money(x.basis_amount)}`}</div>
-        <div class="basis">${esc(String(x.basis || "").toLowerCase().replace(/_/g, " "))}</div></td>
-      <td class="r">${esc(x.rate || "")}</td>
-      <td class="r"><b>$${money(x.duty_amount)}</b></td></tr>`;
-  }).join("");
-
-  const sup = supp.map(x => `<tr class="suppressed">
-      <td><span class="slot">${esc(x.stack_slot)}</span></td>
-      <td><span class="ch99">${esc(x.ch99 || x.rule_id)}</span><span class="tag">suppressed</span>
-        <div class="why">${esc(x.reason || "")}</div></td>
-      <td class="r">$${money(x.basis_amount)}</td><td class="r">${esc(x.rate || "")}</td>
-      <td class="r">$0.00</td></tr>`).join("");
+  const lineKey = `L${esc(String(L.line_id || "0"))}`;
+  const layerBlocks = [
+    ...layers.map((x, i) => renderStackLayerRow({
+      id: `${lineKey}-a${i}`,
+      slot: x.stack_slot,
+      code: x.ch99 || (x.program === "base" ? (L.hts || "commodity") : (x.label || "")),
+      program: x.program,
+      label: x.label || "",
+      reason: x.reason || "",
+      sourceRef: x.source_ref || "",
+      rate: x.rate || "",
+      duty: x.duty_amount,
+      basisAmount: x.basis_amount,
+      basisKind: x.basis === "QUANTITY"
+        ? `${String(x.basis_amount)} ${(L.quantity_uom || "").toLowerCase() || "units"}`
+        : `entered value`,
+      basisFmt: x.basis === "QUANTITY"
+        ? null
+        : money(x.basis_amount),
+      suppressed: false,
+      exempt: Number(x.duty_amount) === 0 && Boolean(x.ch99),
+    })),
+    ...supp.map((x, i) => renderStackLayerRow({
+      id: `${lineKey}-s${i}`,
+      slot: x.stack_slot,
+      code: x.ch99 || x.rule_id || "",
+      program: "suppressed",
+      label: x.label || "Suppressed",
+      reason: x.reason || "",
+      sourceRef: "",
+      rate: x.rate || "",
+      duty: 0,
+      basisAmount: x.basis_amount,
+      basisKind: "entered value",
+      basisFmt: money(x.basis_amount),
+      suppressed: true,
+      exempt: false,
+    })),
+  ].join("");
 
   const diags = (L.diagnostics || []).map(d => `<div class="diag ${esc(d.severity)}">
       <span class="sev">${esc(d.severity)}</span>
@@ -2009,16 +2313,90 @@ function renderLedger(L) {
     </div>
     ${pharmaCompareHtml(L.pharma_compare)}
     ${L.pharma_compare ? "" : ftaCompareHtml(L.fta_compare)}
-    <table class="ledger"><thead><tr><th style="width:52px">Slot</th>
-      <th>Chapter 99 / provision</th><th class="r" style="width:126px">Basis</th>
-      <th class="r" style="width:148px">Rate</th><th class="r" style="width:108px">Duty</th>
-    </tr></thead><tbody>${rows}${sup}</tbody></table>
+    <div class="stack-layers-toolbar">
+      <span class="eyebrow">Chapter 99 / provisions</span>
+      <button type="button" class="btn-ghost btn-sm" data-stack-expand-all>Expand all</button>
+    </div>
+    <div class="stack-layers" data-stack-layers>${layerBlocks}</div>
     ${bar}
     <div class="totalrow">
       <div><span class="t">Total duty</span><br><span class="amt">$${money(L.totals?.duty)}</span></div>
       <div style="text-align:right"><span class="t">Effective rate</span><br>
         <span class="eff">${pct(L.totals?.effective_duty_rate_pct)}%</span></div></div>
     ${diags}</div>`;
+}
+
+/** One Ch.99 / commodity layer — collapsed summary, expand for reason/source/basis (design). */
+function renderStackLayerRow(row) {
+  const codeClass = row.suppressed || row.exempt ? "ch99 exempt" : "ch99";
+  const basisLine = row.basisFmt != null
+    ? `Basis <b class="mono">$${esc(row.basisFmt)}</b> · ${esc(row.basisKind || "")}`
+    : `Basis <b class="mono">${esc(String(row.basisAmount ?? ""))}</b> · ${esc(row.basisKind || "")}`;
+  return (
+    `<div class="stack-layer${row.suppressed ? " is-suppressed" : ""}${row.program === "base" ? " is-commodity" : ""}" data-expanded="0" data-stack-layer>` +
+      `<button type="button" class="stack-layer-toggle" aria-expanded="false" aria-controls="${esc(row.id)}" data-stack-layer-toggle>` +
+        `<span class="stack-layer-chevron" aria-hidden="true">▸</span>` +
+        `<span class="slot p-${esc(row.program || "base")}">${esc(row.slot || "")}</span>` +
+        `<span class="${codeClass} mono">${esc(row.code || "")}</span>` +
+        (row.suppressed ? `<span class="tag">suppressed</span>` : "") +
+        `<span class="spacer"></span>` +
+        `<span class="stack-layer-rate">${esc(row.rate || "")}</span>` +
+        (row.duty == null
+          ? (row.basisKind ? `<span class="cap stack-layer-status">${esc(row.basisKind)}</span>` : "")
+          : `<span class="stack-layer-duty mono"><b>$${money(row.duty)}</b></span>`) +
+      `</button>` +
+      `<div class="stack-layer-detail" id="${esc(row.id)}" hidden>` +
+        (row.label ? `<div class="stack-layer-label">${esc(row.label)}</div>` : "") +
+        (row.reason ? `<div class="why">${esc(row.reason)}</div>` : "") +
+        (row.sourceRef ? `<div class="src">${esc(row.sourceRef)}</div>` : "") +
+        (row.duty != null
+          ? `<div class="cap stack-layer-basis">${basisLine}</div>`
+          : "") +
+      `</div>` +
+    `</div>`
+  );
+}
+
+function bindStackLayers(root) {
+  root?.querySelectorAll?.("[data-stack-layers]").forEach((wrap) => {
+    const setRow = (row, on) => {
+      row.dataset.expanded = on ? "1" : "0";
+      const btn = row.querySelector("[data-stack-layer-toggle]");
+      const detail = row.querySelector(".stack-layer-detail");
+      const chev = row.querySelector(".stack-layer-chevron");
+      if (btn) btn.setAttribute("aria-expanded", on ? "true" : "false");
+      if (detail) detail.hidden = !on;
+      if (chev) chev.textContent = on ? "▾" : "▸";
+    };
+    wrap.querySelectorAll("[data-stack-layer-toggle]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const row = btn.closest("[data-stack-layer]");
+        if (!row) return;
+        setRow(row, row.dataset.expanded !== "1");
+        syncExpandAllLabel(wrap);
+      });
+    });
+    const toolbarBtn = wrap.parentElement?.querySelector?.("[data-stack-expand-all]");
+    if (toolbarBtn) {
+      toolbarBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const rows = [...wrap.querySelectorAll("[data-stack-layer]")];
+        const allOpen = rows.length && rows.every((r) => r.dataset.expanded === "1");
+        rows.forEach((r) => setRow(r, !allOpen));
+        syncExpandAllLabel(wrap);
+      });
+    }
+    syncExpandAllLabel(wrap);
+  });
+}
+
+function syncExpandAllLabel(wrap) {
+  const btn = wrap.parentElement?.querySelector?.("[data-stack-expand-all]");
+  if (!btn) return;
+  const rows = [...wrap.querySelectorAll("[data-stack-layer]")];
+  const allOpen = rows.length && rows.every((r) => r.dataset.expanded === "1");
+  btn.textContent = allOpen ? "Collapse all" : "Expand all";
 }
 
 $("#exportcsv").onclick = () => {
@@ -2917,7 +3295,7 @@ function initLookup() {
     drop.querySelector(".drop-title").textContent = "Drop Excel, CSV, or JSON";
     updateLookupCount();
     $("#lookup-export").hidden = true;
-    $("#lookup-out").innerHTML = `<div class="empty"><h4>No list yet</h4>
+    $("#lookup-out").innerHTML = `<div class="empty"><h4>No codes yet</h4>
       <p class="cap" style="max-width:36ch;margin:0 auto">Add HTS codes on the left.</p></div>`;
     banner("#lookupbanner", null);
   };
@@ -3035,11 +3413,14 @@ function renderLookup(R) {
   }
   const showPart = rows.some(r => r.part);
   const showSku = rows.some(r => r.sku);
-  const colCount = 6 + (showPart ? 1 : 0) + (showSku ? 1 : 0);
+  const colCount = 7 + (showPart ? 1 : 0) + (showSku ? 1 : 0);
   let html = `<div class="lookup-summary">
     <span class="pill">${s.rows ?? rows.length} codes</span>
     <span class="pill ok">${s.in_table ?? 0} in HTS table</span>
     <span class="pill">${s.with_ch99 ?? 0} with Ch.99</span>
+    ${s.with_watch ? `<span class="pill">${s.with_watch} with watch flags</span>` : ""}
+    ${s.with_pga ? `<span class="pill ok">${s.with_pga} PGA</span>` : ""}
+    ${s.with_ad_cvd ? `<span class="pill warn">${s.with_ad_cvd} AD/CVD</span>` : ""}
     ${s.with_s232 ? `<span class="pill ok">${s.with_s232} on a 232 list</span>` : ""}
     ${s.needs_claim ? `<span class="pill warn">${s.needs_claim} need a claim</span>` : ""}
     ${s.blocked ? `<span class="pill warn">${s.blocked} need correction</span>` : ""}
@@ -3051,7 +3432,7 @@ function renderLookup(R) {
   html += `<div class="lookup-scroll"><table class="cov"><thead><tr>`;
   if (showPart) html += `<th>Part</th>`;
   if (showSku) html += `<th>SKU</th>`;
-  html += `<th>HTS</th><th>Origin</th><th class="r">Col-1</th><th>Help / replacement</th><th>Rules that apply</th><th>Ch.99</th>
+  html += `<th>HTS</th><th>Origin</th><th class="r">Col-1</th><th>Watch for</th><th>Help / replacement</th><th>Rules that apply</th><th>Ch.99</th>
   </tr></thead><tbody>`;
   rows.forEach((row, i) => {
     const miss = !row.in_table || row.error || row.blocked;
@@ -3069,6 +3450,7 @@ function renderLookup(R) {
         ? `<span class="cap" style="color:var(--color-red-700)">No stack - fix HTS first</span>`
         : `<span class="cap">${row.coo ? "none beyond Col-1" : "add origin"}</span>`;
     const seq = miss ? "-" : ((row.ch99_sequence || []).join(" | ") || "-");
+    const watchChips = renderHtsFlagChipsCompact(row.flags);
     const helpCell = row.replacement_hts_display || row.replacement_hts
       ? `<b class="mono">${esc(row.replacement_hts_display || row.replacement_hts)}</b>${
           row.replacement_col1_pct != null
@@ -3093,6 +3475,7 @@ function renderLookup(R) {
         ${miss ? `<div class="cap" style="color:var(--color-red-700)">Not in baseline table</div>` : ""}</td>
       <td class="mono">${esc(row.coo || "-")}</td>
       <td class="r mono">${row.col1_pct == null ? "-" : esc(String(row.col1_pct)) + "%"}</td>
+      <td><div class="pillrow cov-watch">${watchChips || `<span class="cap">-</span>`}</div></td>
       <td>${helpCell}</td>
       <td><div class="rule-chips">${chips}</div></td>
       <td class="mono cap">${esc(seq)}</td>
@@ -3105,6 +3488,13 @@ function renderLookup(R) {
         if (row.part && row.sku) html += " | ";
         if (row.sku) html += `SKU <b class="mono">${esc(row.sku)}</b>`;
         html += `</p>`;
+      }
+      const watchDetail = renderHtsFlagPills(row.flags);
+      if (watchDetail) {
+        html += `<div class="cov-fix" style="margin:0 0 var(--sp-3)">
+          <div class="eyebrow">Watch for</div>
+          <div class="hts-notices">${watchDetail}</div>
+        </div>`;
       }
       if (row.help || miss) {
         const title = row.help?.title || "This HTS needs correction";
@@ -3145,14 +3535,34 @@ function renderLookup(R) {
         </div>`;
       }
       if (!(row.help || miss) || (row.rules || []).length) {
-        html += (row.rules || []).map(r => `<div class="rule-row">
-          <div><span class="rule-chip ${esc(r.program)} ${esc(r.status || "")}">${esc(r.program)}</span>
-            <b class="mono">${esc(r.ch99 || "commodity")}</b> | ${esc(r.rate)}
-            <span class="cap"> | ${esc(r.status)}</span></div>
-          <div class="why">${esc(r.label)}</div>
-          <div class="why">${esc(r.reason)}</div>
-          ${r.source_ref ? `<div class="src">${esc(r.source_ref)}</div>` : ""}
-        </div>`).join("") || (row.help || miss ? "" : `<p class="cap">No rule rows.</p>`);
+        const ruleRows = (row.rules || []);
+        if (ruleRows.length) {
+          html += `<div class="cov-fix" style="margin:0 0 var(--sp-3)">
+            <div class="stack-layers-toolbar">
+              <span class="eyebrow">Rules / Chapter 99</span>
+              <button type="button" class="btn-ghost btn-sm" data-stack-expand-all>Expand all</button>
+            </div>
+            <div class="stack-layers" data-stack-layers>` +
+            ruleRows.map((r, ri) => renderStackLayerRow({
+              id: `cov-${i}-r${ri}`,
+              slot: r.program || "",
+              code: r.ch99 || (r.program === "base" ? (row.hts || "commodity") : (r.label || "")),
+              program: r.program || "base",
+              label: r.label || "",
+              reason: r.reason || "",
+              sourceRef: r.source_ref || "",
+              rate: r.rate || "",
+              duty: null,
+              basisAmount: null,
+              basisKind: r.status || "",
+              basisFmt: null,
+              suppressed: r.status === "info" && /suppress/i.test(r.reason || ""),
+              exempt: false,
+            })).join("") +
+            `</div></div>`;
+        } else if (!(row.help || miss)) {
+          html += `<p class="cap">No rule rows.</p>`;
+        }
       }
       const uni = row.s232_universe || {};
       const uniBits = [
@@ -3183,6 +3593,14 @@ function renderLookup(R) {
   });
   html += `</tbody></table></div>`;
   $("#lookup-out").innerHTML = html;
+  bindHtsWatchRows($("#lookup-out"));
+  bindStackLayers($("#lookup-out"));
+  $$("#lookup-out [data-hts-watch-toggle]").forEach((btn) => {
+    btn.addEventListener("click", (e) => e.stopPropagation());
+  });
+  $$("#lookup-out [data-stack-layer-toggle], #lookup-out [data-stack-expand-all]").forEach((btn) => {
+    btn.addEventListener("click", (e) => e.stopPropagation());
+  });
   $$("#lookup-out tr[data-cov]").forEach(tr => {
     tr.onclick = () => {
       const i = Number(tr.dataset.cov);
@@ -3203,7 +3621,7 @@ function renderLookup(R) {
       show("calc");
       previewHtsMeta();
       const idBits = [row.part && `part ${row.part}`, row.sku && `SKU ${row.sku}`].filter(Boolean).join(" | ");
-      banner("#calcbanner", "info", "From HTS list",
+      banner("#calcbanner", "info", "From Coverage",
         `${row.hts}${idBits ? ` (${idBits})` : ""} loaded into Duty stack - add value if needed, then Run the stack.`);
     };
   });
@@ -3252,6 +3670,7 @@ function exportLookupCsv() {
     ...(showPart ? ["part"] : []),
     ...(showSku ? ["sku"] : []),
     "hts", "coo", "as_of", "in_table", "blocked", "window_status", "ended_on", "col1_pct", "desc",
+    "pga", "ad", "cvd", "add_hts",
     "replacement_hts", "replacement_col1_pct", "related_hts", "ch99_sequence", "s232_lists", "rules", "notes", "help_steps",
   ];
   const lines = [headers.join(",")];
@@ -3259,8 +3678,13 @@ function exportLookupCsv() {
     const cols = [];
     if (showPart) cols.push(r.part);
     if (showSku) cols.push(r.sku);
+    const f = r.flags || {};
     cols.push(
       r.hts, r.coo, r.as_of, r.in_table, r.blocked, r.window_status, r.ended_on, r.col1_pct, r.desc,
+      (f.pga || []).join(" "),
+      f.add ? "Y" : "",
+      f.cvd ? "Y" : "",
+      f.add_hts ? "Y" : "",
       r.replacement_hts_display || r.replacement_hts, r.replacement_col1_pct,
       (r.related_hts || []).map(x => x.hts_display || x.hts).join(" | "),
       (r.ch99_sequence || []).join(" "),
