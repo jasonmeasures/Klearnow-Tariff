@@ -173,6 +173,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
   <div class="spacer"></div>
   <nav>
     <a href="/">Open app</a>
+    <a href="./RELEASE_NOTES.html">Release notes</a>
     <a href="../tariff-rules/docs/RULES.html">Rules review pack</a>
     <a class="print-hide" href="#" onclick="window.print(); return false;">Print / PDF</a>
   </nav>
@@ -201,9 +202,10 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
   <article class="prose">
     <p class="note">Shareable HTML generated from <code>docs/USER_MANUAL.md</code>. Markdown remains the source of truth. Print this page to PDF if you need a file for review.</p>
     <h1 id="klearnow-tariff-user-manual">KlearNow Tariff — User Manual</h1>
-<p><strong>Version 1.8.0 · as of 2026-08-31 · United States entries only</strong></p>
-<p>This is the operator guide for the Duty stack app. For <em>why</em> a heading applies, share <a href="../tariff-rules/docs/RULES.html"><code>tariff-rules/docs/RULES.md</code></a> with compliance — that pack is written for review (<strong>RULES 1.6.5</strong>).</p>
+<p><strong>Version 1.9.0 · as of 2026-08-31 · United States entries only</strong></p>
+<p>This is the operator guide for the Duty stack app. For <em>why</em> a heading applies, share <a href="../tariff-rules/docs/RULES.html"><code>tariff-rules/docs/RULES.md</code></a> with compliance — that pack is written for review (<strong>RULES 1.6.6</strong>).</p>
 <p>Shareable HTML (same content): <a href="./USER_MANUAL.html"><code>USER_MANUAL.html</code></a> — open in a browser or Print → PDF. In the live app, open <strong>User manual</strong> from the left nav or the top bar (<strong>Help</strong>).</p>
+<p><strong>What’s new in 1.9.0:</strong> <a href="./RELEASE_NOTES.html">Release notes</a> · <strong><a href="./RELEASE_NOTES.html">HTML</a></strong> — <strong>Watch for</strong> (PGA / AD/CVD), <strong>Coverage</strong> (renamed from HTS list), collapsible Chapter 99 layers.</p>
 <hr />
 <h2 id="1-what-this-tool-is">1. What this tool is</h2>
 <p>KlearNow Tariff builds the <strong>US duty stack</strong> for a classification: Column 1 (the ordinary HTS rate) plus every <strong>Chapter 99</strong> layer that should report — China 301 (legacy <code>9903.88</code> and four-year review <code>9903.91</code>), 301-FL, Section 232 (autos, vehicles, MHDV, wood, semiconductors, metals, patented pharma, UAS), Brazil 301, <strong>Section 338 Canada</strong>, Section 201 QSP — in the order CBP expects.</p>
@@ -222,9 +224,10 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td><strong>Audit</strong></td><td>Everyone</td><td>Compare ACE ES-003 filings to the live stack</td></tr>
 <tr><td><strong>Rules / Upload / Snapshots / Users</strong></td><td>Admin</td><td>Author, publish, and provision the app</td></tr>
 <tr><td><strong>Insights / API &amp; ref</strong></td><td>Browse</td><td>Pack stats, era dates, claim-flag reference</td></tr>
+<tr><td><strong>Release notes</strong></td><td>Everyone</td><td>What’s new (opens in a new tab)</td></tr>
 <tr><td><strong>User manual</strong></td><td>Everyone</td><td>This guide (opens in a new tab)</td></tr></tbody></table></div>
 <h3 id="top-bar">Top bar</h3>
-<ul><li><strong>CSMS</strong> — official CBP archive (external).</li><li><strong>Help</strong> — this user manual.</li><li><strong>Sign in / Sign out</strong> — Auth0 in playground and WordPress; local demo uses <strong>View as</strong> (admin / user / guest).</li><li><strong>Pack chip</strong> — live rule-pack version and connection status.</li></ul>
+<ul><li><strong>What’s new</strong> — release notes (opens in a new tab).</li><li><strong>CSMS</strong> — official CBP archive (external).</li><li><strong>Help</strong> — this user manual.</li><li><strong>Sign in / Sign out</strong> — Auth0 in playground and WordPress; local demo uses <strong>View as</strong> (admin / user / guest).</li><li><strong>Pack chip</strong> — live rule-pack version and connection status.</li></ul>
 <h3 id="which-screen-when">Which screen when?</h3>
 <ol><li><strong>Start on Duty stack</strong> when you have one line and need rates, duty dollars, suppressions, and the Chapter 99 filing sequence.</li><li><strong>Use Coverage</strong> when you have dozens or hundreds of HTS codes and only need to know <em>which</em> programs hit — before you have entered values. The <strong>Watch for</strong> column shows PGA / AD/CVD signals.</li><li><strong>Use Audit</strong> when you already filed and have an ACE ES-003 export to compare.</li><li><strong>Open Multi-line &amp; scenarios</strong> (Duty stack sidebar) for a full entry, Excel paste, engine compare, or A/B with vs without a claim.</li><li><strong>Use Chat</strong> for a quick “does this HTS pick up 232 from Japan?” question without filling the form.</li></ol>
 <hr />

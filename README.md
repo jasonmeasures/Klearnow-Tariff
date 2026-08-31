@@ -11,6 +11,7 @@ See [`DEPLOYMENT.md`](DEPLOYMENT.md) and [`wordpress/klearnow-duty-stack/`](word
 |----------|----------|
 | Developers + compliance (rules sign-off) | [`tariff-rules/docs/RULES.md`](tariff-rules/docs/RULES.md) · **[HTML](tariff-rules/docs/RULES.html)** |
 | Operators (how to use the app) | [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) · **[HTML](docs/USER_MANUAL.html)** |
+| What’s new (release notes) | [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md) · **[HTML](docs/RELEASE_NOTES.html)** |
 | Other apps / API contract | [`tariff-rules/docs/FRAMEWORK.md`](tariff-rules/docs/FRAMEWORK.md) |
 
 ```bash

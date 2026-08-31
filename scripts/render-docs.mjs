@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Render RULES.md and USER_MANUAL.md to self-contained HTML.
+ * Render RULES.md, USER_MANUAL.md, and RELEASE_NOTES.md to self-contained HTML.
  * Markdown remains the source of truth — re-run after edits:
  *   node scripts/render-docs.mjs
  */
@@ -16,16 +16,34 @@ const DOCS = [
     dest: "tariff-rules/docs/RULES.html",
     title: "KlearNow Tariff Stacking Rules — Review Pack",
     eyebrow: "Rules review · developers & compliance",
-    companion: { href: "../../docs/USER_MANUAL.html", label: "User manual" },
+    companions: [
+      { href: "../../docs/USER_MANUAL.html", label: "User manual" },
+      { href: "../../docs/RELEASE_NOTES.html", label: "Release notes" },
+    ],
   },
   {
     src: "docs/USER_MANUAL.md",
     dest: "docs/USER_MANUAL.html",
     title: "KlearNow Tariff — User Manual",
     eyebrow: "Operator guide",
-    companion: { href: "../tariff-rules/docs/RULES.html", label: "Rules review pack" },
+    companions: [
+      { href: "./RELEASE_NOTES.html", label: "Release notes" },
+      { href: "../tariff-rules/docs/RULES.html", label: "Rules review pack" },
+    ],
     appHref: "/",
     copyTo: "frontend/public/docs/USER_MANUAL.html",
+  },
+  {
+    src: "docs/RELEASE_NOTES.md",
+    dest: "docs/RELEASE_NOTES.html",
+    title: "KlearNow Tariff — Release notes",
+    eyebrow: "What’s new",
+    companions: [
+      { href: "./USER_MANUAL.html", label: "User manual" },
+      { href: "../tariff-rules/docs/RULES.html", label: "Rules review pack" },
+    ],
+    appHref: "/",
+    copyTo: "frontend/public/docs/RELEASE_NOTES.html",
   },
 ];
 
@@ -368,7 +386,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 }
 `;
 
-function page({ title, eyebrow, companion, appHref, toc, body, sourceRel }) {
+function page({ title, eyebrow, companions, appHref, toc, body, sourceRel }) {
   const tocHtml = toc
     .filter((t) => t.level >= 2)
     .map(
@@ -379,6 +397,9 @@ function page({ title, eyebrow, companion, appHref, toc, body, sourceRel }) {
   const appLink = appHref
     ? `<a href="${escapeHtml(appHref)}">Open app</a>`
     : "";
+  const companionLinks = (companions || [])
+    .map((c) => `<a href="${escapeHtml(c.href)}">${escapeHtml(c.label)}</a>`)
+    .join("\n    ");
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -399,7 +420,7 @@ function page({ title, eyebrow, companion, appHref, toc, body, sourceRel }) {
   <div class="spacer"></div>
   <nav>
     ${appLink}
-    <a href="${companion.href}">${escapeHtml(companion.label)}</a>
+    ${companionLinks}
     <a class="print-hide" href="#" onclick="window.print(); return false;">Print / PDF</a>
   </nav>
 </header>
@@ -432,7 +453,7 @@ for (const doc of DOCS) {
   const htmlPage = page({
     title: doc.title,
     eyebrow: doc.eyebrow,
-    companion: doc.companion,
+    companions: doc.companions || (doc.companion ? [doc.companion] : []),
     appHref: doc.appHref,
     toc,
     body: html,

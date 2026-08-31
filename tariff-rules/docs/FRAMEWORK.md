@@ -225,7 +225,7 @@ Full list: [`OPEN_ITEMS.md`](./OPEN_ITEMS.md).
 
 | Ver | Date | Notes |
 |-----|------|-------|
-| **1.7.0** | 2026-08-31 | Align with RULES 1.6.5: R1–R13 in contract; UAS Note 51(c); section-stable CSMS #69668138 order; QSP R12 |
+| **1.7.0** | 2026-08-31 | Align with RULES 1.6.5: R1–R13 in contract; UAS Note 51(c); section-stable CSMS #69668138 order; QSP R12. App release **1.9.0** (Watch for / Coverage) is operator UI — see [`docs/RELEASE_NOTES.md`](../../docs/RELEASE_NOTES.md). |
 | **1.6.0** | 2026-08-24 | Section 338 Canada `9903.03.12`–`.16` (CSMS #69606660); 50% additional from 12:01 a.m. EST 2026-08-22 |
 | **1.5.0** | 2026-08-17 | Review pack (`RULES.md`) + user manual; HTS list surfaces 232 vehicles / MHDV / wood / semiconductors (auto vs claim) |
 | **1.4.0** | 2026-08-14 | Section 232 wood / passenger vehicles / MHDV / semiconductors packs from CSMS; 232 still wins via `9903.05.90` |

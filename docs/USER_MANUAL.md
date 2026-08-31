@@ -1,10 +1,12 @@
 # KlearNow Tariff — User Manual
 
-**Version 1.8.0 · as of 2026-08-31 · United States entries only**
+**Version 1.9.0 · as of 2026-08-31 · United States entries only**
 
-This is the operator guide for the Duty stack app. For *why* a heading applies, share [`tariff-rules/docs/RULES.md`](../tariff-rules/docs/RULES.md) with compliance — that pack is written for review (**RULES 1.6.5**).
+This is the operator guide for the Duty stack app. For *why* a heading applies, share [`tariff-rules/docs/RULES.md`](../tariff-rules/docs/RULES.md) with compliance — that pack is written for review (**RULES 1.6.6**).
 
 Shareable HTML (same content): [`USER_MANUAL.html`](./USER_MANUAL.html) — open in a browser or Print → PDF. In the live app, open **User manual** from the left nav or the top bar (**Help**).
+
+**What’s new in 1.9.0:** [Release notes](./RELEASE_NOTES.md) · **[HTML](./RELEASE_NOTES.html)** — **Watch for** (PGA / AD/CVD), **Coverage** (renamed from HTS list), collapsible Chapter 99 layers.
 
 ---
 
@@ -37,10 +39,12 @@ Typical uses:
 | **Audit** | Everyone | Compare ACE ES-003 filings to the live stack |
 | **Rules / Upload / Snapshots / Users** | Admin | Author, publish, and provision the app |
 | **Insights / API & ref** | Browse | Pack stats, era dates, claim-flag reference |
+| **Release notes** | Everyone | What’s new (opens in a new tab) |
 | **User manual** | Everyone | This guide (opens in a new tab) |
 
 ### Top bar
 
+- **What’s new** — release notes (opens in a new tab).
 - **CSMS** — official CBP archive (external).
 - **Help** — this user manual.
 - **Sign in / Sign out** — Auth0 in playground and WordPress; local demo uses **View as** (admin / user / guest).

@@ -1,6 +1,6 @@
 # KlearNow Tariff Stacking Rules — Review Pack
 
-**Version 1.6.5 · as of 2026-08-31 · United States only (HTSUS)**  
+**Version 1.6.6 · as of 2026-08-31 · United States only (HTSUS)**  
 **Audience:** developers integrating the engine, and compliance / trade reviewing the logic before it is used in production.
 
 This is the document to **read, mark up, and sign off**. Machine tables in `tariff-rules/data/` are the authority if this prose and a JSON file ever disagree.
@@ -758,6 +758,7 @@ Please initial / date. Comment on the rule or program id if you disagree.
 
 ## Changelog
 
+- **1.6.6 (2026-08-31)** — Coverage / Duty stack: classification **Watch for** flags (PGA / AD / CVD / additional HTS) + description path on HTS lookup and coverage; UI rename HTS list → Coverage; collapsible Ch.99 layers. Operator release notes: [`docs/RELEASE_NOTES.md`](../../docs/RELEASE_NOTES.md) **1.9.0**.
 - **1.6.5 (2026-08-31)** — Doc gaps: add R12 (QSP) to §5; Note 51(c) + §6.8 document UAS `9903.08.20`–`.26`; sign-off rows for R12 / UAS / section-stable order; `framework_contract` bumped to 1.7.0.
 - **1.6.4 (2026-08-28)** — CSMS #69668138 stacking: section-stable Ch.99 order only (301 → 338 → 232 → 201). Drop invented within-section tiebreaks (ascending / China-before-FL). `9903.05.90` ranks as Section 301.
 - **1.6.3 (2026-08-28)** — Metals list-gate + solar stack for engineer review: outside Ch.72–74/76, metal-content invents `9903.82.09` **only** on `s232_metals_matrix.json` (cite CSMS **#68855869**). Off-list `8541.43` / CN → `9903.91.02` + `9903.05.31` (with or without `9802.00.50` repair basis); CSPV 201 `9903.45.21`–`.29` marked expired; QSP 201 kept separate; R13 / §6.6 / §8.1 / worked examples updated.

@@ -30,4 +30,6 @@ cd backend && npx tsx src/import_hts_desc.ts --url
 
 Writes [`hts_desc_path.json`](../data/hts_desc_path.json). API returns `flags`, `desc_path`, `desc_full`.
 
-**UI:** Rate / program pills stay under the Quick Check form. Description shows the full Cervo-style path by default; **Show hierarchy** opens the indent tree. Chapter titles (e.g. “Furniture; bedding…”) are often absent from the USITC JSON export — path usually starts at the heading.
+**UI:** Rate / program pills stay under the Quick Check form. **About this HTS** (Results) shows **Watch for** notices and the description path; **Show hierarchy** opens Heading → Subheading → Line. Coverage adds a Watch for column. Chapter titles (e.g. “Furniture; bedding…”) are often absent from the USITC JSON export — path usually starts at the heading.
+
+Operator release: [`docs/RELEASE_NOTES.md`](../../docs/RELEASE_NOTES.md) **1.9.0**.
