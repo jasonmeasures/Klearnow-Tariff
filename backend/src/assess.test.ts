@@ -440,10 +440,7 @@ describe("golden duty paths", () => {
     );
     assert.ok(L.ch99_sequence.includes("9903.88.15"));
     assert.ok(L.ch99_sequence.includes("9903.05.31"));
-    assert.equal(
-      L.ch99_sequence.indexOf("9903.88.15") < L.ch99_sequence.indexOf("9903.05.31"),
-      true,
-    );
+    // Both are Section 301 — CSMS #69668138 does not prescribe within-section order.
     assert.equal(L.totals.effective_duty_rate_pct, 25.29); // 7.5 + 12.5 + 5.29
     assert.equal(L.totals.duty, 2529);
     assert.ok(L.diagnostics.some((d) => d.code === "S301_LIST_RESOLVED"));

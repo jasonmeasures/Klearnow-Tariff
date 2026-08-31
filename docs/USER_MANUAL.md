@@ -1,8 +1,8 @@
 # KlearNow Tariff — User Manual
 
-**Version 1.7.0 · as of 2026-08-27 · United States entries only**
+**Version 1.8.0 · as of 2026-08-31 · United States entries only**
 
-This is the operator guide for the Duty stack app. For *why* a heading applies, share [`tariff-rules/docs/RULES.md`](../tariff-rules/docs/RULES.md) with compliance — that pack is written for review.
+This is the operator guide for the Duty stack app. For *why* a heading applies, share [`tariff-rules/docs/RULES.md`](../tariff-rules/docs/RULES.md) with compliance — that pack is written for review (**RULES 1.6.5**).
 
 Shareable HTML (same content): [`USER_MANUAL.html`](./USER_MANUAL.html) — open in a browser or Print → PDF. In the live app, open **User manual** from the left nav or the top bar (**Help**).
 
@@ -86,7 +86,7 @@ Under the fields, a preview line appears as you type the HTS:
 
 - Column 1 rate and description
 - China 301 list membership (legacy `9903.88` and four-year review `9903.91` when origin is CN / HK)
-- **232 list pills** — passenger vehicle, MHDV, bus, wood, auto-parts annex, metals (origin-aware where the pack distinguishes JP / EU / KR / TW / UK rates)
+- **232 list pills** — passenger vehicle, MHDV, bus, wood, auto-parts annex, metals, **UAS**, Section 338 (origin-aware where the pack distinguishes JP / EU / KR / TW / UK rates)
 - USITC link
 
 If Column 1 is a specific rate (¢/kg, etc.), a **quantity** field appears. If the HTS is in Chapters 72–74 / 76 or otherwise on the metals matrix, a **metals** panel appears (steel, aluminum, copper — content in USD or % of entered, plus melt/pour or smelt country).
@@ -103,8 +103,11 @@ If Column 1 is a specific rate (¢/kg, etc.), a **quantity** field appears. If t
 | **Pharma use (9903.05.89)** | 301-FL pharma-use list | Tick for Note 52(e) pharmaceutical **use** — not the same as 232 pharma |
 | **Claim FTA / USMCA** | Origin CA / MX / CAFTA | SPI S/S+ zeros Column 1 and MPF only — it does not automatically clear 232, 301-FL, or Section 338 |
 | **Civil aircraft (General Note 6)** | HTS is on the Section 338 aircraft list | Reports `9903.03.16` @ 0% instead of the 50% 338 duty heading |
-| **201 QSP over-quota** | Covered quartz surface product | Tick when the quarterly TRQ is exhausted (`9903.45.31`) |
-| **232 UAS thermal** | Small-UAS annex II HTS | Tick if the aircraft integrates a thermal imager (`9903.08.21`) |
+| **201 QSP over-quota** | Covered quartz surface product (`6810.99.0020` / `.0040` / `7020.00.6000`) | Tick when the quarterly TRQ is exhausted (`9903.45.31`); default is in-quota `.30` |
+| **232 UAS thermal** | Small-UAS annex II HTS (`8806.21`–`.23` / `.91`–`.93`) | Tick if the aircraft integrates a thermal imager → `9903.08.21` @ 100% (else `.22` @ 25%) |
+| **232 UAS docking** | Docking stems `8504.40.9580` / `8537.10.9170` | Tick for UAS docking end-use → `9903.08.21` @ 100% |
+| **232 UAS part** | `8807` on the UAS parts list | Tick when the article is for a covered UAS |
+| **Not for UAS use** | On a UAS list but not for UAS use | Tick → `9903.08.20` @ 0% (does **not** suppress 301-FL) |
 
 If no extra claim applies, the form says **No extra claims for this line** instead of a row of empty boxes. The China 301 list override appears only for CN / HK origins.
 
@@ -116,7 +119,7 @@ Each row is a layer: program, Chapter 99 code (or “commodity” for Column 1),
 
 - **Suppressed** layers (typical: 301-FL killed by 232) stay visible so you can see *why* they did not assess.
 - **Diagnostics** warn when a list hit needs a claim, when metal content is missing, or when a trade-deal total is blocked (R6).
-- **Chapter 99 sequence** is the reporting order (99 before 1–97; China 301 before 232 when both apply).
+- **Chapter 99 sequence** follows CBP CSMS **#69668138**: Ch.98 (if any) → trade remedies **Section 301 → Section 338 → Section 232 → Section 201** → Chapters 1–97. Cross-section only (e.g. China 301 before 232). Within one section (e.g. `9903.88.03` and `9903.05.90`, both Section 301), order is **not** rearranged by ascending code — the assigned sequence is kept.
 - **HMF** appears as its own line when MOT is Ocean.
 
 Use **Try an example** chips for a known-good VN apparel, CN auto-parts, DE pharma, or VN quartz Section 201 stack.
@@ -142,8 +145,8 @@ Recognised columns include `hts` / `primary_hts`, `coo` / origin, `part`, `sku`,
 
 | Chip | Meaning |
 |------|---------|
-| Green 232 heading | Auto-applies from a published list (vehicle, bus, wood, in-annex auto part) |
-| Orange heading **· claim** | On a claim-gated list (MHDV parts, semiconductors) — duty only if you certify the fact |
+| Green 232 heading | Auto-applies from a published list (vehicle, bus, wood, in-annex auto part, large/small UAS) |
+| Orange heading **· claim** | On a claim-gated list (MHDV parts, semiconductors, UAS docking / 8807, QSP over-quota) — duty only if you certify the fact |
 | 301-FL heading | Origin is in the Forced Labor pack — **suppressed** if 232 already won |
 | **on a 232 list** / **need a claim** | Summary pills at the top of the results |
 
@@ -197,19 +200,23 @@ China 301 uses HTS list membership (legacy note 20 and four-year review note 31)
 | 2026-02-24 → 2026-07-23 | Section 122 10% surcharge (`9903.03.01`), entry-level |
 | **From 2026-07-24** | **301-FL** (`9903.05.xx`) unless Section 232 already won |
 
-Section 232 programs can apply in those windows too, on their own effective dates (vehicles from 2025-04-03, wood 2025-10-14, MHDV 2025-11-01, semiconductors 2026-01-15, patented pharma 2026-07-31, Section 338 Canada from 2026-08-22).
+Section 232 programs can apply in those windows too, on their own effective dates (vehicles from 2025-04-03, wood 2025-10-14, MHDV 2025-11-01, semiconductors 2026-01-15, patented pharma 2026-07-31, Section 338 Canada from 2026-08-22, **UAS / drones from 2026-09-03**). Section 201 QSP (quartz) is live from **2026-08-15**.
 
 ---
 
 ## 9. Common questions
 
 **Why did 301-FL disappear?**  
-Section 232 and 301-FL are mutually exclusive. If the HTS is a valid 232 auto part, vehicle, MHDV, wood article, claimed semiconductor, metal, or patented pharma, the stack reports `9903.05.90` and does not assess 301-FL. China 301 (`9903.88` or four-year review `9903.91`) still stacks.
+Section 232 and 301-FL are mutually exclusive. If the HTS is a valid 232 auto part, vehicle, MHDV, wood article, claimed semiconductor, metal, patented pharma, or **UAS** (duty headings — not `9903.08.20`), the stack reports `9903.05.90` and does not assess 301-FL. China 301 (`9903.88` or four-year review `9903.91`) still stacks.
 
 **Why didn’t `7601.10.30` from China pick up `9903.91.01`?**  
 It should, for entries on or after 27 Sep 2024. That heading is the Section 301 four-year review +25% on listed steel/aluminum of China (U.S. note 31 / CSMS #62411889). It stacks with Section 232 `9903.82.02`. It does not apply unless origin is China.
 
-**Section 338 Canada** (from 22 Aug 2026): listed products of Canada take an extra 50% (`9903.03.12` / `.13` / `.14`). USMCA does **not** turn that off. If a 232 heading already applies, the engine reports `9903.03.15` @ 0% instead. Civil aircraft needs the General Note 6 claim (`9903.03.16`). The 338 additional duty is drawback-eligible.
+**Section 338 Canada** (from 22 Aug 2026): listed products of Canada take an extra 50% (`9903.03.12` alcohol / `.13` dairy / `.14` broad goods — 63 / 52 / 439 stems). USMCA does **not** turn that off. If a Note 51(c) 232-family heading already applies — including **UAS `9903.08.20`–`.26`** — the engine reports `9903.03.15` @ 0% instead. Civil aircraft needs the General Note 6 claim (`9903.03.16`). The 338 additional duty is drawback-eligible. Suspended 19–21 Aug 2026; live from 12:01 a.m. EST 22 Aug.
+
+**Section 201 QSP (quartz)** (from 15 Aug 2026): `6810.99.0020` / `.0040` / `7020.00.6000` get `9903.45.30` (in-quota, default) or claim over-quota `.31`. Stacks with 301-FL — does **not** suppress it. Not the expired CSPV solar 201.
+
+**232 UAS / drones** (from 3 Sep 2026): large UAS auto `9903.08.21` @ 100%; small UAS auto `.22` @ 25% unless thermal is claimed. Docking and 8807 parts need a claim. Suppresses 301-FL via `.90` (except “not for UAS use” `.20`).
 
 **Why is a Japan car 15% combined, not 25% additional?**  
 Country of origin drives the 232 vehicle heading. Japan passenger vehicles from 16 Sep 2025 use `9903.94.41` (combined Column 1 + 232 = 15%) when Column 1 is under 15%. The parts heading `9903.94.43` is not used on a car. Other origins (Thailand, China, Vietnam, …) still use `9903.94.01` @ 25% additional. UK in-quota vehicles need the TRQ claim `s232_uk_auto_trq` for `9903.94.31`.

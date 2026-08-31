@@ -1,7 +1,7 @@
 {
   "id": "klearnow-tariff-rules-framework",
-  "version": "1.6.0",
-  "as_of": "2026-08-24",
+  "version": "1.7.0",
+  "as_of": "2026-08-31",
   "jurisdiction": "US",
   "status": "SHAREABLE_PACK — interim until core engine is published as a shared API",
   "owner": "KlearNow Tariff (tariff-rules/)",
@@ -32,7 +32,7 @@
     "auth": "Auth0 Bearer (playground) or X-API-Key (local / service)"
   },
   "engines": {
-    "auto": "Default Duty stack — eras + 232 annex/metals + China 301 + 301-FL + Section 338 Canada + Sec 122 historical",
+    "auto": "Default Duty stack — eras + 232 annex/metals/UAS + China 301 + 301-FL + Section 338 Canada + 201 QSP + Sec 122 historical",
     "ch99": "Chapter 99 reciprocal / IEEPA-era seed pack evaluator"
   },
   "eras": [
@@ -72,12 +72,12 @@
   "stacking_rules": [
     {
       "id": "R1",
-      "text": "232 (autos/parts/vehicles/MHDV/metals/wood/semiconductors/pharma) and 301-FL are mutually exclusive. 232 wins via 9903.05.90.",
+      "text": "232 (autos/parts/vehicles/MHDV/metals/wood/semiconductors/pharma/UAS) and 301-FL are mutually exclusive. 232 wins via 9903.05.90. 9903.08.20 (not for UAS use) does not suppress FL.",
       "status": "CONFIRMED"
     },
     {
       "id": "R2",
-      "text": "China 301 (legacy 9903.88.xx and four-year review 9903.91.xx / 9903.92.10) is NOT suppressed by 232 or Sec 122. Reports first; stacks with both when applicable. Note 31 replaces 9903.88.xx on the same HTS.",
+      "text": "China 301 (legacy 9903.88.xx and four-year review 9903.91.xx / 9903.92.10) is NOT suppressed by 232 or Sec 122. Reports in the Section 301 slot before 338/232 (CSMS #69668138). Within Section 301, heading order is not prescribed. Note 31 replaces 9903.88.xx on the same HTS.",
       "status": "CONFIRMED"
     },
     {
@@ -121,13 +121,38 @@
       "status": "TBC_BLOCKING"
     },
     {
+      "id": "R7",
+      "text": "9903.94.xx program labeling (232 autos vs trade-deal) — TBC (legal basis / drawback).",
+      "status": "TBC"
+    },
+    {
+      "id": "R8",
+      "text": "HTS authority: Item Master for parts; HA30 for vehicles with Item Master fallback.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R9",
+      "text": "AD/CVD outside Ch.99 stack — flag only; do not invent case rates.",
+      "status": "CONFIRMED_SCOPE"
+    },
+    {
+      "id": "R10",
+      "text": "SPI S/S+ / CAFTA-DR zeros Column 1 + MPF only. Does not clear 301-FL, 232, China 301, Brazil 301, or Section 338.",
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "R11",
+      "text": "Section 338 Canada 9903.03.12–.14 @ 50% from 2026-08-22. Note 51(c) → 9903.03.15 when 232-family applies (incl. UAS 9903.08.20–.26). Aircraft .16 needs GN6. Reports after 301, before 232.",
+      "status": "CONFIRMED"
+    },
+    {
       "id": "R12",
       "text": "Section 201 QSP TRQ (9903.45.30 in-quota / 9903.45.31 over-quota) auto-applies on 6810.99.0020 / .0040 / 7020.00.6000 from 2026-08-15. Stacks with 301-FL. Default in-quota.",
       "status": "CONFIRMED"
     },
     {
-      "id": "R8",
-      "text": "HTS authority: Item Master for parts; HA30 for vehicles with Item Master fallback.",
+      "id": "R13",
+      "text": "Chapter 98: general 98xx suppresses China 301 / 301-FL / Brazil 301 / 338; 9802.00.40/.50 repair-value basis; 9802.00.60 keeps 232 on entered value; 9802.00.80 assembly less US content. Reports first on 7501.",
       "status": "CONFIRMED"
     }
   ],
@@ -148,7 +173,7 @@
       {
         "id": 1,
         "type": "decision",
-        "if": "Sec 232 Ch.99 present or determined (9903.82 / .94 / .74 / .76 / .79 family, or metals/auto annex hit)",
+        "if": "Sec 232 Ch.99 present or determined (9903.82 / .94 / .74 / .76 / .79 / .04 / .08 family, or metals/auto annex / UAS hit)",
         "yes": 2,
         "no": 3
       },
@@ -233,11 +258,13 @@
   },
   "data_files": {
     "program_status.json": "Live / sunset / struck program registry",
-    "interaction_rules.json": "R1–R11 stacking narrative + status (includes R10 SPI/FTA Col-1+MPF and R11 Section 338 Canada)",
+    "interaction_rules.json": "R1–R13 stacking narrative + status (SPI/FTA, 338 Canada, QSP 201, Ch.98, section-stable CSMS order)",
     "ch99_codes.json": "~120 Ch.99 code registry",
     "s301fl_pack.json": "301-FL 60 economies + exemptions (CSMS #69326983)",
     "s301_brazil.json": "Brazil country Section 301 9903.05.01–.09 (CSMS #69302472)",
     "s338_canada.json": "Section 338 Canada 9903.03.12–.16 HTS lists + dates (CSMS #69606660)",
+    "s232_uas.json": "Section 232 UAS Proc. 11055 / note 43 (9903.08.20–.26)",
+    "s201_qsp.json": "Section 201 quartz surface products TRQ",
     "s232_auto_parts_annex.json": "Proclamation 10908 auto-parts HTS stems",
     "s232_autos_vehicles.json": "Proclamation 10908 passenger vehicles / light trucks (CSMS #64624801)",
     "s232_mhdv.json": "Proclamation 10984 MHDV / buses / parts (CSMS #66665333)",

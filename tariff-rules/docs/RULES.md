@@ -1,6 +1,6 @@
 # KlearNow Tariff Stacking Rules — Review Pack
 
-**Version 1.6.3 · as of 2026-08-28 · United States only (HTSUS)**  
+**Version 1.6.5 · as of 2026-08-31 · United States only (HTSUS)**  
 **Audience:** developers integrating the engine, and compliance / trade reviewing the logic before it is used in production.
 
 This is the document to **read, mark up, and sign off**. Machine tables in `tariff-rules/data/` are the authority if this prose and a JSON file ever disagree.
@@ -9,8 +9,8 @@ Shareable HTML (same content): [`RULES.html`](./RULES.html) — open in a browse
 
 | If you are… | Start here | Then check |
 |-------------|------------|------------|
-| **Compliance / trade** | §1–§3 (what's live), §5 (stacking), §6 (each 232 program + HTS lists) | §8 / §8.1 (China 301 solar + expired CSPV 201), §12 claim flags, §15 open items, **sign-off** at the end |
-| **Developer** | §4 decision order, §6.3 MHDV dual-list, §6.6 metals list-gate, §12 flags, §13 data files / API | [`PACK_INTAKE.md`](./PACK_INTAKE.md), `FRAMEWORK.md`, `interaction_rules.json`, tests in `backend/src/s232NewPacks.test.ts` / `ch98Basis.test.ts` |
+| **Compliance / trade** | §1–§3 (what's live), §5 (stacking), §6 (each 232 program + HTS lists) | §8 / §8.1 (China 301 solar + expired CSPV 201), §9 claim flags, §13 open items, **sign-off** at the end |
+| **Developer** | §4 decision order, §6.3 MHDV dual-list, §6.6 metals list-gate, §6.8 UAS, §9 flags, §12 data files / API | [`PACK_INTAKE.md`](./PACK_INTAKE.md), `FRAMEWORK.md`, `interaction_rules.json`, tests in `backend/src/s232NewPacks.test.ts` / `ch98Basis.test.ts` |
 | **Operator using the app** | [`docs/USER_MANUAL.md`](../../docs/USER_MANUAL.md) | HTS list + Duty stack walkthrough |
 
 Related docs: [`FRAMEWORK.md`](./FRAMEWORK.md) (shareable contract) · [`PACK_INTAKE.md`](./PACK_INTAKE.md) (CSMS → pack completeness) · [`RULES_ENGINE.md`](./RULES_ENGINE.md) (Inditex API hand-off) · [`OPEN_ITEMS.md`](./OPEN_ITEMS.md).
@@ -206,11 +206,24 @@ SPI S/S+ (and CAFTA-DR) zeros **Column 1 + MPF only**. It does **not** automatic
 
 Products of Canada on the Note 51(b) lists pay **+50%** additional (`9903.03.12` alcohol, `.13` dairy, `.14` broad goods) from **12:01 a.m. EST 2026-08-22**. Stacks on Column 1, 301-FL, China 301, 201, AD/CVD, MPF/HMF. **Drawback eligible.**
 
-If the line already attracts a listed 232-family heading (metals `9903.82.02` / `.04`–`.26`, autos, wood, MHDV, semiconductors `.01`, patented pharma `.60`–`.66`), report **`9903.03.15` @ 0%** instead — never both a 50% 338 heading and a Note 51(c) heading.
+If the line already attracts a listed 232-family heading (metals `9903.82.02` / `.04`–`.26`, autos `9903.94.xx`, wood `9903.76.xx`, MHDV `9903.74.xx`, semiconductors `9903.79.01`, patented pharma `9903.04.60`–`.66`, **UAS `9903.08.20`–`.26`**), report **`9903.03.15` @ 0%** instead — never both a 50% 338 heading and a Note 51(c) heading. Pack list: `s338_canada.json` → `exclusion_headings_note51c`.
 
 Civil aircraft (General Note 6) on the Note 51(d) list reports **`9903.03.16` @ 0%** only when `civil_aircraft_gn6` is claimed.
 
 Evaluate 232-family **first**, then gate 338. On the 7501, 338 reports **after Section 301 and before Section 232** (CSMS #69668138). CBP’s Ch.98/drawback text citing `9903.04.12`–`.14` is a typo for `9903.03.12`–`.14`.
+
+### R12 — Section 201 quartz surface products (QSP)
+
+U.S. note 41 TRQ on **`6810.99.0020`**, **`6810.99.0040`**, **`7020.00.6000`** from **2026-08-15** through **2030-08-14**.
+
+| Heading | When | Rate (Year 1) |
+|---------|------|----------------|
+| **`9903.45.30`** | In-quota (default) | 25% additional |
+| **`9903.45.31`** | Over-quota — **claim-gated** (`s201_qsp_over_quota`) | 50% additional |
+
+Stacks with Column 1, 301-FL, China 301, and AD/CVD — **does not** suppress 301-FL. Exempt origins per note 41(c) (CA/MX/KR/FTA/CBERA/listed developing). Quarried stone out of scope (`s201_not_qsp`).
+
+**Not** CSPV solar (`9903.45.21`–`.29`, expired) and **not** washers 201 — do not reuse QSP headings for those.
 
 ### R13 — Chapter 98 dutiable basis
 
@@ -230,7 +243,9 @@ Reports first on the entry summary (CSMS #69668138). Missing repair / US-content
 
 ### Reporting order
 
-CBP: Chapter 98 (if claimed) → Chapter 99 lines → Chapters 1–97. Where China 301 and 232 both apply, **301 reports first**. Where China 301 and 301-FL both apply (no 232), **301 reports before FL**.
+CBP (CSMS #69668138): Chapter 98 (if claimed) → Chapter 99 trade remedies **Section 301 → Section 338 → Section 232 → Section 201** → replacement/MTB → other quota → Chapters 1–97 (entered value on the Ch.1–97 line unless Ch.98 dictates otherwise).
+
+Cross-section only: e.g. China 301 (`9903.88` / `9903.91`) before Section 232. **Within a section** (e.g. `9903.88.03` vs `9903.05.90`, both Section 301), CBP does **not** prescribe heading order — preserve the assigned sequence; do not invent ascending or “China before FL” tiebreaks.
 
 ---
 
@@ -489,6 +504,25 @@ Melt / pour (or smelt / cast / refine) country is collected for the article path
 
 Ch.29 / Ch.30. Claim `s232_pharma_patented` or `s232_pharma_generic`. UK patented articles report `9903.04.63` @ **0% additional** from 2026-07-31. Patented headings suppress 301-FL via `9903.05.90`. This is **not** the same as 301-FL pharmaceutical-use `9903.05.89` (Note 52(e)).
 
+### 6.8 Unmanned aircraft systems (UAS) — Proclamation 11055 / U.S. note 43
+
+| | |
+|--|--|
+| Pack | `data/s232_uas.json` |
+| Engine | `src/s232Uas.ts` |
+| Effective | **2026-09-03** (Annex III 8807 @ 25% from **2027-02-09**) |
+| Large UAS | **`9903.08.21` @ 100%** — auto on `8806.24` / `.29` / `.94` / `.99` |
+| Small UAS | **`9903.08.22` @ 25%** — auto on `8806.21`–`.23` / `.91`–`.93` unless thermal claimed |
+| Thermal (small stems) | Claim `s232_uas_thermal` → upgrades to **`.21` @ 100%** |
+| Docking | `8504.40.9580` / `8537.10.9170` — **claim** `s232_uas_docking` → `.21` @ 100% |
+| 8807 parts | **Claim** `s232_uas_part` (heavy / 100%) or Annex III path |
+| Not for UAS use | Claim `s232_uas_not_for_use` → **`9903.08.20` @ 0%** (does **not** suppress 301-FL) |
+| Partner caps | `9903.08.23` / `.24` — claim-gated; combined mechanic TBC on some paths |
+| 301-FL | Suppressed via `9903.05.90` when a duty UAS heading applies (not `.20`) |
+| Section 338 | Attracting `9903.08.20`–`.26` gates **`9903.03.15`** (Note 51(c)) |
+
+Do not auto-apply 100% on general-purpose docking HTS without the docking claim.
+
 ---
 
 ## 7. Section 301 Forced Labor (301-FL)
@@ -572,6 +606,12 @@ The UI only shows a checkbox when the HTS is on the relevant list. Spreadsheet /
 | `s232_semiconductor_params_not_met` | On semi list, params not met | `9903.79.02` |
 | `s232_wood_not_cabinet` | On cabinet HTS list, not a completed cabinet | `9903.76.04` |
 | `s232_pharma_patented` / `_generic` | Ch.29/30 patented vs generic | `9903.04.60`–`.67` |
+| `s232_uas_thermal` | Small-UAS stem with thermal imaging | `9903.08.21` @ 100% (else `.22` @ 25%) |
+| `s232_uas_docking` | Docking station end-use on general-purpose HTS | `9903.08.21` @ 100% |
+| `s232_uas_part` | 8807 article for covered UAS | `9903.08.21` (heavy) / Annex III path |
+| `s232_uas_not_for_use` | On UAS list but not for UAS use | `9903.08.20` @ 0% (FL **not** suppressed) |
+| `s201_qsp_over_quota` | QSP TRQ over-quota | `9903.45.31` |
+| `s201_not_qsp` | Listed HTS is quarried stone / not QSP | no 201 |
 | `s301fl_pharma` | Pharmaceutical **use** Note 52(e) | `9903.05.89` |
 | `fta_usmca` | SPI S/S+ | Col-1 + MPF; FL `.93`/`.94` if Note 52 |
 | `civil_aircraft_gn6` | Civil aircraft meeting General Note 6 | `9903.03.16` @ 0% (Section 338) |
@@ -635,10 +675,11 @@ Regression lock: `tariff-rules/data/qa_goldens.json` + `cd backend && npm test`.
 | File | Role |
 |------|------|
 | `program_status.json` | Live / sunset / struck |
-| `interaction_rules.json` | R1–R10 |
+| `interaction_rules.json` | R1–R13 stacking narrative + status |
 | `ch99_codes.json` | Chapter 99 registry |
 | `s301fl_pack.json` | 60 economies |
 | `s338_canada.json` | Section 338 Canada HTS lists + dates |
+| `s232_uas.json` | Section 232 UAS (Proc. 11055 / note 43) |
 | `s301_china_lists.json` | China 301 HTS membership |
 | `s232_auto_parts_annex.json` | Auto-parts stems |
 | `s232_auto_origin.json` | JP/EU/KR/UK 232 vehicle and parts heading map |
@@ -695,8 +736,10 @@ Please initial / date. Comment on the rule or program id if you disagree.
 | R2c Brazil 301 + FL stack | | | |
 | R3 JP parts top-up only (not vehicles) | | | |
 | R10 SPI zeros Col-1+MPF only | | | |
-| R11 Section 338 Canada (50% / `.15` / `.16`) | | | |
+| R11 Section 338 Canada (50% / `.15` / `.16`; Note 51(c) includes UAS) | | | |
+| R12 Section 201 QSP (`9903.45.30` / `.31`) | | | |
 | R13 Chapter 98 basis / suppress | | | |
+| CSMS #69668138 reporting order — **section-stable** (no within-301 invent) | | | |
 | Auto-parts annex auto-apply + 8544.42 **out** | | | |
 | Passenger vehicle HTS list + `9903.94.01` | | | |
 | `8704.60.00` default passenger | | | |
@@ -707,6 +750,7 @@ Please initial / date. Comment on the rule or program id if you disagree.
 | Metals content basis `9903.82.02` / list-gated `.09` | | | |
 | Off-list solar `8541.43`: Note 31 + FL; **no** metals invent | | | |
 | CSPV 201 expired; QSP 201 separate | | | |
+| **232 UAS** from 2026-09-03 (`9903.08.21` / `.22`; thermal / docking / 8807 claims) | | | |
 | R5 / R6 / R7 left open | | | |
 | HTS list shows new 232 lists + claim chips | | | |
 
@@ -714,6 +758,8 @@ Please initial / date. Comment on the rule or program id if you disagree.
 
 ## Changelog
 
+- **1.6.5 (2026-08-31)** — Doc gaps: add R12 (QSP) to §5; Note 51(c) + §6.8 document UAS `9903.08.20`–`.26`; sign-off rows for R12 / UAS / section-stable order; `framework_contract` bumped to 1.7.0.
+- **1.6.4 (2026-08-28)** — CSMS #69668138 stacking: section-stable Ch.99 order only (301 → 338 → 232 → 201). Drop invented within-section tiebreaks (ascending / China-before-FL). `9903.05.90` ranks as Section 301.
 - **1.6.3 (2026-08-28)** — Metals list-gate + solar stack for engineer review: outside Ch.72–74/76, metal-content invents `9903.82.09` **only** on `s232_metals_matrix.json` (cite CSMS **#68855869**). Off-list `8541.43` / CN → `9903.91.02` + `9903.05.31` (with or without `9802.00.50` repair basis); CSPV 201 `9903.45.21`–`.29` marked expired; QSP 201 kept separate; R13 / §6.6 / §8.1 / worked examples updated.
 - **1.6.2 (2026-08-28)** — MHDV `9903.74.11`: dual-list HTS (auto-parts annex + MHDV parts list) auto-stacks `.11` @ 0% alongside origin-split auto-parts duty when `s232_mhdv_part` is not claimed; MHDV-only HTS remains claim-gated via `s232_mhdv_not_part`; Quick Check exclusion checkbox; `resolveS232EnteredValue` returns optional `companion` for assess stacking.
 - **1.6.1 (2026-08-27)** — R13 Chapter 98: repair/assembly dutiable basis for 9802.00.40/.50/.60/.80 across Col-1 and trade remedies; general 98xx suppresses 301 / 301-FL / Brazil 301 / 338; `9802.00.60` + Section 232 stays on full entered value (CSMS #68253075).

@@ -190,8 +190,6 @@ function parseRateInstant(raw: string): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-import { classifyChapter98 } from "./ch98Basis.ts";
-
 export type S338Ch98 =
   | { kind: "exempt" }
   | { kind: "repair"; provision: string }

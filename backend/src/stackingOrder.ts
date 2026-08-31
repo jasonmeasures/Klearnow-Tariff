@@ -2,6 +2,10 @@
  * ACE entry-summary reporting sequence — CSMS #69668138 (updates #69606660).
  *
  * Ch.98 → Ch.99 trade remedies (301 → 338 → 232 → 201) → replacement/MTB → other quota → Ch.1–97.
+ *
+ * CSMS orders *sections* only. Order of two headings inside one section is not prescribed —
+ * preserve input order (stable) within a section. Do not invent ascending / China-before-FL
+ * tiebreaks.
  */
 import { isBrazil301Heading } from "../../tariff-rules/src/s301Brazil.ts";
 import { isS338Heading } from "../../tariff-rules/src/s338Canada.ts";
@@ -35,38 +39,68 @@ const SLOT_RANK: Record<string, number> = {
   [REPORTING_SLOTS.COMMODITY]: 9,
 };
 
-/** Order Chapter 99 codes for filing / audit (CSMS #69668138 trade-remedy sub-sequence). */
+/** Trade-remedy section ranks for CSMS #69668138 (lower = earlier on the line). */
+export const SECTION_RANK = {
+  S301: 1,
+  S338: 2,
+  /** Historical surcharge — after 338, before 232 when both appear. */
+  S122: 3,
+  S232: 4,
+  S201: 5,
+  OTHER: 6,
+} as const;
+
+/**
+ * Map a Chapter 99 code to its CSMS trade-remedy section.
+ * 9903.05.90 is Section 301 (FL / Note 52 family), not Section 232.
+ */
+export function ch99SectionRank(code: string): number {
+  const c = String(code || "").trim();
+  if (!c) return SECTION_RANK.OTHER;
+
+  if (
+    c.startsWith("9903.88") ||
+    c.startsWith("9903.91") ||
+    c.startsWith("9903.92") ||
+    isChina301Note31Heading(c) ||
+    c.startsWith("9903.05") ||
+    isBrazil301Heading(c)
+  ) {
+    return SECTION_RANK.S301;
+  }
+  if (isS338Heading(c)) return SECTION_RANK.S338;
+  if (c === "9903.03.01" || c === "9903.03.03" || c === "9903.03.06") {
+    return SECTION_RANK.S122;
+  }
+  if (
+    c.startsWith("9903.82") ||
+    c.startsWith("9903.04") ||
+    c.startsWith("9903.94") ||
+    c.startsWith("9903.74") ||
+    c.startsWith("9903.76") ||
+    c.startsWith("9903.79") ||
+    c.startsWith("9903.08")
+  ) {
+    return SECTION_RANK.S232;
+  }
+  if (c.startsWith("9903.45")) return SECTION_RANK.S201;
+  return SECTION_RANK.OTHER;
+}
+
+/**
+ * Order Chapter 99 codes for filing / audit (CSMS #69668138).
+ * Cross-section only; within a section the input relative order is preserved.
+ */
 export function orderCh99Sequence(seq: string[]): string[] {
-  const brazil301 = (c: string) => isBrazil301Heading(c);
-  const s338 = (c: string) => isS338Heading(c);
-  const ordered = [
-    ...seq.filter(
-      (c) =>
-        c.startsWith("9903.88") ||
-        c.startsWith("9903.91") ||
-        isChina301Note31Heading(c),
-    ),
-    ...seq.filter(brazil301),
-    ...seq.filter((c) => c.startsWith("9903.05") && c !== "9903.05.90" && !brazil301(c)),
-    ...seq.filter((c) => c === "9903.05.90"),
-    ...seq.filter(s338),
-    ...seq.filter((c) => c === "9903.03.06" || c === "9903.03.03"),
-    ...seq.filter((c) => c.startsWith("9903.82")),
-    ...seq.filter((c) => c.startsWith("9903.04")),
-    ...seq.filter(
-      (c) =>
-        c.startsWith("9903.94") ||
-        c.startsWith("9903.74") ||
-        c.startsWith("9903.76") ||
-        c.startsWith("9903.79") ||
-        c.startsWith("9903.08"),
-    ),
-    ...seq.filter((c) => c.startsWith("9903.45")),
-    ...seq.filter(
-      (c) => c.startsWith("9903.03") && c !== "9903.03.06" && c !== "9903.03.03" && !s338(c),
-    ),
-  ];
-  return [...new Set(ordered.length ? ordered : seq)];
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const raw of seq) {
+    const c = String(raw || "").trim();
+    if (!c || seen.has(c)) continue;
+    seen.add(c);
+    unique.push(c);
+  }
+  return unique.sort((a, b) => ch99SectionRank(a) - ch99SectionRank(b));
 }
 
 export function buildFilingSequence(opts: {
@@ -102,7 +136,7 @@ export function sortLayersForDisplay<T extends SortableLayer>(
 }
 
 export const STACKING_ORDER_NOTE =
-  "CSMS #69668138: Ch.98 → Ch.99 additional duties (trade remedies 301 → 338 → 232 → 201) → replacement/MTB → other quota → Ch.1–97. Entered value reports on the Ch.1–97 line unless Chapter 98 provisions dictate otherwise.";
+  "CSMS #69668138: Ch.98 → Ch.99 additional duties (trade remedies 301 → 338 → 232 → 201) → replacement/MTB → other quota → Ch.1–97. Entered value reports on the Ch.1–97 line unless Chapter 98 provisions dictate otherwise. Within a section, heading order is not prescribed — preserve the assigned sequence.";
 
 export const STACKING_SEQUENCE = [
   { slot: REPORTING_SLOTS.CH98, line: "Chapter 98 (if claimed)" },

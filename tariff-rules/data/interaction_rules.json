@@ -1,7 +1,7 @@
 {
-  "version": "1.8.0",
-  "as_of": "2026-08-27",
-  "stacking_order_note": "CSMS #69668138 entry-summary sequence: Ch.98 → Ch.99 additional duties (trade remedies 301 → 338 → 232 → 201) → replacement/MTB → other quota → Ch.1–97. Where China 301 (9903.88.xx or 9903.91.xx) and 232 both apply, 301 reports first among trade remedies.",
+  "version": "1.8.1",
+  "as_of": "2026-08-31",
+  "stacking_order_note": "CSMS #69668138 entry-summary sequence: Ch.98 → Ch.99 additional duties (trade remedies 301 → 338 → 232 → 201) → replacement/MTB → other quota → Ch.1–97. Cross-section only (e.g. China 301 before 232). Within a section, preserve assigned heading order — do not invent ascending or China-before-FL tiebreaks. 9903.05.90 is Section 301.",
   "rules": [
     {
       "id": "R1_232_VS_301FL",
@@ -11,9 +11,9 @@
     },
     {
       "id": "R2_CHINA_301_NOT_SUPPRESSED",
-      "rule": "China 301 — legacy 9903.88.xx (U.S. note 20) and four-year review 9903.91.xx / 9903.92.10 (U.S. note 31, 89 FR 76581 / CSMS #62411889) — is NOT suppressed by 232. Both report; 301 first. Note 31 replaces 9903.88.xx on the same HTS (do not stack both 301 headings). Worked example: CN 8708 List 3 at 2.5% col-1 = 25% + 25% + 2.5% = 52.5%. CN 7601.10.30 note 31(b) = 9903.91.01 25% + 9903.82.02 50% metal-content + 2.6% col-1. Also stacks with Sec 122 when the line is outside the 232 universe. Continues alongside 301-FL in the FL era (232 universe still reports 9903.05.90).",
+      "rule": "China 301 — legacy 9903.88.xx (U.S. note 20) and four-year review 9903.91.xx / 9903.92.10 (U.S. note 31, 89 FR 76581 / CSMS #62411889) — is NOT suppressed by 232. Both report; 301 first among trade-remedy *sections* (CSMS #69668138). Within Section 301, heading order is not prescribed. Note 31 replaces 9903.88.xx on the same HTS (do not stack both 301 headings). Worked example: CN 8708 List 3 at 2.5% col-1 = 25% + 25% + 2.5% = 52.5%. CN 7601.10.30 note 31(b) = 9903.91.01 25% + 9903.82.02 50% metal-content + 2.6% col-1. Also stacks with Sec 122 when the line is outside the 232 universe. Continues alongside 301-FL in the FL era (232 universe still reports 9903.05.90).",
       "status": "CONFIRMED",
-      "source": "CSMS #62411889; 89 FR 76581; U.S. note 31"
+      "source": "CSMS #62411889; 89 FR 76581; U.S. note 31; CSMS #69668138"
     },
     {
       "id": "R2c_BRAZIL_301_STACKS_FL",
@@ -58,7 +58,7 @@
     },
     {
       "id": "R11_SECTION_338_CANADA",
-      "rule": "Section 338 Canada (9903.03.12–.14 @ 50%) stacks on Column 1, 301-FL, China 301, 201, AD/CVD, and MPF/HMF. USMCA/SPI zeros Column 1 only — it does NOT exempt 338. Mutually exclusive with 232 metals/autos/wood/MHDV/semiconductors/patented pharma via 9903.03.15 (0%). Civil aircraft 9903.03.16 (0%) requires civil_aircraft_gn6. Evaluate 232-family first, then gate 338. On the 7501, report after Section 301 and before Section 232 (CSMS #69668138). Drawback eligible. Suspended 2026-08-19 through 2026-08-21; live from 12:01 a.m. EST 2026-08-22. CSMS Ch.98/drawback text citing 9903.04.12–.14 is a CBP typo for 03.12–.14.",
+      "rule": "Section 338 Canada (9903.03.12–.14 @ 50%) stacks on Column 1, 301-FL, China 301, 201, AD/CVD, and MPF/HMF. USMCA/SPI zeros Column 1 only — it does NOT exempt 338. Mutually exclusive with 232 metals/autos/wood/MHDV/semiconductors/patented pharma/UAS via 9903.03.15 (0%) when any Note 51(c) heading applies — including 9903.08.20–.26. Civil aircraft 9903.03.16 (0%) requires civil_aircraft_gn6. Evaluate 232-family first, then gate 338. On the 7501, report after Section 301 and before Section 232 (CSMS #69668138). Drawback eligible. Suspended 2026-08-19 through 2026-08-21; live from 12:01 a.m. EST 2026-08-22. CSMS Ch.98/drawback text citing 9903.04.12–.14 is a CBP typo for 03.12–.14.",
       "status": "CONFIRMED",
       "source": "CSMS #69668138 (updates #69606660); 91 FR 46639 / 46653 / 46663; Proc. 11046–11048, 11056"
     },

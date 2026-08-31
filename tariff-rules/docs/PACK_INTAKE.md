@@ -4,6 +4,8 @@
 
 **When to use:** Any new or amended CSMS, Federal Register annex, proclamation, or broker dispute that touches Chapter 99 / HTS lists.
 
+**Fillable HTML form (distribute / Print → PDF):** [`PACK_INTAKE.html`](./PACK_INTAKE.html) — same checklist with fields, scorecard, and **Copy for PR**.
+
 **Related:** [`program_watch.json`](../data/program_watch.json) · [`program_status.json`](../data/program_status.json) · [`OPEN_ITEMS.md`](./OPEN_ITEMS.md) · [`RULES.md`](./RULES.md)
 
 ---
