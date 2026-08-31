@@ -671,6 +671,7 @@ table.data tr.sel td{background:var(--color-primary-50)}
   font-size:.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   color:var(--color-blue-gray-600);margin-bottom:var(--sp-2);
 }
+.hts-context-hint{margin:0 0 var(--sp-2);max-width:48ch}
 .hts-context-help{margin:var(--sp-2) 0 0}
 .hts-notices{display:flex;flex-direction:column;gap:var(--sp-2)}
 .hts-watch{

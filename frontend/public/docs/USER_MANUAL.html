@@ -190,7 +190,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <a class="l3" href="#claims-checkboxes-that-appear-only-when-relevant">Claims (checkboxes that appear only when relevant)</a>
 <a class="l3" href="#reading-the-result">Reading the result</a>
 <a class="l3" href="#multi-line-and-a-b">Multi-line and A/B</a>
-<a class="l2" href="#5-hts-list-which-rules-apply">5. HTS list (which rules apply)</a>
+<a class="l2" href="#5-coverage-which-rules-apply">5. Coverage (which rules apply)</a>
 <a class="l3" href="#what-you-will-see">What you will see</a>
 <a class="l2" href="#6-audit-ace-es-003">6. Audit (ACE ES-003)</a>
 <a class="l2" href="#7-other-screens-authors-admins">7. Other screens (authors / admins)</a>
@@ -210,13 +210,13 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <p>It does <strong>not</strong> classify the product. You still need a correct 10-digit HTS. It will not invent a Column 1 rate for an unknown code, and it will not tick a claim (MHDV part, semiconductor Note 39 parameters, patented pharma) unless you do.</p>
 <p>Typical uses:</p>
 <div class="table-wrap"><table><thead><tr><th>You have…</th><th>Use</th></tr></thead><tbody><tr><td>One HTS, origin, value, date</td><td><strong>Duty stack</strong></td></tr>
-<tr><td>A spreadsheet of parts / SKUs</td><td><strong>HTS list</strong> (which rules apply — no value needed)</td></tr>
+<tr><td>A spreadsheet of parts / SKUs</td><td><strong>Coverage</strong> (which rules apply — no value needed; includes Watch for)</td></tr>
 <tr><td>An ACE ES-003 export</td><td><strong>Audit</strong> (filed Ch.99 vs expected)</td></tr></tbody></table></div>
 <hr />
 <h2 id="2-finding-your-way-around-the-app">2. Finding your way around the app</h2>
 <h3 id="left-navigation">Left navigation</h3>
 <div class="table-wrap"><table><thead><tr><th>Section</th><th>Who</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Duty stack</strong></td><td>Everyone</td><td>Single HTS → full stack with duty dollars</td></tr>
-<tr><td><strong>HTS list</strong></td><td>Everyone</td><td>Bulk coverage — which rules apply, no value</td></tr>
+<tr><td><strong>Coverage</strong></td><td>Everyone</td><td>Bulk which-rules-apply — Column 1, Watch for, Chapter 99 (no value)</td></tr>
 <tr><td><strong>Chat</strong></td><td>Signed-in users</td><td>Ask about an HTS, origin, or live-pack rule</td></tr>
 <tr><td><strong>CSMS</strong></td><td>Signed-in users</td><td>Recent CBP Cargo Systems Messaging Service bulletins</td></tr>
 <tr><td><strong>Audit</strong></td><td>Everyone</td><td>Compare ACE ES-003 filings to the live stack</td></tr>
@@ -226,10 +226,10 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <h3 id="top-bar">Top bar</h3>
 <ul><li><strong>CSMS</strong> — official CBP archive (external).</li><li><strong>Help</strong> — this user manual.</li><li><strong>Sign in / Sign out</strong> — Auth0 in playground and WordPress; local demo uses <strong>View as</strong> (admin / user / guest).</li><li><strong>Pack chip</strong> — live rule-pack version and connection status.</li></ul>
 <h3 id="which-screen-when">Which screen when?</h3>
-<ol><li><strong>Start on Duty stack</strong> when you have one line and need rates, duty dollars, suppressions, and the Chapter 99 filing sequence.</li><li><strong>Use HTS list</strong> when you have dozens or hundreds of HTS codes and only need to know <em>which</em> programs hit — before you have entered values.</li><li><strong>Use Audit</strong> when you already filed and have an ACE ES-003 export to compare.</li><li><strong>Open Multi-line &amp; scenarios</strong> (Duty stack sidebar) for a full entry, Excel paste, engine compare, or A/B with vs without a claim.</li><li><strong>Use Chat</strong> for a quick “does this HTS pick up 232 from Japan?” question without filling the form.</li></ol>
+<ol><li><strong>Start on Duty stack</strong> when you have one line and need rates, duty dollars, suppressions, and the Chapter 99 filing sequence.</li><li><strong>Use Coverage</strong> when you have dozens or hundreds of HTS codes and only need to know <em>which</em> programs hit — before you have entered values. The <strong>Watch for</strong> column shows PGA / AD/CVD signals.</li><li><strong>Use Audit</strong> when you already filed and have an ACE ES-003 export to compare.</li><li><strong>Open Multi-line &amp; scenarios</strong> (Duty stack sidebar) for a full entry, Excel paste, engine compare, or A/B with vs without a claim.</li><li><strong>Use Chat</strong> for a quick “does this HTS pick up 232 from Japan?” question without filling the form.</li></ol>
 <hr />
 <h2 id="3-who-sees-what">3. Who sees what</h2>
-<div class="table-wrap"><table><thead><tr><th>Who</th><th>Sign-on</th><th>What they get</th></tr></thead><tbody><tr><td>Guest / WordPress embed</td><td>Optional Auth0</td><td>Duty stack, HTS list, Audit. <strong>5 stacks / 2 extracts per day.</strong> Sign in for unlimited. No admin.</td></tr>
+<div class="table-wrap"><table><thead><tr><th>Who</th><th>Sign-on</th><th>What they get</th></tr></thead><tbody><tr><td>Guest / WordPress embed</td><td>Optional Auth0</td><td>Duty stack, Coverage, Audit. <strong>5 stacks / 2 extracts per day.</strong> Sign in for unlimited. No admin.</td></tr>
 <tr><td>Signed-in user</td><td>Auth0</td><td>Unlimited stacks. Full calculator; Chat / CSMS on the direct app (not the WordPress embed).</td></tr>
 <tr><td>Admin</td><td>Auth0 + app role <code>admin</code></td><td>Rules, Upload, Snapshots, Users.</td></tr></tbody></table></div>
 <p>Local demo: open http://localhost:3000 with API key <code>dev-internal</code>. Use <strong>View as</strong> to preview user / guest. Playground / WordPress replace that switch with Auth0.</p>
@@ -259,22 +259,25 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <p>If no extra claim applies, the form says <strong>No extra claims for this line</strong> instead of a row of empty boxes. The China 301 list override appears only for CN / HK origins.</p>
 <p>If a 232 program <strong>auto-applies</strong> from the published HTS list (passenger vehicle, MHDV truck, bus, wood, in-annex auto part), you do <strong>not</strong> need a checkbox. The stack will already include that heading and <code>9903.05.90</code> (301-FL suppressed).</p>
 <h3 id="reading-the-result">Reading the result</h3>
-<p>Each row is a layer: program, Chapter 99 code (or “commodity” for Column 1), rate, duty dollars, and a short reason with the CSMS / proclamation source.</p>
+<p>As soon as a known HTS is entered (even before Run), <strong>About this HTS</strong> may appear above the stack:</p>
+<ul><li><strong>Watch for</strong> — Partner Government Agency (FDA, USDA AMS, …) and AD/CVD / additional-HTS signals from the classification table. Expand a row for filing notes and ACE codes; agency names are shown, not raw <code>FD*</code> / <code>AM*</code> prefixes.</li><li><strong>Description</strong> — readable path by default; <strong>Show hierarchy</strong> opens Heading → Subheading → Line.</li></ul>
+<p>After <strong>Run the stack</strong>, each Chapter 99 / commodity row is <strong>collapsed</strong>. Click a layer (or <strong>Expand all</strong>) for reason, source (CSMS / proclamation), and duty basis. The base row shows the real 10-digit HTS, not a placeholder.</p>
 <ul><li><strong>Suppressed</strong> layers (typical: 301-FL killed by 232) stay visible so you can see <em>why</em> they did not assess.</li><li><strong>Diagnostics</strong> warn when a list hit needs a claim, when metal content is missing, or when a trade-deal total is blocked (R6).</li><li><strong>Chapter 99 sequence</strong> follows CBP CSMS <strong>#69668138</strong>: Ch.98 (if any) → trade remedies <strong>Section 301 → Section 338 → Section 232 → Section 201</strong> → Chapters 1–97. Cross-section only (e.g. China 301 before 232). Within one section (e.g. <code>9903.88.03</code> and <code>9903.05.90</code>, both Section 301), order is <strong>not</strong> rearranged by ascending code — the assigned sequence is kept.</li><li><strong>HMF</strong> appears as its own line when MOT is Ocean.</li></ul>
 <p>Use <strong>Try an example</strong> chips for a known-good VN apparel, CN auto-parts, DE pharma, or VN quartz Section 201 stack.</p>
 <h3 id="multi-line-and-a-b">Multi-line and A/B</h3>
 <p>Open <strong>Multi-line &amp; scenarios</strong> when you need several lines on one entry, a paste from Excel, or to pin two runs (for example with vs without an MHDV-part claim). Choose <strong>Auto</strong> (301 / 301-FL / 232) or <strong>Ch99</strong> (reciprocal / IEEPA country pack) before assessing.</p>
 <hr />
-<h2 id="5-hts-list-which-rules-apply">5. HTS list (which rules apply)</h2>
-<p>Open <strong>HTS list</strong> when you have many codes and want coverage — <strong>not</strong> duty dollars.</p>
-<ol><li>Set <strong>Rate date</strong>.</li><li>Optionally set <strong>Default origin</strong> (used when the sheet has no COO column). Origin is required for 301-FL and for the filed Chapter 99 sequence; 232 <strong>list membership</strong> still shows without it.</li><li>Drop Excel / CSV / JSON, or paste <code>hts,coo</code> (one code per line is fine).</li><li>Click <strong>Find applicable rules</strong>.</li></ol>
+<h2 id="5-coverage-which-rules-apply">5. Coverage (which rules apply)</h2>
+<p>Open <strong>Coverage</strong> (formerly “HTS list”) when you have many codes and want which programs hit — <strong>not</strong> duty dollars.</p>
+<ol><li>Set <strong>Rate date</strong>.</li><li>Optionally set <strong>Default origin</strong> (used when the sheet has no COO column). Origin is required for 301-FL and for the filed Chapter 99 sequence; 232 <strong>list membership</strong> and <strong>Watch for</strong> still show without it.</li><li>Drop Excel / CSV / JSON, or paste <code>hts,coo</code> (one code per line is fine).</li><li>Click <strong>Find applicable rules</strong>.</li></ol>
 <p>Recognised columns include <code>hts</code> / <code>primary_hts</code>, <code>coo</code> / origin, <code>part</code>, <code>sku</code>, date, <code>s232_mhdv_part</code>, <code>s232_semiconductor</code>, and the older <code>s232_auto_part</code> / China 301 list flags.</p>
 <h3 id="what-you-will-see">What you will see</h3>
-<div class="table-wrap"><table><thead><tr><th>Chip</th><th>Meaning</th></tr></thead><tbody><tr><td>Green 232 heading</td><td>Auto-applies from a published list (vehicle, bus, wood, in-annex auto part, large/small UAS)</td></tr>
+<div class="table-wrap"><table><thead><tr><th>Chip / column</th><th>Meaning</th></tr></thead><tbody><tr><td><strong>Watch for</strong></td><td>PGA agency chips (FDA, …), AD, CVD, Add. HTS — hover for tip; open the row to expand full notices</td></tr>
+<tr><td>Green 232 heading</td><td>Auto-applies from a published list (vehicle, bus, wood, in-annex auto part, large/small UAS)</td></tr>
 <tr><td>Orange heading <strong>· claim</strong></td><td>On a claim-gated list (MHDV parts, semiconductors, UAS docking / 8807, QSP over-quota) — duty only if you certify the fact</td></tr>
 <tr><td>301-FL heading</td><td>Origin is in the Forced Labor pack — <strong>suppressed</strong> if 232 already won</td></tr>
-<tr><td><strong>on a 232 list</strong> / <strong>need a claim</strong></td><td>Summary pills at the top of the results</td></tr></tbody></table></div>
-<p>Click a row for the rule trail, Section 232 list hits, mapped replacements, USITC help steps, and <strong>Run stack for this HTS</strong> (sends the line to Duty stack). <strong>Export CSV</strong> includes <code>s232_lists</code>.</p>
+<tr><td><strong>on a 232 list</strong> / <strong>need a claim</strong> / <strong>with watch</strong></td><td>Summary pills at the top of the results</td></tr></tbody></table></div>
+<p>Click a row for Watch for detail, the rule trail (collapsible Chapter 99 layers + <strong>Expand all</strong>), Section 232 list hits, mapped replacements, USITC help steps, and <strong>Run stack for this HTS</strong> (sends the line to Duty stack). <strong>Export CSV</strong> includes <code>s232_lists</code> and Watch for / PGA flag columns.</p>
 <p><strong>Load sample list</strong> includes apparel, auto parts, a Japan passenger vehicle, an MHDV dump truck, a bus, Canadian lumber, VN wood furniture, and a Taiwan semiconductor stem so you can see auto vs claim chips.</p>
 <p>Unknown 10-digit codes stay <strong>blocked</strong> for duty math (no invented Free rate). If that stem is on a 232 CSMS list, list membership still appears so you can see the new rules — then fix the statistical suffix via USITC / the suggested related codes.</p>
 <hr />

@@ -11,7 +11,7 @@ Shareable HTML (same content): [`RULES.html`](./RULES.html) — open in a browse
 |-------------|------------|------------|
 | **Compliance / trade** | §1–§3 (what's live), §5 (stacking), §6 (each 232 program + HTS lists) | §8 / §8.1 (China 301 solar + expired CSPV 201), §9 claim flags, §13 open items, **sign-off** at the end |
 | **Developer** | §4 decision order, §6.3 MHDV dual-list, §6.6 metals list-gate, §6.8 UAS, §9 flags, §12 data files / API | [`PACK_INTAKE.md`](./PACK_INTAKE.md), `FRAMEWORK.md`, `interaction_rules.json`, tests in `backend/src/s232NewPacks.test.ts` / `ch98Basis.test.ts` |
-| **Operator using the app** | [`docs/USER_MANUAL.md`](../../docs/USER_MANUAL.md) | HTS list + Duty stack walkthrough |
+| **Operator using the app** | [`docs/USER_MANUAL.md`](../../docs/USER_MANUAL.md) | Coverage + Duty stack walkthrough |
 
 Related docs: [`FRAMEWORK.md`](./FRAMEWORK.md) (shareable contract) · [`PACK_INTAKE.md`](./PACK_INTAKE.md) (CSMS → pack completeness) · [`RULES_ENGINE.md`](./RULES_ENGINE.md) (Inditex API hand-off) · [`OPEN_ITEMS.md`](./OPEN_ITEMS.md).
 
@@ -624,9 +624,9 @@ Do not treat a UI checkbox as authority when the annex JSON already auto-applies
 
 ---
 
-## 10. HTS list (coverage) — how the new rules show up
+## 10. Coverage (HTS which-rules-apply) — how the new rules show up
 
-`POST /v1/hts:coverage` (the **HTS list** screen) does **not** need entered value. For every code it now:
+`POST /v1/hts:coverage` (the **Coverage** screen) does **not** need entered value. For every code it now:
 
 1. Resolves Column 1 when the statistical line is in `hts_rates.json`.
 2. Always runs **Section 232 universe preview** (passenger / MHDV / bus / MHDV parts / wood / semiconductors / auto parts) even if origin is missing or the line is not in the Column 1 table.
@@ -694,12 +694,12 @@ Regression lock: `tariff-rules/data/qa_goldens.json` + `cd backend && npm test`.
 | `hts_rates.json` | Column 1 |
 | `framework_contract.json` | Versioned shareable contract |
 
-TypeScript: `tariff-rules/src/s232Resolve.ts` (precedence), `backend/src/assess.ts` (full stack), `backend/src/coverage.ts` (HTS list).
+TypeScript: `tariff-rules/src/s232Resolve.ts` (precedence), `backend/src/assess.ts` (full stack), `backend/src/coverage.ts` (Coverage screen).
 
 | Endpoint | Use |
 |----------|-----|
 | `GET /v1/hts/{code}?as_of=` | Col-1 + `s232_universe` + auto-parts annex |
-| `POST /v1/hts:coverage` | HTS list / which rules apply |
+| `POST /v1/hts:coverage` | Coverage / which rules apply (includes Watch for) |
 | `POST /v1/entries:assess` | Duty stack |
 | `POST /v1/entries:audit` | Filed vs required |
 | `GET /v1/openapi.json` | Contract |
@@ -752,7 +752,7 @@ Please initial / date. Comment on the rule or program id if you disagree.
 | CSPV 201 expired; QSP 201 separate | | | |
 | **232 UAS** from 2026-09-03 (`9903.08.21` / `.22`; thermal / docking / 8807 claims) | | | |
 | R5 / R6 / R7 left open | | | |
-| HTS list shows new 232 lists + claim chips | | | |
+| Coverage shows new 232 lists + claim chips + Watch for | | | |
 
 ---
 

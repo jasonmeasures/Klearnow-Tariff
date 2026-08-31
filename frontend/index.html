@@ -81,7 +81,7 @@
         <div class="calc-head-copy">
           <p class="eyebrow">Duty stack</p>
           <h2>Shipment details</h2>
-          <p class="calc-head-lead">Fill the line — rates, Chapter&nbsp;99 order, and suppressions appear on the right.</p>
+          <p class="calc-head-lead">Fill the line — <b>About this HTS</b> (Watch for / description), rates, and collapsible Chapter&nbsp;99 layers appear on the right.</p>
         </div>
         <details class="help calc-head-help">
           <summary>Quick directions</summary>
@@ -90,7 +90,8 @@
               <li>Enter <b>HTS</b> (type 4+ digits for suggestions), <b>origin</b>, <b>entered value</b>, and <b>rate date</b>.</li>
               <li>Set <b>MOT</b> to Ocean if Harbor Maintenance Fee applies.</li>
               <li>Tick any <b>claims</b> that appear — they only show when relevant.</li>
-              <li>Click <b>Run the stack</b>. Use <b>Coverage</b> for bulk rule checks or <b>Audit</b> for ACE ES-003.</li>
+              <li>Click <b>Run the stack</b>. On Results: expand <b>Watch for</b> rows (PGA / AD/CVD), use <b>Show hierarchy</b> for the description path, and open each Chapter&nbsp;99 layer (or <b>Expand all</b>) for reason and source.</li>
+              <li>Use <b>Coverage</b> for bulk which-rules-apply (includes Watch for) or <b>Audit</b> for ACE ES-003.</li>
             </ol>
             <p class="cap" style="margin:0">Full walkthrough:
               <a href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer">User manual ↗</a></p>
@@ -298,8 +299,8 @@
             <div id="hts-context" class="hts-context" hidden></div>
             <div id="results">
               <div class="empty"><h4>Stack is empty</h4>
-                <p class="cap" style="max-width:40ch;margin:0 auto">Drop in an HTS, origin, value, and rate date—
-                  then <b>Run the stack</b>. Rates, application order, and suppressions show here.</p></div>
+                <p class="cap" style="max-width:40ch;margin:0 auto">Enter an HTS to see <b>About this HTS</b> (Watch for / description).
+                  Add origin, value, and date — then <b>Run the stack</b> for duty dollars and collapsible Chapter&nbsp;99 layers.</p></div>
             </div>
           </div>
         </div>
@@ -495,11 +496,11 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
       <div class="viewhead">
         <h2>Which rules apply?</h2>
         <p class="cap">Drop a spreadsheet, paste codes, or upload CSV / JSON / Excel.
-          See Column&nbsp;1, Chapter&nbsp;99, and <b>Watch for</b> signals (PGA / FDA, AD/CVD, additional HTS)
+          See Column&nbsp;1, <b>Watch for</b> (PGA / FDA, AD/CVD, additional HTS), and Chapter&nbsp;99
           for each line — including Section&nbsp;232 vehicle, MHDV, wood, and semiconductor lists.
-          Claim-gated headings show as <b>claim</b>. Unknown codes get clear guidance and USITC links —
-          no invented duty stacks.
-          <a href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer">Coverage guide ↗</a></p>
+          Open a row for the rule trail (collapsible layers). Claim-gated headings show as <b>claim</b>.
+          Unknown codes get clear guidance and USITC links — no invented duty stacks.
+          <a href="/docs/USER_MANUAL.html#5-coverage-which-rules-apply" target="_blank" rel="noopener noreferrer">Coverage guide ↗</a></p>
       </div>
       <div id="lookupbanner"></div>
 
@@ -547,7 +548,8 @@ placeholder="hts,coo
               <button class="btn-ghost btn-sm" id="lookup-sample" type="button">Load sample list</button>
             </div>
             <p class="cap" style="margin:var(--sp-2) 0 0">Tip: with only HTS codes, set a
-              <b>default origin</b> so 301-FL and country stacks can resolve.</p>
+              <b>default origin</b> so 301-FL and country stacks can resolve.
+              Hover Watch for chips for agency detail; open a row to expand PGA notices and Chapter&nbsp;99 layers.</p>
           </div>
         </div>
 
@@ -703,7 +705,7 @@ placeholder="hts,coo
       <div class="viewhead">
         <h2>Upload</h2>
         <p class="cap">Replace the baseline Column-1 HTS table from a classification workbook,
-          or merge CSV rate rows. Changes reload live for assessments and HTS list.</p>
+          or merge CSV rate rows. Changes reload live for Duty stack and Coverage.</p>
       </div>
       <div id="uploadbanner"></div>
       <div class="card" id="hts-live-card">
@@ -837,7 +839,7 @@ placeholder="hts,coo
           <ul class="api-list">
             <li><code class="mono">GET /v1/hts/{code}</code> — baseline Column-1 rate</li>
             <li><code class="mono">GET /v1/hts:suggest</code> — 10-digit HTS typeahead</li>
-            <li><code class="mono">POST /v1/hts:coverage</code> — which rules apply to an HTS list (no value)</li>
+            <li><code class="mono">POST /v1/hts:coverage</code> — Coverage: which rules apply (no value; includes Watch for flags)</li>
             <li><code class="mono">POST /v1/entries:assess</code> — duty stack (<code class="mono">engine=auto|ch99</code>)</li>
             <li><code class="mono">GET /v1/rules</code> — browse live rules</li>
             <li><code class="mono">PUT /v1/admin/s301fl/countries/{iso2}</code> — hot-update 301-FL (no rebuild)</li>

@@ -926,7 +926,7 @@ function renderHtsFlagPills(flags) {
     const codeList = agency.codes.join(", ");
     rows.push(
       `<div class="hts-watch" data-expanded="0">` +
-        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle>` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle title="Expand for filing notes and ACE codes">` +
           `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
           `<span class="hts-watch-agency">${esc(agency.name)}</span>` +
           `<span class="hts-watch-short">May need PGA filing</span>` +
@@ -941,7 +941,7 @@ function renderHtsFlagPills(flags) {
   if (flags.add) {
     rows.push(
       `<div class="hts-watch hts-watch-warn" data-expanded="0">` +
-        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle>` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle title="Expand for filing notes and ACE codes">` +
           `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
           `<span class="hts-watch-agency">Antidumping</span>` +
           `<span class="hts-watch-short">May apply — verify order</span>` +
@@ -955,7 +955,7 @@ function renderHtsFlagPills(flags) {
   if (flags.cvd) {
     rows.push(
       `<div class="hts-watch hts-watch-warn" data-expanded="0">` +
-        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle>` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle title="Expand for filing notes and ACE codes">` +
           `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
           `<span class="hts-watch-agency">Countervailing</span>` +
           `<span class="hts-watch-short">May apply — verify order</span>` +
@@ -969,7 +969,7 @@ function renderHtsFlagPills(flags) {
   if (flags.add_hts) {
     rows.push(
       `<div class="hts-watch" data-expanded="0">` +
-        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle>` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle title="Expand for filing notes and ACE codes">` +
           `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
           `<span class="hts-watch-agency">Additional HTS</span>` +
           `<span class="hts-watch-short">Reporting may be required</span>` +
@@ -1023,12 +1023,13 @@ function syncStackEmptyHint() {
   if (ctx && !ctx.hidden) {
     empty.innerHTML =
       `<h4>Ready to stack</h4>` +
-      `<p class="cap" style="max-width:40ch;margin:0 auto">HTS notes are above. Add origin, value, and date — then <b>Run the stack</b> for duties and layer order.</p>`;
+      `<p class="cap" style="max-width:40ch;margin:0 auto">About this HTS is above (expand <b>Watch for</b> rows for detail). ` +
+      `Add origin, value, and date — then <b>Run the stack</b> for duties and collapsible Chapter&nbsp;99 layers.</p>`;
   } else {
     empty.innerHTML =
       `<h4>Stack is empty</h4>` +
-      `<p class="cap" style="max-width:40ch;margin:0 auto">Drop in an HTS, origin, value, and rate date—` +
-      ` then <b>Run the stack</b>. Rates, application order, and suppressions show here.</p>`;
+      `<p class="cap" style="max-width:40ch;margin:0 auto">Enter an HTS to see <b>About this HTS</b> (Watch for / description). ` +
+      `Add origin, value, and date — then <b>Run the stack</b>.</p>`;
   }
 }
 
@@ -1054,13 +1055,14 @@ function renderHtsContext(r, htsInput) {
     `</div>` +
     (hasFlags
       ? `<div class="hts-context-section">` +
-          `<div class="hts-context-label">Watch for</div>` +
+          `<div class="hts-context-label" title="Partner Government Agency and trade-remedy signals from the classification table — expand a row for ACE codes">Watch for</div>` +
+          `<p class="cap hts-context-hint">Expand a row for filing notes. Agency names shown; ACE codes in the detail.</p>` +
           `<div class="hts-notices">${flagBits}</div>` +
         `</div>`
       : "") +
     (hasDesc
       ? `<div class="hts-context-section">` +
-          `<div class="hts-context-label">Description</div>` +
+          `<div class="hts-context-label" title="Classification description path from the HTS hierarchy">Description</div>` +
           descHtml +
         `</div>`
       : "");
@@ -1100,7 +1102,7 @@ function renderHtsDescStack(r) {
     `<div class="hts-desc-stack" data-expanded="0">` +
     `<p class="hts-desc-summary" title="${esc(full)}">${esc(full)}</p>` +
     `<div class="hts-desc-toolbar">` +
-    `<button type="button" class="btn-ghost btn-sm hts-desc-toggle" data-hts-desc-toggle>Show hierarchy</button>` +
+    `<button type="button" class="btn-ghost btn-sm hts-desc-toggle" data-hts-desc-toggle title="Show heading → subheading → line hierarchy">Show hierarchy</button>` +
     `</div>` +
     `<div class="hts-desc-levels" hidden>${levels}</div>` +
     `</div>`
@@ -1120,6 +1122,9 @@ function bindHtsDescStack(root) {
     levels.hidden = !on;
     if (summary) summary.hidden = on;
     toggle.textContent = on ? "Hide hierarchy" : "Show hierarchy";
+    toggle.title = on
+      ? "Hide heading → subheading → line hierarchy"
+      : "Show heading → subheading → line hierarchy";
     if (on) {
       levels.querySelectorAll(".hts-desc-level").forEach((n) => {
         n.hidden = false;
@@ -2314,8 +2319,8 @@ function renderLedger(L) {
     ${pharmaCompareHtml(L.pharma_compare)}
     ${L.pharma_compare ? "" : ftaCompareHtml(L.fta_compare)}
     <div class="stack-layers-toolbar">
-      <span class="eyebrow">Chapter 99 / provisions</span>
-      <button type="button" class="btn-ghost btn-sm" data-stack-expand-all>Expand all</button>
+      <span class="eyebrow" title="Each row is a duty layer — expand for reason, source, and basis">Chapter 99 / provisions</span>
+      <button type="button" class="btn-ghost btn-sm" data-stack-expand-all title="Expand or collapse every layer (reason, source, basis)">Expand all</button>
     </div>
     <div class="stack-layers" data-stack-layers>${layerBlocks}</div>
     ${bar}
@@ -2334,7 +2339,7 @@ function renderStackLayerRow(row) {
     : `Basis <b class="mono">${esc(String(row.basisAmount ?? ""))}</b> · ${esc(row.basisKind || "")}`;
   return (
     `<div class="stack-layer${row.suppressed ? " is-suppressed" : ""}${row.program === "base" ? " is-commodity" : ""}" data-expanded="0" data-stack-layer>` +
-      `<button type="button" class="stack-layer-toggle" aria-expanded="false" aria-controls="${esc(row.id)}" data-stack-layer-toggle>` +
+      `<button type="button" class="stack-layer-toggle" aria-expanded="false" aria-controls="${esc(row.id)}" data-stack-layer-toggle title="Expand for reason, source, and basis">` +
         `<span class="stack-layer-chevron" aria-hidden="true">▸</span>` +
         `<span class="slot p-${esc(row.program || "base")}">${esc(row.slot || "")}</span>` +
         `<span class="${codeClass} mono">${esc(row.code || "")}</span>` +
@@ -2650,7 +2655,7 @@ async function refreshHtsLive(meta) {
       <dt>Rate windows</dt><dd class="mono">${n}</dd>
       <dt>Replacements</dt><dd class="mono">${esc(String(repl))}</dd>
     </dl>
-    <p class="cap" style="margin:var(--sp-2) 0 0">Duty stack and HTS list use this table. A successful Load updates these fields immediately.</p>`;
+    <p class="cap" style="margin:var(--sp-2) 0 0">Duty stack and Coverage use this table. A successful Load updates these fields immediately.</p>`;
 }
 
 const UploadXlsx = { b64: null, name: null };
@@ -2856,7 +2861,7 @@ $("#uploadcommit").onclick = async () => {
       const n = r.row_count?.toLocaleString?.() || r.row_count;
       successTitle = `HTS table replaced · ${n} rate windows`;
       successMsg = `${r.source || UploadXlsx.name} · hash ${r.hash || "—"} · ` +
-        `${r.with_specific || 0} with specific rates. Live for Duty stack / HTS list now.`;
+        `${r.with_specific || 0} with specific rates. Live for Duty stack / Coverage now.`;
       live = r.hts || {
         source: r.source, as_of: r.as_of, row_count: r.row_count,
         replacements: r.replacements_total,
@@ -3432,7 +3437,7 @@ function renderLookup(R) {
   html += `<div class="lookup-scroll"><table class="cov"><thead><tr>`;
   if (showPart) html += `<th>Part</th>`;
   if (showSku) html += `<th>SKU</th>`;
-  html += `<th>HTS</th><th>Origin</th><th class="r">Col-1</th><th>Watch for</th><th>Help / replacement</th><th>Rules that apply</th><th>Ch.99</th>
+  html += `<th>HTS</th><th>Origin</th><th class="r">Col-1</th><th title="PGA / AD / CVD / additional HTS signals">Watch for</th><th>Help / replacement</th><th>Rules that apply</th><th>Ch.99</th>
   </tr></thead><tbody>`;
   rows.forEach((row, i) => {
     const miss = !row.in_table || row.error || row.blocked;
@@ -3492,7 +3497,8 @@ function renderLookup(R) {
       const watchDetail = renderHtsFlagPills(row.flags);
       if (watchDetail) {
         html += `<div class="cov-fix" style="margin:0 0 var(--sp-3)">
-          <div class="eyebrow">Watch for</div>
+          <div class="eyebrow" title="Partner Government Agency and trade-remedy signals — expand a row for ACE codes">Watch for</div>
+          <p class="cap" style="margin:var(--sp-1) 0 var(--sp-2)">Expand a row for filing notes. Hover table chips for a short tip.</p>
           <div class="hts-notices">${watchDetail}</div>
         </div>`;
       }
@@ -3539,8 +3545,8 @@ function renderLookup(R) {
         if (ruleRows.length) {
           html += `<div class="cov-fix" style="margin:0 0 var(--sp-3)">
             <div class="stack-layers-toolbar">
-              <span class="eyebrow">Rules / Chapter 99</span>
-              <button type="button" class="btn-ghost btn-sm" data-stack-expand-all>Expand all</button>
+              <span class="eyebrow" title="Each row is a rule layer — expand for reason and source">Rules / Chapter 99</span>
+              <button type="button" class="btn-ghost btn-sm" data-stack-expand-all title="Expand or collapse every layer">Expand all</button>
             </div>
             <div class="stack-layers" data-stack-layers>` +
             ruleRows.map((r, ri) => renderStackLayerRow({

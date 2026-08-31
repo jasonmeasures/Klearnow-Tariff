@@ -19,7 +19,7 @@ Typical uses:
 | You have… | Use |
 |-----------|-----|
 | One HTS, origin, value, date | **Duty stack** |
-| A spreadsheet of parts / SKUs | **HTS list** (which rules apply — no value needed) |
+| A spreadsheet of parts / SKUs | **Coverage** (which rules apply — no value needed; includes Watch for) |
 | An ACE ES-003 export | **Audit** (filed Ch.99 vs expected) |
 
 ---
@@ -31,7 +31,7 @@ Typical uses:
 | Section | Who | What it does |
 |---------|-----|--------------|
 | **Duty stack** | Everyone | Single HTS → full stack with duty dollars |
-| **HTS list** | Everyone | Bulk coverage — which rules apply, no value |
+| **Coverage** | Everyone | Bulk which-rules-apply — Column 1, Watch for, Chapter 99 (no value) |
 | **Chat** | Signed-in users | Ask about an HTS, origin, or live-pack rule |
 | **CSMS** | Signed-in users | Recent CBP Cargo Systems Messaging Service bulletins |
 | **Audit** | Everyone | Compare ACE ES-003 filings to the live stack |
@@ -49,7 +49,7 @@ Typical uses:
 ### Which screen when?
 
 1. **Start on Duty stack** when you have one line and need rates, duty dollars, suppressions, and the Chapter 99 filing sequence.
-2. **Use HTS list** when you have dozens or hundreds of HTS codes and only need to know *which* programs hit — before you have entered values.
+2. **Use Coverage** when you have dozens or hundreds of HTS codes and only need to know *which* programs hit — before you have entered values. The **Watch for** column shows PGA / AD/CVD signals.
 3. **Use Audit** when you already filed and have an ACE ES-003 export to compare.
 4. **Open Multi-line & scenarios** (Duty stack sidebar) for a full entry, Excel paste, engine compare, or A/B with vs without a claim.
 5. **Use Chat** for a quick “does this HTS pick up 232 from Japan?” question without filling the form.
@@ -60,7 +60,7 @@ Typical uses:
 
 | Who | Sign-on | What they get |
 |-----|---------|---------------|
-| Guest / WordPress embed | Optional Auth0 | Duty stack, HTS list, Audit. **5 stacks / 2 extracts per day.** Sign in for unlimited. No admin. |
+| Guest / WordPress embed | Optional Auth0 | Duty stack, Coverage, Audit. **5 stacks / 2 extracts per day.** Sign in for unlimited. No admin. |
 | Signed-in user | Auth0 | Unlimited stacks. Full calculator; Chat / CSMS on the direct app (not the WordPress embed). |
 | Admin | Auth0 + app role `admin` | Rules, Upload, Snapshots, Users. |
 
@@ -115,7 +115,12 @@ If a 232 program **auto-applies** from the published HTS list (passenger vehicle
 
 ### Reading the result
 
-Each row is a layer: program, Chapter 99 code (or “commodity” for Column 1), rate, duty dollars, and a short reason with the CSMS / proclamation source.
+As soon as a known HTS is entered (even before Run), **About this HTS** may appear above the stack:
+
+- **Watch for** — Partner Government Agency (FDA, USDA AMS, …) and AD/CVD / additional-HTS signals from the classification table. Expand a row for filing notes and ACE codes; agency names are shown, not raw `FD*` / `AM*` prefixes.
+- **Description** — readable path by default; **Show hierarchy** opens Heading → Subheading → Line.
+
+After **Run the stack**, each Chapter 99 / commodity row is **collapsed**. Click a layer (or **Expand all**) for reason, source (CSMS / proclamation), and duty basis. The base row shows the real 10-digit HTS, not a placeholder.
 
 - **Suppressed** layers (typical: 301-FL killed by 232) stay visible so you can see *why* they did not assess.
 - **Diagnostics** warn when a list hit needs a claim, when metal content is missing, or when a trade-deal total is blocked (R6).
@@ -130,12 +135,12 @@ Open **Multi-line & scenarios** when you need several lines on one entry, a past
 
 ---
 
-## 5. HTS list (which rules apply)
+## 5. Coverage (which rules apply)
 
-Open **HTS list** when you have many codes and want coverage — **not** duty dollars.
+Open **Coverage** (formerly “HTS list”) when you have many codes and want which programs hit — **not** duty dollars.
 
 1. Set **Rate date**.
-2. Optionally set **Default origin** (used when the sheet has no COO column). Origin is required for 301-FL and for the filed Chapter 99 sequence; 232 **list membership** still shows without it.
+2. Optionally set **Default origin** (used when the sheet has no COO column). Origin is required for 301-FL and for the filed Chapter 99 sequence; 232 **list membership** and **Watch for** still show without it.
 3. Drop Excel / CSV / JSON, or paste `hts,coo` (one code per line is fine).
 4. Click **Find applicable rules**.
 
@@ -143,14 +148,15 @@ Recognised columns include `hts` / `primary_hts`, `coo` / origin, `part`, `sku`,
 
 ### What you will see
 
-| Chip | Meaning |
-|------|---------|
+| Chip / column | Meaning |
+|---------------|---------|
+| **Watch for** | PGA agency chips (FDA, …), AD, CVD, Add. HTS — hover for tip; open the row to expand full notices |
 | Green 232 heading | Auto-applies from a published list (vehicle, bus, wood, in-annex auto part, large/small UAS) |
 | Orange heading **· claim** | On a claim-gated list (MHDV parts, semiconductors, UAS docking / 8807, QSP over-quota) — duty only if you certify the fact |
 | 301-FL heading | Origin is in the Forced Labor pack — **suppressed** if 232 already won |
-| **on a 232 list** / **need a claim** | Summary pills at the top of the results |
+| **on a 232 list** / **need a claim** / **with watch** | Summary pills at the top of the results |
 
-Click a row for the rule trail, Section 232 list hits, mapped replacements, USITC help steps, and **Run stack for this HTS** (sends the line to Duty stack). **Export CSV** includes `s232_lists`.
+Click a row for Watch for detail, the rule trail (collapsible Chapter 99 layers + **Expand all**), Section 232 list hits, mapped replacements, USITC help steps, and **Run stack for this HTS** (sends the line to Duty stack). **Export CSV** includes `s232_lists` and Watch for / PGA flag columns.
 
 **Load sample list** includes apparel, auto parts, a Japan passenger vehicle, an MHDV dump truck, a bus, Canadian lumber, VN wood furniture, and a Taiwan semiconductor stem so you can see auto vs claim chips.
 
