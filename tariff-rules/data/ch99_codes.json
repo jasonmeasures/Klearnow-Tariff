@@ -1855,7 +1855,7 @@
       "rate": 0.25,
       "mfn_interaction": "STACKS",
       "status": "CONFIRMED",
-      "notes": "Section 232 UAS Annex II / note 43(c)(4) +25% from 2026-09-03. Small UAS 8806.21–.23 / .91–.93 without thermal. Suppresses 301-FL via 9903.05.90."
+      "notes": "Section 232 UAS Annex II / note 43(c)(4) +25% from 2026-09-03. Small UAS 8806.21–.23 / .91–.93 without thermal. From 2027-02-09, note 43(c)(5) 8807 parts also file here when the Annex III path is claimed. Suppresses 301-FL via 9903.05.90."
     },
     {
       "code": "9903.08.23",
@@ -1864,7 +1864,7 @@
       "rate": 0.1,
       "mfn_interaction": "CAPPED",
       "status": "CONFIRMED_RATE_TBC_MECHANIC",
-      "notes": "Section 232 UAS UK certified-component cap +10% (9903.08.23). Claim-gated. Combined vs additional mechanic TBC — do not silent-compute totals."
+      "notes": "Section 232 UAS UK certified-component cap +10% (9903.08.23). Claim-gated. CSMS #69738151 says do not report this heading until further guidance. Combined vs additional mechanic TBC — do not silent-compute totals."
     },
     {
       "code": "9903.08.24",
@@ -1873,7 +1873,7 @@
       "rate": 0.15,
       "mfn_interaction": "CAPPED",
       "status": "CONFIRMED_RATE_TBC_MECHANIC",
-      "notes": "Section 232 UAS JP/EU/KR/TW/CH/LI certified-component cap (note 43(d) combined 15% when Col-1 < 15%). Claim-gated. Mechanic TBC — do not silent-compute totals."
+      "notes": "Section 232 UAS JP/EU/KR/TW/CH/LI certified-component cap (note 43(d) combined 15% when Col-1 < 15%). Claim-gated. CSMS #69738151 says do not report this heading until further guidance. Mechanic TBC — do not silent-compute totals."
     },
     {
       "code": "9903.08.25",
@@ -1882,7 +1882,7 @@
       "rate": 0.0,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "Section 232 UAS onshoring plan (DHS/DoW). 0%. Terminated 2027-02-09 per Annex IV.B. Claim-gated."
+      "notes": "Section 232 UAS onshoring plan (DHS/DoW). 0%. Claim-gated. CSMS #69738151 authorizes reporting now and says this heading expires 2027-02-09."
     },
     {
       "code": "9903.08.26",
@@ -1891,7 +1891,7 @@
       "rate": 0.0,
       "mfn_interaction": "NORMAL",
       "status": "CONFIRMED",
-      "notes": "Section 232 UAS Commerce onshoring plan. 0%. Claim-gated."
+      "notes": "Section 232 UAS Commerce onshoring plan. 0%. Claim-gated. CSMS #69738151 says do not report this heading until further guidance."
     }
   ]
 }

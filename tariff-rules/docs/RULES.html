@@ -211,7 +211,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <a class="l3" href="#6-5-semiconductors-csms-67400472-u-s-note-39">6.5 Semiconductors — CSMS #67400472 / U.S. note 39</a>
 <a class="l3" href="#6-6-metals-csms-68253075-68855869-u-s-note-16">6.6 Metals — CSMS #68253075 / #68855869 / U.S. note 16</a>
 <a class="l3" href="#6-7-patented-pharma-proclamation-11020">6.7 Patented pharma — Proclamation 11020</a>
-<a class="l3" href="#6-8-unmanned-aircraft-systems-uas-proclamation-11055-u-s-note-43">6.8 Unmanned aircraft systems (UAS) — Proclamation 11055 / U.S. note 43</a>
+<a class="l3" href="#6-8-unmanned-aircraft-systems-uas-proclamation-11055-u-s-note-43-csms-69738151">6.8 Unmanned aircraft systems (UAS) — Proclamation 11055 / U.S. note 43 / CSMS #69738151</a>
 <a class="l2" href="#7-section-301-forced-labor-301-fl">7. Section 301 Forced Labor (301-FL)</a>
 <a class="l2" href="#8-other-301-programs">8. Other 301 programs</a>
 <a class="l3" href="#8-1-section-201-qsp-live-cspv-washers-expired">8.1 Section 201 — QSP live; CSPV / washers expired</a>
@@ -506,7 +506,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <p><strong>Do not confuse with Section 201 CSPV</strong> (<code>9903.45.21</code>–<code>.29</code>) — expired <strong>2026-02-06</strong> (<code>program_watch</code> <code>SEC_201_SOLAR</code>). Live <code>9903.45.30</code>/<code>.31</code> is <strong>quartz surface products</strong> only. Washers 201 also expired.</p>
 <h3 id="6-7-patented-pharma-proclamation-11020">6.7 Patented pharma — Proclamation 11020</h3>
 <p>Ch.29 / Ch.30. Claim <code>s232_pharma_patented</code> or <code>s232_pharma_generic</code>. UK patented articles report <code>9903.04.63</code> @ <strong>0% additional</strong> from 2026-07-31. Patented headings suppress 301-FL via <code>9903.05.90</code>. This is <strong>not</strong> the same as 301-FL pharmaceutical-use <code>9903.05.89</code> (Note 52(e)).</p>
-<h3 id="6-8-unmanned-aircraft-systems-uas-proclamation-11055-u-s-note-43">6.8 Unmanned aircraft systems (UAS) — Proclamation 11055 / U.S. note 43</h3>
+<h3 id="6-8-unmanned-aircraft-systems-uas-proclamation-11055-u-s-note-43-csms-69738151">6.8 Unmanned aircraft systems (UAS) — Proclamation 11055 / U.S. note 43 / CSMS #69738151</h3>
 <div class="table-wrap"><table><thead><tr><th>&nbsp;</th><th>&nbsp;</th></tr></thead><tbody><tr><td>--</td><td>--</td></tr>
 <tr><td>Pack</td><td><code>data/s232_uas.json</code></td></tr>
 <tr><td>Engine</td><td><code>src/s232Uas.ts</code></td></tr>
@@ -515,9 +515,9 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <tr><td>Small UAS</td><td><strong><code>9903.08.22</code> @ 25%</strong> — auto on <code>8806.21</code>–<code>.23</code> / <code>.91</code>–<code>.93</code> unless thermal claimed</td></tr>
 <tr><td>Thermal (small stems)</td><td>Claim <code>s232_uas_thermal</code> → upgrades to <strong><code>.21</code> @ 100%</strong></td></tr>
 <tr><td>Docking</td><td><code>8504.40.9580</code> / <code>8537.10.9170</code> — <strong>claim</strong> <code>s232_uas_docking</code> → <code>.21</code> @ 100%</td></tr>
-<tr><td>8807 parts</td><td><strong>Claim</strong> <code>s232_uas_part</code> (heavy / 100%) or Annex III path</td></tr>
+<tr><td>8807 parts</td><td><strong>Claim</strong> <code>s232_uas_part</code> (heavy / 100%) or <code>s232_uas_annex_ii</code> (Annex III / 25% from 2027-02-09)</td></tr>
 <tr><td>Not for UAS use</td><td>Claim <code>s232_uas_not_for_use</code> → <strong><code>9903.08.20</code> @ 0%</strong> (does <strong>not</strong> suppress 301-FL)</td></tr>
-<tr><td>Partner caps</td><td><code>9903.08.23</code> / <code>.24</code> — claim-gated; combined mechanic TBC on some paths</td></tr>
+<tr><td>Partner caps</td><td><code>9903.08.23</code> / <code>.24</code> — claim-gated; combined mechanic TBC on some paths; <strong>do not report until further CBP guidance</strong></td></tr>
 <tr><td>301-FL</td><td>Suppressed via <code>9903.05.90</code> when a duty UAS heading applies (not <code>.20</code>)</td></tr>
 <tr><td>Section 338</td><td>Attracting <code>9903.08.20</code>–<code>.26</code> gates <strong><code>9903.03.15</code></strong> (Note 51(c))</td></tr></tbody></table></div>
 <p>Do not auto-apply 100% on general-purpose docking HTS without the docking claim.</p>
@@ -686,7 +686,7 @@ table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #ff
 <ul><li><strong>1.6.6 (2026-08-31)</strong> — Coverage / Duty stack: classification <strong>Watch for</strong> flags (PGA / AD / CVD / additional HTS) + description path on HTS lookup and coverage; UI rename HTS list → Coverage; collapsible Ch.99 layers. Operator release notes: <a href="../../docs/RELEASE_NOTES.html"><code>docs/RELEASE_NOTES.md</code></a> <strong>1.9.0</strong>.</li><li><strong>1.6.5 (2026-08-31)</strong> — Doc gaps: add R12 (QSP) to §5; Note 51(c) + §6.8 document UAS <code>9903.08.20</code>–<code>.26</code>; sign-off rows for R12 / UAS / section-stable order; <code>framework_contract</code> bumped to 1.7.0.</li><li><strong>1.6.4 (2026-08-28)</strong> — CSMS #69668138 stacking: section-stable Ch.99 order only (301 → 338 → 232 → 201). Drop invented within-section tiebreaks (ascending / China-before-FL). <code>9903.05.90</code> ranks as Section 301.</li><li><strong>1.6.3 (2026-08-28)</strong> — Metals list-gate + solar stack for engineer review: outside Ch.72–74/76, metal-content invents <code>9903.82.09</code> <strong>only</strong> on <code>s232_metals_matrix.json</code> (cite CSMS <strong>#68855869</strong>). Off-list <code>8541.43</code> / CN → <code>9903.91.02</code> + <code>9903.05.31</code> (with or without <code>9802.00.50</code> repair basis); CSPV 201 <code>9903.45.21</code>–<code>.29</code> marked expired; QSP 201 kept separate; R13 / §6.6 / §8.1 / worked examples updated.</li><li><strong>1.6.2 (2026-08-28)</strong> — MHDV <code>9903.74.11</code>: dual-list HTS (auto-parts annex + MHDV parts list) auto-stacks <code>.11</code> @ 0% alongside origin-split auto-parts duty when <code>s232_mhdv_part</code> is not claimed; MHDV-only HTS remains claim-gated via <code>s232_mhdv_not_part</code>; Quick Check exclusion checkbox; <code>resolveS232EnteredValue</code> returns optional <code>companion</code> for assess stacking.</li><li><strong>1.6.1 (2026-08-27)</strong> — R13 Chapter 98: repair/assembly dutiable basis for 9802.00.40/.50/.60/.80 across Col-1 and trade remedies; general 98xx suppresses 301 / 301-FL / Brazil 301 / 338; <code>9802.00.60</code> + Section 232 stays on full entered value (CSMS #68253075).</li><li><strong>1.6.0 (2026-08-24)</strong> — Section 338 Canada (<code>9903.03.12</code>–<code>.16</code>, CSMS #69606660): 50% additional on listed products of Canada from 12:01 a.m. EST 2026-08-22; 3-day suspension 19–21 Aug; Note 51(c)/(d) exclusions; drawback eligible; USMCA does not exempt.</li><li><strong>1.5.0 (2026-08-17)</strong> — Full review pack for developers and compliance: 232 vehicles / MHDV / wood / semiconductors with complete short HTS lists, claim vs auto, precedence, HTS-list behavior, sign-off table.</li><li><strong>1.4.0 (2026-08-14)</strong> — New 232 packs wired from CSMS (see <code>FRAMEWORK.md</code>).</li><li><strong>1.3.x</strong> — Brazil 301; shareable framework.</li><li><strong>1.0.0 (2026-07-31)</strong> — Initial cut from the 2026-07-27 full-stack build.</li></ul>
 <hr />
 <p><em>Machine truth: <code>tariff-rules/data/</em>.json</code>. If prose and JSON disagree, JSON wins.*</p>
-    <p class="foot">KlearNow Tariff · generated 2026-08-31</p>
+    <p class="foot">KlearNow Tariff · generated 2026-09-04</p>
   </article>
 </div>
 <script type="module">

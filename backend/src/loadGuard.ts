@@ -15,11 +15,38 @@ export function envInt(name: string, fallback: number): number {
 export const LIMITS = {
   assessLines: envInt("MAX_ASSESS_LINES", 500),
   coverageRows: envInt("MAX_COVERAGE_ROWS", 5000),
+  /** Guest / anonymous ES-003 entry-line cap. */
   es003Lines: envInt("MAX_ES003_LINES", 8000),
+  /** Signed-in (Auth0 / API key) ES-003 entry-line cap. */
+  es003LinesSignedIn: envInt("MAX_ES003_LINES_SIGNED_IN", 25000),
   es003TariffRows: envInt("MAX_ES003_TARIFF_ROWS", 20000),
+  /** ~2.5× lines — same ratio as guest defaults (20k / 8k). */
+  es003TariffRowsSignedIn: envInt("MAX_ES003_TARIFF_ROWS_SIGNED_IN", 62500),
   xlsxDecodedBytes: envInt("MAX_XLSX_BYTES", 20 * 1024 * 1024),
   heavyJobs: envInt("MAX_HEAVY_JOBS", 2),
 };
+
+export type Es003Caps = {
+  lines: number;
+  tariffRows: number;
+  signedIn: boolean;
+};
+
+/** Per-request ES-003 size caps — signed-in users get the higher ceiling. */
+export function es003Caps(signedIn: boolean): Es003Caps {
+  if (signedIn) {
+    return {
+      lines: LIMITS.es003LinesSignedIn,
+      tariffRows: LIMITS.es003TariffRowsSignedIn,
+      signedIn: true,
+    };
+  }
+  return {
+    lines: LIMITS.es003Lines,
+    tariffRows: LIMITS.es003TariffRows,
+    signedIn: false,
+  };
+}
 
 export class LimitError extends Error {
   status: number;
@@ -94,6 +121,8 @@ export function publicLimits() {
     coverage_rows: LIMITS.coverageRows,
     es003_lines: LIMITS.es003Lines,
     es003_tariff_rows: LIMITS.es003TariffRows,
+    es003_lines_signed_in: LIMITS.es003LinesSignedIn,
+    es003_tariff_rows_signed_in: LIMITS.es003TariffRowsSignedIn,
     xlsx_mb: Math.round(LIMITS.xlsxDecodedBytes / 1024 / 1024),
     heavy_jobs: LIMITS.heavyJobs,
     json_limit: process.env.JSON_LIMIT || "1mb",

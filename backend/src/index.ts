@@ -15,12 +15,14 @@ import { match232AutoPartsAnnex } from "../../tariff-rules/src/s232Autos.ts";
 import { previewS232Universe } from "../../tariff-rules/src/s232Resolve.ts";
 import { previewS338 } from "../../tariff-rules/src/s338Canada.ts";
 import { previewS201Qsp } from "../../tariff-rules/src/s201Qsp.ts";
+import { previewCopperSmeltCast } from "../../tariff-rules/src/copperSmeltCast.ts";
 import { coverRowsAsync, parseCoverageInput } from "./coverage.ts";
 import { csmsRouter } from "./csms.ts";
 import { insightsRouter } from "./insights.ts";
 import {
   LIMITS,
   assertMaxItems,
+  es003Caps,
   publicLimits,
   runHeavy,
   sendRouteError,
@@ -126,6 +128,8 @@ app.get("/v1/health", (_req, res) => {
 app.use("/v1", authMiddleware);
 app.get("/v1/me", (req, res) => {
   const p = req.principal!;
+  const signedIn = p.auth !== "guest";
+  const es003 = es003Caps(signedIn);
   res.json({
     tenant_id: p.tenant_id,
     key_id: p.key_id,
@@ -142,6 +146,10 @@ app.get("/v1/me", (req, res) => {
       admin: p.can.admin,
     },
     quota: quotaStatus(p),
+    limits: {
+      es003_lines: es003.lines,
+      es003_tariff_rows: es003.tariffRows,
+    },
   });
 });
 
@@ -250,6 +258,7 @@ app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
   const { s232_universe, s232_auto_parts } = lookupS232Extras(raw, asOf, coo, look.hit?.col1_pct);
   const section_338 = previewS338(raw);
   const section_201 = previewS201Qsp(raw);
+  const copper_smelt_cast = previewCopperSmeltCast(raw, coo, asOf);
   if (look.window_status === "unknown" && !look.replacement_hts) {
     res.status(404).json({
       detail: `No column-1 rate for ${raw} on ${asOf}`,
@@ -260,6 +269,7 @@ app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
       s232_universe,
       section_338,
       section_201,
+      copper_smelt_cast,
     });
     return;
   }
@@ -272,6 +282,7 @@ app.get("/v1/hts/:hts", requireScope("calculate"), (req, res) => {
     s232_universe,
     section_338,
     section_201,
+    copper_smelt_cast,
     window_status: look.window_status,
     ended_on: look.ended_on,
     replacement_hts: look.replacement_hts,
@@ -327,7 +338,12 @@ app.post(
         res.status(400).json({ detail: "Provide xlsx_base64 from an ACE Reports ES-003 export." });
         return;
       }
-      res.json(await runHeavy(() => ingestEs003({ xlsx_base64: body.xlsx_base64, filename: body.filename })));
+      const caps = es003Caps(req.principal!.auth !== "guest");
+      res.json(
+        await runHeavy(() =>
+          ingestEs003({ xlsx_base64: body.xlsx_base64, filename: body.filename, caps }),
+        ),
+      );
     } catch (e) {
       sendRouteError(res, e);
     }
@@ -347,6 +363,7 @@ app.post(
         });
         return;
       }
+      const caps = es003Caps(req.principal!.auth !== "guest");
       res.json(
         await runHeavy(() =>
           auditEs003Async({
@@ -355,6 +372,7 @@ app.post(
             knowledge_date: body.knowledge_date,
             lines: body.lines,
             meta: body.meta,
+            caps,
           }),
         ),
       );

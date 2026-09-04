@@ -504,7 +504,7 @@ Melt / pour (or smelt / cast / refine) country is collected for the article path
 
 Ch.29 / Ch.30. Claim `s232_pharma_patented` or `s232_pharma_generic`. UK patented articles report `9903.04.63` @ **0% additional** from 2026-07-31. Patented headings suppress 301-FL via `9903.05.90`. This is **not** the same as 301-FL pharmaceutical-use `9903.05.89` (Note 52(e)).
 
-### 6.8 Unmanned aircraft systems (UAS) — Proclamation 11055 / U.S. note 43
+### 6.8 Unmanned aircraft systems (UAS) — Proclamation 11055 / U.S. note 43 / CSMS #69738151
 
 | | |
 |--|--|
@@ -515,9 +515,9 @@ Ch.29 / Ch.30. Claim `s232_pharma_patented` or `s232_pharma_generic`. UK patente
 | Small UAS | **`9903.08.22` @ 25%** — auto on `8806.21`–`.23` / `.91`–`.93` unless thermal claimed |
 | Thermal (small stems) | Claim `s232_uas_thermal` → upgrades to **`.21` @ 100%** |
 | Docking | `8504.40.9580` / `8537.10.9170` — **claim** `s232_uas_docking` → `.21` @ 100% |
-| 8807 parts | **Claim** `s232_uas_part` (heavy / 100%) or Annex III path |
+| 8807 parts | **Claim** `s232_uas_part` (heavy / 100%) or `s232_uas_annex_ii` (Annex III / 25% from 2027-02-09) |
 | Not for UAS use | Claim `s232_uas_not_for_use` → **`9903.08.20` @ 0%** (does **not** suppress 301-FL) |
-| Partner caps | `9903.08.23` / `.24` — claim-gated; combined mechanic TBC on some paths |
+| Partner caps | `9903.08.23` / `.24` — claim-gated; combined mechanic TBC on some paths; **do not report until further CBP guidance** |
 | 301-FL | Suppressed via `9903.05.90` when a duty UAS heading applies (not `.20`) |
 | Section 338 | Attracting `9903.08.20`–`.26` gates **`9903.03.15`** (Note 51(c)) |
 

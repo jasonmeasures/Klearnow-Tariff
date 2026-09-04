@@ -161,4 +161,21 @@ describe("Section 232 UAS (Proc. 11055)", () => {
     assert.equal(hit, null);
     assert.ok(notes.some((n) => /docking/i.test(n.message)));
   });
+
+  it("8807 Annex III path computes 9903.08.22 from 2027-02-09 when claimed", () => {
+    const L = assessLine(
+      {
+        hts: "8807.10.00",
+        coo: "CN",
+        entered_value: 10000,
+        col1_rate_pct: 0,
+        entry_date: "2027-02-09",
+        flags: { s232_uas_annex_ii: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.08.22"));
+    assert.ok(L.ch99_sequence.includes("9903.05.90"));
+    assert.equal(L.layers.find((x) => x.ch99 === "9903.08.22")?.duty_amount, 2500);
+  });
 });

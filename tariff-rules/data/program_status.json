@@ -110,7 +110,7 @@
       "id": "SEC_232_UAS",
       "ch99_family": "9903.08.20–.26",
       "status": "ACTIVE",
-      "detail": "Section 232 unmanned aircraft systems. Proclamation 11055 / U.S. note 43, effective 2026-09-03. Large UAS 8806.24/.29/.94/.99 auto 9903.08.21 @ 100%. Small UAS 8806.21–.23/.91–.93 auto 9903.08.22 @ 25% unless thermal is claimed (then .21 @ 100%). Docking 8504.40.9580 / 8537.10.9170 and 8807 parts are claim-gated. Suppresses 301-FL. Partner 10/15% caps are rate-known but combined mechanic TBC. Annex III 8807 @ 25% from 2027-02-09.",
+      "detail": "Section 232 unmanned aircraft systems. Proclamation 11055 / U.S. note 43 / CSMS #69738151, effective 2026-09-03. Large UAS 8806.24/.29/.94/.99 auto 9903.08.21 @ 100%. Small UAS 8806.21–.23/.91–.93 auto 9903.08.22 @ 25% unless thermal is claimed (then .21 @ 100%). Docking 8504.40.9580 / 8537.10.9170 and 8807 parts are claim-gated. Suppresses 301-FL. Partner 10%/15% caps are rate-known but combined mechanic TBC and CBP says do not report them yet. Annex III 8807 @ 25% from 2027-02-09 when claimed.",
       "compute": true,
       "compute_caveat": "Do not auto-apply 100% on general-purpose docking HTS. Thermal vs non-thermal on overlapping 8806 stems is claim-gated for the 100% path."
     },

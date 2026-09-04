@@ -1,6 +1,6 @@
 /**
- * Section 232 unmanned aircraft systems — Proclamation 11055 / U.S. note 43.
- * Effective 2026-09-03. Suppresses 301-FL (R1).
+ * Section 232 unmanned aircraft systems — Proclamation 11055 / U.S. note 43 /
+ * CSMS #69738151. Effective 2026-09-03. Suppresses 301-FL (R1).
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -117,6 +117,8 @@ export type S232UasHit = {
  * Auto: large UAS 8806.24/.29/.94/.99 → 100%; small UAS 8806.21–.23/.91–.93 → 25%.
  * Thermal on the small-UAS stems upgrades to 100% when claimed.
  * Docking 8504.40.9580 / 8537.10.9170 and 8807 parts are claim-gated.
+ * From 2027-02-09, claim flags.s232_uas_annex_ii for 8807 parts in note 43(c)(5)
+ * to assess 9903.08.22 @ 25%.
  * Partner 10/15% caps are claim-gated (critical-component certification).
  */
 export function assessS232Uas(opts: {
@@ -160,7 +162,10 @@ export function assessS232Uas(opts: {
     };
   }
 
-  if (hit8807 && !flag(flags, "s232_uas_part", "s232_uas_annex_i", "s232_uas_heavy_part")) {
+  const heavy8807 = flag(flags, "s232_uas_part", "s232_uas_annex_i", "s232_uas_heavy_part");
+  const annexIii8807 = flag(flags, "s232_uas_annex_ii");
+
+  if (hit8807 && !heavy8807 && !(annexIii8807 && onOrAfter(day, S232_UAS_ANNEX_III))) {
     const annexIii = onOrAfter(day, S232_UAS_ANNEX_III);
     return {
       preview_only: true,
@@ -176,11 +181,16 @@ export function assessS232Uas(opts: {
   let stem = hit25?.matched_stem || hit100?.matched_stem || hitDock?.matched_stem || hit8807?.matched_stem || "";
   let bucket = "Annex II small UAS (no thermal)";
 
-  if (hit100 || hitDock || (hit8807 && flag(flags, "s232_uas_part", "s232_uas_annex_i", "s232_uas_heavy_part"))) {
+  if (hit100 || hitDock || (hit8807 && heavy8807)) {
     heading = S232_UAS_100;
     rate = 100;
     stem = (hit100 || hitDock || hit8807)!.matched_stem;
     bucket = hitDock ? "UAS docking (claimed)" : hit8807 ? "UAS heavy parts (claimed)" : "Annex I large UAS";
+  } else if (hit8807 && annexIii8807 && onOrAfter(day, S232_UAS_ANNEX_III)) {
+    heading = S232_UAS_25;
+    rate = 25;
+    stem = hit8807.matched_stem;
+    bucket = "Annex III UAS parts (claimed)";
   } else if (hit25 && thermal) {
     heading = S232_UAS_100;
     rate = 100;

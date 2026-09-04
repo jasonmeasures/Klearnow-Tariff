@@ -8,6 +8,7 @@ import {
   previewS232Universe,
   type S232UniversePreview,
 } from "../../tariff-rules/src/s232Resolve.ts";
+import { previewCopperSmeltCast } from "../../tariff-rules/src/copperSmeltCast.ts";
 import { assessLine, type LineIn } from "./assess.ts";
 import {
   flagsFromRate,
@@ -599,6 +600,13 @@ export function coverOne(
     );
   }
 
+  const copper_smelt_cast = previewCopperSmeltCast(htsRaw, coo || "", asOf);
+  if (copper_smelt_cast?.required) {
+    notes.push(
+      `Copper smelt/cast ACE 54-12 required (${copper_smelt_cast.source_csms}) — primary smelt + cast country on the entry line or ACE fatal ${copper_smelt_cast.ace_error_fatal}.`,
+    );
+  }
+
   return {
     hts: htsRaw,
     hts_key: htsKey,
@@ -627,6 +635,7 @@ export function coverOne(
     ch99_sequence,
     stack_preview,
     s232_universe: uni,
+    copper_smelt_cast,
     diagnostics,
     notes,
   };

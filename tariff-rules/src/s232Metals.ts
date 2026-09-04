@@ -117,7 +117,7 @@ function hitFor(
     metal === "aluminum"
       ? "Country of smelt / most recent cast"
       : metal === "copper"
-        ? "Country of smelt / refined production"
+        ? "Country of smelt / cast"
         : "Steel country of melt & pour";
   return {
     metal,

@@ -82,10 +82,11 @@ const ALIASES = new Map([
 const BY_CODE = new Map(COUNTRIES.map(([c, n]) => [c, n]));
 const BY_NAME = new Map(COUNTRIES.map(([c, n]) => [n.toLowerCase(), c]));
 
-/** Resolve typed value → ISO-2, or "" if unresolved. */
+/** Resolve typed value → ISO-2, OTH, or "" if unresolved. */
 export function resolveCountryIso(raw) {
   const s = String(raw || "").trim();
   if (!s) return "";
+  if (/^(oth(er)?)$/i.test(s)) return "OTH";
   const upper = s.toUpperCase();
   // "CN", "CN — China", "CN - China"
   const codePref = upper.match(/^([A-Z]{2})\b/);
@@ -104,6 +105,7 @@ export function resolveCountryIso(raw) {
 
 export function formatCountry(iso) {
   const c = String(iso || "").toUpperCase();
+  if (c === "OTH") return "OTH — Other (unknown)";
   if (!c || !BY_CODE.has(c)) return c || "";
   return `${c} — ${BY_CODE.get(c)}`;
 }

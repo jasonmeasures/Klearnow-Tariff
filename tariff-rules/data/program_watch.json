@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-08-25",
+  "as_of": "2026-09-01",
   "pull_process": "A pack exists only after a proclamation / FR annex / CSMS names Chapter 99 headings and an HTS list. Investigations are PENDING until that happens. Every program_status ACTIVE+compute row must appear here as LIVE with an engine_module or CI fails. Sources to check weekly: White House presidential actions, Federal Register (HTS annex PDFs), CBP CSMS RSS (already in /v1/csms). Full intake checklist + weekly scorecard: tariff-rules/docs/PACK_INTAKE.md.",
   "sources": [
     "https://www.whitehouse.gov/presidential-actions/",
@@ -126,6 +126,15 @@
       "ch99": ["9903.08.20", "9903.08.21", "9903.08.22", "9903.08.23", "9903.08.24", "9903.08.25", "9903.08.26"],
       "incomplete": "Docking 8504.40.9580 / 8537.10.9170 and 8807 parts are claim-gated. Partner 10/15% caps not computed (combined mechanic TBC). Annex III 8807 @ 25% from 2027-02-09.",
       "why": "Proc. 11055 / note 43. Date-gated so day-one is covered."
+    },
+    {
+      "id": "COPPER_SMELT_CAST_FILING",
+      "status": "LIVE",
+      "effective": "2026-09-14",
+      "engine_module": "tariff-rules/src/copperSmeltCast.ts",
+      "data_file": "tariff-rules/data/copper_smelt_cast.json",
+      "incomplete": "ES-003 cannot validate ACE 54 record type 12 until additional-declaration data is ingestible.",
+      "why": "CSMS #69711865 / #69252300 — fatal F794 when primary smelt or cast missing on 8544.42/49 copper conductor HTS (non-US origin)."
     },
     {
       "id": "SEC_122",

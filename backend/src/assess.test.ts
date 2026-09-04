@@ -292,6 +292,60 @@ describe("golden duty paths", () => {
     assert.ok(L.ch99_sequence.includes("9903.05.49"));
   });
 
+  it("8544.42.9090 JP after 2026-09-14 errors without copper smelt/cast", () => {
+    const L = assessLine(
+      {
+        hts: "8544429090",
+        coo: "JP",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: "2026-09-15",
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(
+      L.diagnostics.some((d) => d.code === "COPPER_SMELT_CAST_REQUIRED"),
+      "missing primary smelt and cast",
+    );
+    assert.ok(L.copper_smelt_cast?.required);
+    assert.equal(L.copper_smelt_cast?.complete, false);
+  });
+
+  it("8544.42.9090 JP with smelt/cast passes ACE filing check", () => {
+    const L = assessLine(
+      {
+        hts: "8544429090",
+        coo: "JP",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: "2026-09-15",
+        copper_smelt_cast: { primary_smelt: "CL", cast: "CN", secondary_smelt: "OTH" },
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(!L.diagnostics.some((d) => d.code === "COPPER_SMELT_CAST_REQUIRED"));
+    assert.ok(L.diagnostics.some((d) => d.code === "COPPER_SMELT_CAST_REPORTED"));
+    assert.equal(L.copper_smelt_cast?.complete, true);
+  });
+
+  it("8544.42.9090 US origin exempt from copper smelt/cast", () => {
+    const L = assessLine(
+      {
+        hts: "8544429090",
+        coo: "US",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: "2026-09-15",
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(!L.diagnostics.some((d) => d.code === "COPPER_SMELT_CAST_REQUIRED"));
+    assert.equal(L.copper_smelt_cast?.exempt, true);
+  });
+
   it("TW 8544.42.9090 + 10% copper → 9903.82.03 and 9903.05.76 (not 05.90)", () => {
     const L = assessLine(
       {

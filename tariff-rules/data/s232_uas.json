@@ -15,7 +15,7 @@
     "onshore_dhs_dow": "9903.08.25",
     "onshore_commerce": "9903.08.26",
     "suppresses_301fl": true,
-    "detail": "100% on Annex I / note 43(c)(1) large UAS and docking HTS, and on (c)(3) thermal when claimed. 25% on (c)(4) small UAS without thermal. Partner 10%/15% caps are claim-gated (critical-component certification). 8807 parts are claim-gated (end-use). Annex III 8807 @ 25% from 2027-02-09."
+    "detail": "100% on Annex I / note 43(c)(1) large UAS and docking HTS, and on (c)(3) thermal when claimed. 25% on (c)(4) small UAS without thermal. Partner 10%/15% caps are claim-gated (critical-component certification). 8807 parts are claim-gated: claim heavy-path 100% under (c)(2), or Annex III 25% under (c)(5) from 2027-02-09."
   },
   "lists": {
     "annex_i_100": ["8504.40.9580", "8537.10.9170", "8806.24.00", "8806.29.00", "8806.94.00", "8806.99.00"],
@@ -28,6 +28,7 @@
   "partner_iso2_10": ["GB"],
   "sources": [
     "Proclamation 11055 (13 August 2026)",
+    "CSMS #69738151 (2 September 2026)",
     "U.S. note 43 / headings 9903.08.20–.26",
     "Annex IV PDF 188265-4"
   ]

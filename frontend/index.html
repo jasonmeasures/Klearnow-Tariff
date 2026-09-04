@@ -39,10 +39,6 @@
      title="CBP Cargo Systems Messaging Service">
     CSMS <span aria-hidden="true">↗</span>
   </a>
-  <a class="tool-link" id="rps-link" href="http://localhost:3002" target="_blank" rel="noopener noreferrer"
-     title="Restricted Party Screening (applications/RPS)">
-    RPS <span aria-hidden="true">↗</span>
-  </a>
   <label class="role-switch" id="role-switch" title="Local demo — Auth0 replaces this in playground / WordPress">
     <span class="cap">View as</span>
     <select id="role-select" aria-label="Demo role">
@@ -139,6 +135,40 @@
                 title="Quantity in the HTS unit of measure (required when Column 1 is specific)" />
               <p class="cap" id="qc-qty-hint" style="margin:var(--sp-1) 0 0"></p>
             </div>
+            <div class="field" id="qc-copper-smelt-wrap" hidden style="grid-column:1 / -1">
+              <details class="metals-panel is-required" id="qc-copper-smelt-panel" open>
+                <summary class="metals-summary">
+                  <span class="metals-summary-text">
+                    <span class="eyebrow" id="qc-copper-smelt-title">Copper smelt &amp; cast (ACE)</span>
+                    <span class="cap" id="qc-copper-smelt-meta">Required for filing — CSMS #69711865</span>
+                  </span>
+                  <span class="metals-chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="metals-body">
+                  <p class="cap" id="qc-copper-smelt-hint" style="margin:0 0 var(--sp-2)">
+                    Primary country of smelt and country of cast are required on the entry summary line (ACE 54 record type 12).
+                    Use <span class="mono">OTH</span> when unknown. Secondary smelt is optional.
+                  </p>
+                  <div class="grid2">
+                    <div class="field">
+                      <label class="label" for="qc-copper-primary-smelt">Primary smelt *</label>
+                      <input type="text" id="qc-copper-primary-smelt" class="country-field" data-country
+                        title="Primary country of smelt — ISO-2 or OTH" placeholder="e.g. CL or OTH" />
+                    </div>
+                    <div class="field">
+                      <label class="label" for="qc-copper-secondary-smelt">Secondary smelt</label>
+                      <input type="text" id="qc-copper-secondary-smelt" class="country-field" data-country
+                        title="Secondary country of smelt (optional) — ISO-2 or OTH" placeholder="Optional" />
+                    </div>
+                    <div class="field">
+                      <label class="label" for="qc-copper-cast">Country of cast *</label>
+                      <input type="text" id="qc-copper-cast" class="country-field" data-country
+                        title="Country of cast — ISO-2 or OTH" placeholder="e.g. CN or OTH" />
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
             <div class="field" id="qc-metal-wrap" style="grid-column:1 / -1">
               <details class="metals-panel" id="qc-metal-panel">
                 <summary class="metals-summary">
@@ -194,9 +224,9 @@
                         title="Copper content — USD or % of entered" />
                     </div>
                     <div class="field">
-                      <label class="label" for="qc-copper-melt">Smelt / refine</label>
+                      <label class="label" for="qc-copper-melt">Smelt / cast</label>
                       <input type="text" id="qc-copper-melt" class="country-field" data-country
-                        title="Copper smelt / refined production country" />
+                        title="Copper smelt / cast country (232 metal-content basis)" />
                     </div>
                   </div>
                 </div>
@@ -247,6 +277,10 @@
             <label class="check" id="qc-s232-uas-thermal-wrap" hidden>
               <input type="checkbox" id="qc-s232-uas-thermal" />
               <span>232 UAS thermal imaging (9903.08.21)</span>
+            </label>
+            <label class="check" id="qc-s232-uas-annex-iii-wrap" hidden>
+              <input type="checkbox" id="qc-s232-uas-annex-iii" />
+              <span id="qc-s232-uas-annex-iii-label">232 UAS Annex III parts (9903.08.22)</span>
             </label>
             <label class="check" id="qc-gn6-wrap" hidden>
               <input type="checkbox" id="qc-gn6" />
@@ -581,6 +615,7 @@ placeholder="hts,coo
         <h2>Audit from ACE</h2>
         <p class="cap">Upload ES-003 Entry Summary Line Tariff Details — we audit filed Ch.99
           against the live stack using each line’s Entry Date.
+          Guests: up to 8,000 entry lines; signed-in: 25,000.
           <a href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer">Audit guide ↗</a></p>
       </div>
       <div id="auditbanner"></div>

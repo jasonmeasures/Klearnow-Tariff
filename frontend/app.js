@@ -19,7 +19,6 @@ import {
   login,
   logout,
   refreshToken,
-  rpsUrl,
   setDemoRole,
 } from "./auth.js";
 import goldens from "./qc-examples.json";
@@ -138,7 +137,6 @@ async function boot() {
   }
 
   bindAuthChrome();
-  bindRpsLink();
 
   try {
     const h = await api("/v1/health");
@@ -192,18 +190,6 @@ async function boot() {
   if ("serviceWorker" in navigator && !isEmbed()) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }
-}
-
-function bindRpsLink() {
-  const a = $("#rps-link");
-  if (!a) return;
-  const url = rpsUrl();
-  if (!url) {
-    a.hidden = true;
-    return;
-  }
-  a.hidden = false;
-  a.href = url;
 }
 
 function bindAuthChrome() {
@@ -593,6 +579,52 @@ function updateMetalResolved() {
   }
 }
 
+function copperCountryFrom(el) {
+  if (!el) return "";
+  const v = (el.value || "").trim();
+  if (/^(oth(er)?)$/i.test(v)) return "OTH";
+  return countryIsoFrom(el) || resolveCountryIso(v) || "";
+}
+
+function readCopperSmeltCastFromQuick() {
+  const primary = copperCountryFrom($("#qc-copper-primary-smelt"));
+  const secondary = copperCountryFrom($("#qc-copper-secondary-smelt"));
+  const cast = copperCountryFrom($("#qc-copper-cast"));
+  const out = {};
+  if (primary) out.primary_smelt = primary;
+  if (secondary) out.secondary_smelt = secondary;
+  if (cast) out.cast = cast;
+  return out;
+}
+
+function syncCopperSmeltPanel(hit) {
+  const wrap = $("#qc-copper-smelt-wrap");
+  if (!wrap) return;
+  const show = Boolean(hit && !hit.exempt);
+  wrap.hidden = !show;
+  const panel = $("#qc-copper-smelt-panel");
+  const required = Boolean(hit?.required);
+  if (panel) {
+    panel.classList.toggle("is-required", required);
+    if (required) panel.open = true;
+  }
+  const meta = $("#qc-copper-smelt-meta");
+  if (meta) {
+    meta.textContent = required
+      ? "Required for ACE filing — CSMS #69711865"
+      : show
+        ? `Reporting starts ${hit.effective} (CSMS #69711865)`
+        : "";
+  }
+  const hint = $("#qc-copper-smelt-hint");
+  if (hint && hit?.required) {
+    hint.innerHTML =
+      `Primary country of smelt and country of cast are required on the entry summary line (ACE 54 record type 12). ` +
+      `Missing → fatal <span class="mono">${esc(hit.ace_error_fatal)}</span>. Use <span class="mono">OTH</span> when unknown. Secondary smelt is optional.`;
+  }
+  if (show) initCountryFields(wrap);
+}
+
 function syncMetalPanel(articleHit) {
   const wrap = $("#qc-metal-wrap");
   const panel = $("#qc-metal-panel");
@@ -657,6 +689,7 @@ async function previewHtsMeta() {
     clearHtsContext();
     if (wrap) wrap.hidden = true;
     syncMetalPanel(null);
+    syncCopperSmeltPanel(null);
     syncPharmaClaimUi();
     syncS232ClaimUi();
     syncS338ClaimUi();
@@ -758,6 +791,12 @@ async function previewHtsMeta() {
         `<span class="pill pill-232" title="Proc. 11055 / U.S. note 43">232 UAS small → 9903.08.22 @ 25% from 2026-09-03</span>`,
       );
     }
+    if (uas.parts_8807) {
+      const annexIiiLive = asOf >= "2027-02-09";
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #69738151 / note 43(c)(2)/(c)(5)">232 UAS parts ${esc(uas.parts_8807.matched_stem)} → ${annexIiiLive ? "claim Annex III for 9903.08.22 @ 25%" : "Annex III 9903.08.22 @ 25% from 2027-02-09"}</span>`,
+      );
+    }
     syncS338ClaimUi(s338);
     syncS201ClaimUi(s201);
     syncS232ClaimUi(uni);
@@ -782,6 +821,15 @@ async function previewHtsMeta() {
       }
     }
 
+    if (r.copper_smelt_cast?.required) {
+      bits.push(
+        `<span class="pill pill-warn" title="CSMS #69711865 — ACE 54-12">Copper smelt/cast required</span>`,
+      );
+    } else if (r.copper_smelt_cast && !r.copper_smelt_cast.exempt) {
+      bits.push(
+        `<span class="pill" title="CSMS #69711865">Copper smelt/cast from ${esc(r.copper_smelt_cast.effective)}</span>`,
+      );
+    }
     const url = r.usitc_url || `https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}`;
     bits.push(`<a class="usitc-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">USITC HTS</a>`);
 
@@ -831,6 +879,7 @@ async function previewHtsMeta() {
     }
 
     syncMetalPanel(r.metals);
+    syncCopperSmeltPanel(r.copper_smelt_cast);
   } catch (err) {
     clearHtsContext();
     const detail = err?.payload || null;
@@ -858,6 +907,7 @@ async function previewHtsMeta() {
     }
     if (wrap) wrap.hidden = true;
     syncMetalPanel(null);
+    syncCopperSmeltPanel(null);
     sync232AutoPartClaimUi(null);
   }
 }
@@ -983,6 +1033,26 @@ function renderHtsFlagPills(flags) {
   return rows.join("");
 }
 
+function renderCopperSmeltWatch(csc) {
+  if (!csc || csc.exempt) return "";
+  const short = csc.required
+    ? "ACE 54-12 smelt/cast required"
+    : `Smelt/cast from ${csc.effective}`;
+  return (
+    `<div class="hts-watch hts-watch-warn" data-expanded="0">` +
+      `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle title="Expand for ACE copper smelt/cast filing">` +
+        `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
+        `<span class="hts-watch-agency">Copper smelt/cast</span>` +
+        `<span class="hts-watch-short">${esc(short)}</span>` +
+      `</button>` +
+      `<div class="hts-watch-detail" hidden>` +
+        `<p>${esc(csc.reason || "")}</p>` +
+        `<p class="cap">ACE record type ${esc(csc.ace_record_type || "54-12")}. Fatal ${esc(csc.ace_error_fatal || "F794")} when primary smelt or cast is missing after ${esc(csc.effective || "2026-09-14")}. Report OTH when unknown. Distinct from Section 232 metal-content melt/pour.</p>` +
+      `</div>` +
+    `</div>`
+  );
+}
+
 /** Compact chips for Coverage table cells (not expandable). */
 function renderHtsFlagChipsCompact(flags) {
   if (!flags) return "";
@@ -994,6 +1064,14 @@ function renderHtsFlagChipsCompact(flags) {
   if (flags.cvd) chips.push(`<span class="pill pill-flag-warn" title="Countervailing may apply">CVD</span>`);
   if (flags.add_hts) chips.push(`<span class="pill pill-flag" title="Additional HTS reporting may be required">Add. HTS</span>`);
   return chips.join("");
+}
+
+function renderCopperSmeltChip(csc) {
+  if (!csc || csc.exempt) return "";
+  const title = csc.required
+    ? "ACE 54-12 copper smelt/cast required (CSMS #69711865)"
+    : `Copper smelt/cast from ${csc.effective}`;
+  return `<span class="pill pill-flag-warn" title="${esc(title)}">Cu smelt/cast</span>`;
 }
 
 function bindHtsWatchRows(root) {
@@ -1038,7 +1116,7 @@ function renderHtsContext(r, htsInput) {
   const ctx = $("#hts-context");
   if (!ctx) return;
   const display = r.hts_display || formatHtsDisplayClient(htsInput) || htsInput;
-  const flagBits = renderHtsFlagPills(r.flags);
+  const flagBits = [renderCopperSmeltWatch(r.copper_smelt_cast), renderHtsFlagPills(r.flags)].filter(Boolean).join("");
   const descHtml = renderHtsDescStack(r);
   const hasDesc = Boolean(descHtml);
   const hasFlags = Boolean(flagBits);
@@ -1169,6 +1247,7 @@ function applyQuickToLines() {
   const date = $("#qc-date").value || new Date().toISOString().slice(0, 10);
   const quantity = ($("#qc-qty")?.value || "").trim();
   const metal_contents = readMetalContentsFromQuick();
+  const copper_smelt_cast = readCopperSmeltCastFromQuick();
   const flags = {};
   const cn = $("#qc-cnlist")?.value || "auto";
   if (cn === "list_1") flags.s301_list_1 = true;
@@ -1183,6 +1262,7 @@ function applyQuickToLines() {
   if ($("#qc-gn6")?.checked) flags.civil_aircraft_gn6 = true;
   if ($("#qc-s201-over")?.checked) flags.s201_qsp_over_quota = true;
   if ($("#qc-s232-uas-thermal")?.checked) flags.s232_uas_thermal = true;
+  if ($("#qc-s232-uas-annex-iii")?.checked) flags.s232_uas_annex_ii = true;
   const ftaWrap = $("#qc-fta-wrap");
   const ftaClaimId = ftaWrap?.dataset?.claimId || "";
   if ($("#qc-fta")?.checked && ftaClaimId) {
@@ -1205,6 +1285,7 @@ function applyQuickToLines() {
     quantity_uom: quantity ? qtyUom : undefined,
     metal_contents: kinds.length ? metal_contents : undefined,
   };
+  if (Object.keys(copper_smelt_cast).length) over.copper_smelt_cast = copper_smelt_cast;
   if (kinds.length === 1) {
     const k = kinds[0];
     const row = metal_contents[k];
@@ -1238,6 +1319,12 @@ async function runQuickCheck() {
     for (const [k, r] of withVal) {
       if (!r.melt_pour) bad.push(`${k} melt/pour country`);
     }
+  }
+  const copperWrap = $("#qc-copper-smelt-wrap");
+  if (copperWrap && !copperWrap.hidden && $("#qc-copper-smelt-panel")?.classList.contains("is-required")) {
+    const csc = readCopperSmeltCastFromQuick();
+    if (!csc.primary_smelt) bad.push("copper primary smelt country");
+    if (!csc.cast) bad.push("copper cast country");
   }
   if (bad.length) {
     banner("#calcbanner", "err", "Need a few fields", bad.join(", ") + " required for a quick check.");
@@ -1524,6 +1611,22 @@ function syncS232ClaimUi(uni = {}) {
     thermWrap.title =
       "Small-UAS HTS (8806.21–.23 / .91–.93) defaults to 9903.08.22 @ 25%. Tick if the aircraft integrates a thermal imager — then 9903.08.21 @ 100% (note 43(c)(3)).";
   }
+  const annexIiiWrap = $("#qc-s232-uas-annex-iii-wrap");
+  const annexIiiBox = $("#qc-s232-uas-annex-iii");
+  const annexIiiLabel = $("#qc-s232-uas-annex-iii-label");
+  if (annexIiiWrap && annexIiiBox) {
+    const asOf = $("#qc-date")?.value || new Date().toISOString().slice(0, 10);
+    const stem = uni.uas?.parts_8807?.matched_stem;
+    const show = Boolean(stem) && asOf >= "2027-02-09";
+    annexIiiWrap.hidden = !show;
+    if (!show) annexIiiBox.checked = false;
+    if (annexIiiLabel && stem) {
+      annexIiiLabel.innerHTML =
+        `232 UAS Annex III parts <span class="cap">(stem ${esc(stem)} → 9903.08.22 @ 25%)</span>`;
+    }
+    annexIiiWrap.title =
+      "8807 parts in note 43(c)(5) file 9903.08.22 @ 25% from 2027-02-09 when claimed (CSMS #69738151). For the >25 kg heavy-parts 100% path before then, use flags.s232_uas_part via API.";
+  }
   syncClaimEmptyState();
 }
 
@@ -1773,6 +1876,7 @@ function payload() {
       const v = num(L[k]); if (v) o[k] = v;
     });
     if (L.metal_contents && typeof L.metal_contents === "object") o.metal_contents = L.metal_contents;
+    if (L.copper_smelt_cast && typeof L.copper_smelt_cast === "object") o.copper_smelt_cast = L.copper_smelt_cast;
     if ((L.quantity_uom || "").trim()) o.quantity_uom = L.quantity_uom.trim();
     ["entry_date", "release_date", "it_date", "loaded_date", "warehouse_withdrawal_date"]
       .forEach(k => { if (L[k]) o[k] = L[k]; });
@@ -3455,7 +3559,7 @@ function renderLookup(R) {
         ? `<span class="cap" style="color:var(--color-red-700)">No stack - fix HTS first</span>`
         : `<span class="cap">${row.coo ? "none beyond Col-1" : "add origin"}</span>`;
     const seq = miss ? "-" : ((row.ch99_sequence || []).join(" | ") || "-");
-    const watchChips = renderHtsFlagChipsCompact(row.flags);
+    const watchChips = [renderCopperSmeltChip(row.copper_smelt_cast), renderHtsFlagChipsCompact(row.flags)].filter(Boolean).join("");
     const helpCell = row.replacement_hts_display || row.replacement_hts
       ? `<b class="mono">${esc(row.replacement_hts_display || row.replacement_hts)}</b>${
           row.replacement_col1_pct != null
@@ -3494,7 +3598,7 @@ function renderLookup(R) {
         if (row.sku) html += `SKU <b class="mono">${esc(row.sku)}</b>`;
         html += `</p>`;
       }
-      const watchDetail = renderHtsFlagPills(row.flags);
+      const watchDetail = [renderCopperSmeltWatch(row.copper_smelt_cast), renderHtsFlagPills(row.flags)].filter(Boolean).join("");
       if (watchDetail) {
         html += `<div class="cov-fix" style="margin:0 0 var(--sp-3)">
           <div class="eyebrow" title="Partner Government Agency and trade-remedy signals — expand a row for ACE codes">Watch for</div>

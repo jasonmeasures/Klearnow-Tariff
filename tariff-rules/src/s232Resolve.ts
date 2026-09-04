@@ -207,7 +207,7 @@ export function resolveS232EnteredValue(opts: {
         rate_pct_decimal: uas.rate_pct_decimal,
         label: uas.label,
         reason: uas.reason,
-        source: "Proclamation 11055 / U.S. note 43",
+        source: "Proclamation 11055 / U.S. note 43 / CSMS #69738151",
         matched_stem: uas.matched_stem,
         ...NO_CAP,
         suppresses_metals: false,

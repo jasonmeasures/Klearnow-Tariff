@@ -14,14 +14,6 @@
 3. **WordPress** — embed SPA with `?embed=1&surface=external` via `wordpress/klearnow-duty-stack`.
 4. **Engine framework** — same Auth0 tenants / roles as playground.
 
-## Companion tools
-
-Top-bar **RPS** links to Restricted Party Screening (`kn-playground/applications/RPS`).
-
-| Env | Value |
-|-----|--------|
-| `VITE_RPS_URL` | RPS Amplify URL in playground / production. Local default: `http://localhost:3002`. Set empty / `false` to hide the link. |
-
 ## Auth0 + users database
 
 **Without PostgreSQL** (local / interim): roles still come from Auth0 claim `https://klearnow.com/roles` (override with `AUTH0_ADMIN_CLAIM`):

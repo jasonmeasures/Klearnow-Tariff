@@ -65,6 +65,10 @@ import {
   s201QspMeta,
 } from "../../tariff-rules/src/s201Qsp.ts";
 import { S232_UAS_NOT_FOR_USE } from "../../tariff-rules/src/s232Uas.ts";
+import {
+  validateCopperSmeltCast,
+  type CopperSmeltCastFields,
+} from "../../tariff-rules/src/copperSmeltCast.ts";
 import { formatHtsDisplay, lookupHts, resolveCol1 } from "./htsLookup.ts";
 import { computeEntryFees } from "./fees.ts";
 import { rulepackPublic } from "./state.ts";
@@ -129,6 +133,8 @@ export type LineIn = {
     { value?: number | string; pct?: number | string; melt_pour?: string }
   >;
   country_of_melt_pour?: string;
+  /** ACE 54-12 copper smelt/cast — CSMS #69711865 (listed 8544.42/49 HTS, non-US origin). */
+  copper_smelt_cast?: CopperSmeltCastFields;
   quantity?: number | string;
   quantity_uom?: string;
   filed_ch99?: string[];
@@ -515,6 +521,39 @@ export function assessLine(line: LineIn, index: number) {
       severity: "INFO",
       code: "COO_NORMALIZED_CA_XCODE",
       message: `Country of origin ${caNorm.normalized_from} is a CATAIR Canadian province X-code; evaluated as product of Canada (CA).`,
+    });
+  }
+
+  const copperFiling = validateCopperSmeltCast({
+    hts,
+    coo,
+    date: rd.date,
+    primary_smelt: line.copper_smelt_cast?.primary_smelt,
+    secondary_smelt: line.copper_smelt_cast?.secondary_smelt,
+    cast: line.copper_smelt_cast?.cast,
+  });
+  if (copperFiling.hit?.required && !copperFiling.complete) {
+    for (const field of copperFiling.missing) {
+      const label =
+        field === "primary_smelt" ? "Primary country of smelt" : "Country of cast";
+      diagnostics.push({
+        severity: "ERROR",
+        code: "COPPER_SMELT_CAST_REQUIRED",
+        message: `${label} is required for copper conductor HTS ${copperFiling.hit.matched_stem_display} (ACE 54 record type 12). ACE returns fatal ${copperFiling.hit.ace_error_fatal} when missing.`,
+        remediation: `Enter ISO-2 or OTH (other) for ${label.toLowerCase()}. Secondary country of smelt is optional. See ${copperFiling.hit.source_csms}.`,
+      });
+    }
+  } else if (copperFiling.hit?.required && copperFiling.complete) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "COPPER_SMELT_CAST_REPORTED",
+      message: `Copper smelt/cast countries reported for ACE 54-12 (primary ${copperFiling.fields.primary_smelt}${copperFiling.fields.secondary_smelt ? `, secondary ${copperFiling.fields.secondary_smelt}` : ""}, cast ${copperFiling.fields.cast}).`,
+    });
+  } else if (copperFiling.hit && !copperFiling.hit.required && !copperFiling.hit.exempt) {
+    diagnostics.push({
+      severity: "INFO",
+      code: "COPPER_SMELT_CAST_UPCOMING",
+      message: copperFiling.hit.reason,
     });
   }
 
@@ -1749,6 +1788,14 @@ export function assessLine(line: LineIn, index: number) {
       : matchS201QspHts(hts)
         ? { program: "SEC_201_QSP", heading: null, covered: true, source: s201QspMeta().source_url }
         : null,
+    copper_smelt_cast: copperFiling.hit
+      ? {
+          ...copperFiling.hit,
+          ...copperFiling.fields,
+          complete: copperFiling.complete,
+          missing: copperFiling.missing,
+        }
+      : null,
     fta_compare,
     pharma_compare,
     fta_claim: resolveFtaClaim(line),
