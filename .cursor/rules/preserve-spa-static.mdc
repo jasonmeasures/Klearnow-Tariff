@@ -1,0 +1,30 @@
+---
+description: Never remove Express static SPA serving from backend/src/index.ts (playground/Docker).
+globs: backend/src/index.ts
+alwaysApply: true
+---
+
+# Preserve SPA static serving in `backend/src/index.ts`
+
+Playground and Elastic Beanstalk serve the Vite build from this API process. Local `npm run dev` still uses Vite on :3000; `SERVE_STATIC` is only true when `frontend/dist/index.html` exists.
+
+**Never delete, skip, or “simplify away” these three pieces:**
+
+1. `STATIC_DIR` / `SERVE_STATIC` (and the `existsSync` / `fileURLToPath` imports they need)
+2. `express.static(STATIC_DIR, …)` including the `sw.js` `no-cache` header
+3. The SPA fallback that `sendFile`s `index.html` for GET/HEAD that are not `/v1` or `/health`
+
+When syncing this repo into `kn-playground/applications/Klearnow-Tariff-main`, keep this block. Diego restored it in `3600899` after an rsync drop (`restore static`).
+
+**Also see `playground-sync-preserve.mdc`** — PR #87 (KD-3135) restored Auth0 invite/mail, RDS SSL in `db.ts`, and env-based API keys that upstream syncs must not overwrite.
+
+```typescript
+// ❌ BAD — API-only index.ts with no static / SPA fallback
+app.use("/v1", csmsRouter);
+app.use((err, req, res, next) => { … });
+
+// ✅ GOOD — static + SPA fallback stay, gated on SERVE_STATIC
+if (SERVE_STATIC) { app.use(express.static(STATIC_DIR, { index: false, … })); }
+// … API routes …
+if (SERVE_STATIC) { /* sendFile frontend/dist/index.html */ }
+```

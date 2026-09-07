@@ -1,0 +1,22 @@
+{
+  "program": {
+    "id": "COPPER_SMELT_CAST_FILING",
+    "name": "Copper smelt and cast country reporting (ACE 54-12)",
+    "source_csms": "CSMS #69711865",
+    "source_csms_amended": ["CSMS #69252300", "CSMS #69247555"],
+    "effective": "2026-09-14",
+    "ace_record_type": "54-12",
+    "ace_error_fatal": "F794",
+    "ace_error_message": "ADDTNL DEC TYPE RQRD FOR ARTICLE"
+  },
+  "exempt_coo": ["US"],
+  "allow_unknown": "OTH",
+  "required_fields": ["primary_smelt", "cast"],
+  "optional_fields": ["secondary_smelt"],
+  "hts_list": ["8544.42.10", "8544.42.20", "8544.42.90", "8544.49.10"],
+  "sources": [
+    "CSMS #69711865 — Copper Additional Smelt and Cast Country Detail Error Code Update (2026-08-31)",
+    "CSMS #69252300 — complete copper smelt and cast reporting requirements",
+    "CSMS #69247555"
+  ]
+}

@@ -1,0 +1,19 @@
+---
+description: Pack intake checklist — CSMS/FR → data pack → engine → goldens before shipping duty math
+globs: tariff-rules/data/**/*.json,tariff-rules/src/**/*.ts,tariff-rules/docs/RULES.md,tariff-rules/docs/OPEN_ITEMS.md,tariff-rules/docs/PACK_INTAKE.md,backend/src/**/*Pack*.ts,backend/src/**/*s232*.ts,backend/src/**/*s301*.ts,backend/src/**/*s338*.ts,backend/src/**/*s201*.ts
+alwaysApply: false
+---
+
+# Pack intake (agents)
+
+When adding or amending a tariff **data pack**, CSMS/FR wiring, HTS list, or stacking golden:
+
+1. Follow **[`tariff-rules/docs/PACK_INTAKE.md`](tariff-rules/docs/PACK_INTAKE.md)** end-to-end.
+2. A pack exists only after authority names **Ch.99 headings + HTS list (or claim rule) + effective date**.
+3. Prefer **list diffs** (attachment vs JSON) over model memory of coverage.
+4. Never invent off-list 232/301 from UI fields alone (e.g. metal content on HTS not on Metals List).
+5. Update together: pack `source_csms` / `as_of`, engine, goldens, `RULES.md` worked example, `program_watch` / `program_status`.
+6. Mark EXPIRED programs (`do_not_compute`) — do not resurrect CSPV/washer 201 headings for solar.
+7. Fill the intake PR block in PACK_INTAKE.md; fail the weekly scorecard → treat as incomplete.
+
+Broker disputes: capture tool vs expected stack + CSMS cite → golden → pack or invent fix.

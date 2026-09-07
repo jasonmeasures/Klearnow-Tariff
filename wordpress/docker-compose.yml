@@ -1,0 +1,46 @@
+# Local WordPress for Duty stack embed testing.
+# Usage (from repo root):
+#   cd wordpress && docker compose up -d
+#   open http://localhost:8081/wp-admin  (admin / changeme on first run)
+#
+# Plugin is mounted from ./klearnow-duty-stack — activate under Plugins.
+# Set embed URL in Settings → KlearNow Duty Stack:
+#   http://localhost:3000/?embed=1&surface=external
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+      MYSQL_ROOT_PASSWORD: rootpass
+    volumes:
+      - wp_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  wordpress:
+    image: wordpress:6.7-php8.2-apache
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wp_html:/var/www/html
+      - ./klearnow-duty-stack:/var/www/html/wp-content/plugins/klearnow-duty-stack:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  wp_db:
+  wp_html:

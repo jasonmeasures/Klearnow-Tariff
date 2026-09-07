@@ -560,7 +560,8 @@ export function expectedChapter99(
 }
 
 export function isSection301Code(code: string): boolean {
-  return /^99038[78]/.test(htsNormalize(code));
+  const n = htsNormalize(code);
+  return /^9903(87|88|91|92)/.test(n);
 }
 
 export function isSection232Code(code: string): boolean {

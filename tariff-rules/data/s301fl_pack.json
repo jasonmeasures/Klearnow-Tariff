@@ -474,7 +474,8 @@
       "heading": "9903.05.86",
       "applies_to": "all_origins",
       "basis": "US Note 52(b)",
-      "hts_listed": 863
+      "hts_listed": 863,
+      "hts_list_file": "s301fl_except_hts.json"
     },
     {
       "heading": "9903.05.87",

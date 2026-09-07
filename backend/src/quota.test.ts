@@ -42,14 +42,14 @@ describe("usage quotas", () => {
     assert.equal(consumeQuota(p, "extract").ok, false);
   });
 
-  it("authenticated allows 50 stacks", () => {
+  it("signed-in / authenticated is unlimited", () => {
     const p = principal({
       subject: "auth-user",
-      quota_tier: "authenticated",
+      quota_tier: "unlimited",
       role: "user",
     });
-    for (let i = 0; i < 50; i++) assert.equal(consumeQuota(p, "stack").ok, true);
-    assert.equal(consumeQuota(p, "stack").ok, false);
+    for (let i = 0; i < 60; i++) assert.equal(consumeQuota(p, "stack").ok, true);
+    assert.equal(quotaStatus(p).unlimited, true);
   });
 
   it("unlimited never meters", () => {

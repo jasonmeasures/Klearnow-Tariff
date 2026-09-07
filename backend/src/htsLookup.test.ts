@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
-import { after, describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 import * as XLSX from "xlsx";
 import { coverOne } from "./coverage.ts";
 import {
@@ -8,24 +7,29 @@ import {
   lookupHts,
   reloadHtsTable,
   resolveCol1,
+  suggestHtsPrefix,
   suggestRelatedHts,
 } from "./htsLookup.ts";
 import {
-  HTS_REPLACEMENTS_PATH,
   mergeHtsRateRows,
   mergeHtsReplacements,
   normalizeCsvHtsRows,
   parseHtsClassificationWorkbook,
 } from "./import_hts.ts";
+import { isolateHtsPacks } from "./htsTestIsolate.ts";
 
 describe("HTS ended → replacement", () => {
   const ENDED = "8888888810";
   const REPL = "8888888820";
-  const snapshot = readFileSync(HTS_REPLACEMENTS_PATH, "utf8");
+  let isolate: ReturnType<typeof isolateHtsPacks>;
+
+  before(() => {
+    // Write only to a temp copy — never the live tariff-rules pack.
+    isolate = isolateHtsPacks();
+  });
 
   after(() => {
-    writeFileSync(HTS_REPLACEMENTS_PATH, snapshot);
-    reloadHtsTable();
+    isolate?.cleanup();
   });
 
   it("formats 10-digit HTS as XXXX.XX.XXXX", () => {
@@ -155,6 +159,18 @@ describe("HTS ended → replacement", () => {
     const codes = related.map((r) => r.hts);
     assert.ok(codes.includes("1805000010"));
     assert.ok(codes.includes("1805000090"));
+  });
+
+  it("typeahead matches 10-digit lines from 4+ digits", () => {
+    assert.deepEqual(suggestHtsPrefix("87", "2026-08-18"), []);
+    const heading = suggestHtsPrefix("8703", "2026-08-18", 12);
+    assert.ok(heading.length >= 1 && heading.length <= 12);
+    assert.ok(heading.every((h) => h.hts.startsWith("8703")));
+    assert.ok(heading[0].hts_display.startsWith("8703."));
+    const stem = suggestHtsPrefix("87032301", "2026-08-18", 12);
+    assert.ok(stem.some((h) => h.hts === "8703230120" || h.hts.startsWith("87032301")));
+    const exact = suggestHtsPrefix("8703230120", "2026-08-18");
+    assert.equal(exact[0]?.hts, "8703230120");
   });
 
   it("coverage blocks unknown HTS and returns plain-text help + related", () => {

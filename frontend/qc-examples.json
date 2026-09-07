@@ -1,0 +1,45 @@
+{
+  "_comment": "Quick Check chips only. Keep in sync with tariff-rules/data/qa_goldens.json examples — qa.ui.test.ts asserts they match. Lives in frontend/ so the Docker SPA build does not need the parent tariff-rules tree.",
+  "examples": [
+    {
+      "id": "vn",
+      "name": "VN apparel",
+      "meta": "6203.42.0711 · Vietnam",
+      "hts": "6203.42.0711",
+      "coo": "VN",
+      "value": "25000",
+      "date": "2026-07-25",
+      "flags": {}
+    },
+    {
+      "id": "cn",
+      "name": "CN auto parts",
+      "meta": "8708.10.3050 · China · 232",
+      "hts": "8708.10.3050",
+      "coo": "CN",
+      "value": "10000",
+      "date": "2026-07-25",
+      "flags": { "s232_auto_part": true }
+    },
+    {
+      "id": "de",
+      "name": "DE pharma",
+      "meta": "2933.99.2200 · Germany",
+      "hts": "2933.99.2200",
+      "coo": "DE",
+      "value": "10000",
+      "date": "2026-08-07",
+      "flags": { "s301fl_pharma": true }
+    },
+    {
+      "id": "vn-qsp",
+      "name": "VN quartz 201",
+      "meta": "6810.99.0040 · Vietnam · Section 201 QSP",
+      "hts": "6810.99.0040",
+      "coo": "VN",
+      "value": "10000",
+      "date": "2026-08-25",
+      "flags": {}
+    }
+  ]
+}

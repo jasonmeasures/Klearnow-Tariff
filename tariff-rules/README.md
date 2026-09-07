@@ -8,6 +8,11 @@ These are not customer- or brand-specific rules — any US entry tool can consum
 |---|---|---|
 | **Code registry** | Confirmed Ch.99 headings, rates, MFN interaction | `src/tariffRules.ts` + `data/ch99_codes.json` |
 | **301-FL** | CSMS #69326983 — 60 origins, flat / combined-to-cap | `src/s301fl.ts` + `data/s301fl_pack.json` |
+| **232 autos/parts** | Procl. 10908 annex — `9903.94.05` | `src/s232Autos.ts` + `data/s232_auto_parts_annex.json` |
+| **232 vehicles** | CSMS #64624801 — passenger vehicles; COO drives `9903.94.01` vs JP `.41` / EU `.51` / KR `.61` | `src/s232Vehicles.ts` + `src/s232AutoOrigin.ts` |
+| **232 MHDV** | CSMS #66665333 — `9903.74.01/.02/.08` | `src/s232Mhdv.ts` + `data/s232_mhdv.json` |
+| **232 wood** | CSMS #66492057 — `9903.76.xx` | `src/s232Wood.ts` + `data/s232_wood.json` |
+| **232 semiconductors** | CSMS #67400472 — `9903.79.01` claim-gated | `src/s232Semiconductors.ts` + `data/s232_semiconductors.json` |
 | **Ch99 stack engine** | Annex I reciprocal, EU `.19`/`.20` cap, China §301 fuzzy, IEEPA windows, §122 → 301-FL | `src/ch99Engine.ts` + `data/ch99_rules.json` |
 
 ## Layout
@@ -16,7 +21,10 @@ These are not customer- or brand-specific rules — any US entry tool can consum
 tariff-rules/
 ├── README.md
 ├── docs/
-│   ├── RULES.md                 ← stacking narrative (R1–R9)
+│   ├── RULES.md                 ← full stacking review pack (developers + compliance)
+│   ├── RULES.html               ← shareable HTML (regenerate: node scripts/render-docs.mjs)
+│   ├── FRAMEWORK.md             ← shareable contract for other apps
+│   ├── RULES_ENGINE.md          ← Inditex / API hand-off
 │   ├── CH99_ENGINE.md           ← how to call the Ch99 stack engine
 │   └── OPEN_ITEMS.md
 ├── data/

@@ -7,6 +7,11 @@ import {
   mergeHtsReplacements,
   normalizeCsvHtsRows,
 } from "./import_hts.ts";
+import {
+  STACKING_ORDER_NOTE,
+  STACKING_SEQUENCE,
+  STACKING_CSMS,
+} from "./stackingOrder.ts";
 import { STACKING_CONTRACT } from "./rulesContract.ts";
 import { refreshRulepackState, STATE } from "./state.ts";
 import { lookupFlClaimExemption, matchFlPharmaHts } from "../../tariff-rules/src/s301fl.ts";
@@ -29,6 +34,14 @@ referenceRouter.get("/reference/claim-flags", (_req, res) => {
         rule_count: 1,
       },
       {
+        flag: "s232_auto_not_part",
+        label: "On auto-parts annex but not a PV / light-truck part (9903.94.06 @ 0%)",
+        kind: "exclusion",
+        programs: ["s232", "s301fl"],
+        headings: ["9903.94.06"],
+        rule_count: 1,
+      },
+      {
         flag: "s232_pharma_patented",
         label: "Section 232 patented pharma (Proclamation 11020 / 9903.04.60–.66) — UK → 9903.04.63 @ 0%",
         kind: "claim",
@@ -42,6 +55,86 @@ referenceRouter.get("/reference/claim-flags", (_req, res) => {
         kind: "claim",
         programs: ["s232"],
         headings: ["9903.04.67"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_mhdv_part",
+        label: "Section 232 MHDV part (Proclamation 10984 / 9903.74.08) — claim when the article is a part of an MHDV",
+        kind: "claim",
+        programs: ["s232", "s301fl"],
+        headings: ["9903.74.08", "9903.74.10", "9903.74.11", "9903.05.90"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_mhdv",
+        label: "Section 232 MHDV vehicle (9903.74.01) — use on 8704.60 overlap with passenger vehicles",
+        kind: "claim",
+        programs: ["s232"],
+        headings: ["9903.74.01", "9903.05.90"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_mhdv_not_part",
+        label: "On MHDV parts list but not an MHDV part (9903.74.11 @ 0%)",
+        kind: "exclusion",
+        programs: ["s232"],
+        headings: ["9903.74.11"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_vehicle_vintage",
+        label: "Vehicle manufactured ≥25 years before entry (9903.94.04 / 9903.74.07 @ 0%)",
+        kind: "exclusion",
+        programs: ["s232"],
+        headings: ["9903.94.04", "9903.74.07"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_semiconductor",
+        label: "Section 232 semiconductor Note 39(b) params met (9903.79.01 @ 25%)",
+        kind: "claim",
+        programs: ["s232", "s301fl"],
+        headings: ["9903.79.01", "9903.05.90"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_semiconductor_params_not_met",
+        label: "On semiconductor 232 HTS list but TPP/DRAM params not met (9903.79.02 @ 0%)",
+        kind: "exclusion",
+        programs: ["s232"],
+        headings: ["9903.79.02"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_wood_not_cabinet",
+        label: "On kitchen-cabinet HTS list but not a completed cabinet/vanity (9903.76.04 @ 0%)",
+        kind: "exclusion",
+        programs: ["s232"],
+        headings: ["9903.76.04"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_uas_docking",
+        label: "Section 232 UAS docking station / part (9903.08.21 @ 100%) — claim on general-purpose docking HTS",
+        kind: "claim",
+        programs: ["s232", "s301fl"],
+        headings: ["9903.08.21", "9903.05.90"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_uas_not_for_use",
+        label: "On UAS list but not for UAS use (9903.08.20 @ 0%)",
+        kind: "exclusion",
+        programs: ["s232"],
+        headings: ["9903.08.20"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_uas_thermal",
+        label: "Small UAS with thermal imaging (9903.08.21 @ 100% instead of .22 @ 25%)",
+        kind: "claim",
+        programs: ["s232", "s301fl"],
+        headings: ["9903.08.21", "9903.05.90"],
         rule_count: 1,
       },
       {
@@ -109,6 +202,70 @@ referenceRouter.get("/reference/claim-flags", (_req, res) => {
         rule_count: 1,
       },
       {
+        flag: "s301_sts_crane",
+        label: "China 301 ship-to-shore gantry crane (9903.92.10)",
+        kind: "claim",
+        programs: ["s301"],
+        headings: ["9903.92.10"],
+        rule_count: 1,
+      },
+      {
+        flag: "s301_sts_exclusion",
+        label: "China 301 STS crane pre-May 14 2024 contract exclusion (9903.91.09)",
+        kind: "claim",
+        programs: ["s301"],
+        headings: ["9903.91.09"],
+        rule_count: 1,
+      },
+      {
+        flag: "s301_sts_other_crane",
+        label: "8426.19.00 not a ship-to-shore gantry crane (9903.92.80)",
+        kind: "claim",
+        programs: ["s301"],
+        headings: ["9903.92.80"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_uk_auto_trq",
+        label: "UK passenger vehicle TRQ (9903.94.31)",
+        kind: "claim",
+        programs: ["s232"],
+        headings: ["9903.94.31"],
+        rule_count: 1,
+      },
+      {
+        flag: "civil_aircraft_gn6",
+        label: "Civil aircraft General Note 6 — Section 338 Canada 9903.03.16 @ 0%",
+        kind: "claim",
+        programs: ["s338"],
+        headings: ["9903.03.16"],
+        rule_count: 1,
+      },
+      {
+        flag: "ftz_admission",
+        label: "Admitted to a US foreign-trade zone (Section 338 privileged foreign status warning)",
+        kind: "claim",
+        programs: ["s338"],
+        headings: ["9903.03.12", "9903.03.13", "9903.03.14"],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_drawback_col1",
+        label: "232 auto combined-cap drawback split (col-1 on Ch.1–97)",
+        kind: "claim",
+        programs: ["s232"],
+        headings: [],
+        rule_count: 1,
+      },
+      {
+        flag: "s232_kr_self_cert",
+        label: "Korea self-certified auto parts (9903.94.64/.65)",
+        kind: "claim",
+        programs: ["s232"],
+        headings: ["9903.94.64", "9903.94.65"],
+        rule_count: 1,
+      },
+      {
         flag: "trade_deal_eu",
         label: "EU trade-deal heading (blocked until R6)",
         kind: "claim",
@@ -142,7 +299,7 @@ referenceRouter.get("/reference/fl-pharma/:hts", (req, res) => {
     heading: hit.heading,
     basis: hit.basis,
     claim_flag: "s301fl_pharma",
-    hint: `If actual use is pharmaceutical, claim Pharma use to report ${hit.heading} @ 0% (301-FL only). Does not zero Column-1 or MPF — prefer USMCA when it applies.`,
+    hint: `If actual use is pharmaceutical, claim Pharma use to report ${hit.heading} @ 0% instead of 301-FL (including the EU combined-to-cap headings). Does not zero Column-1 or MPF. Do not also claim 232 patented pharma unless filing 9903.04.xx.`,
   });
 });
 
@@ -194,16 +351,9 @@ referenceRouter.get("/reference/rate-date-hierarchy", (_req, res) => {
 referenceRouter.get("/reference/stacking-order", (_req, res) => {
   void STATE;
   res.json({
-    authority: "CBP Form 7501 / Chapter 99 reporting sequence",
-    sequence: [
-      { slot: "3.1", line: "Section 301 (incl. China legacy lists)" },
-      { slot: "3.2", line: "Section 122 / 301-FL (incl. suppressions)" },
-      { slot: "3.3", line: "Section 232 (autos, metals, trade-deal headings)" },
-      { slot: "3.4", line: "Section 201" },
-      { slot: "6.0", line: "Chapters 1–97 commodity line" },
-    ],
-    note:
-      "CBP entry-summary reporting sequence: Ch.99 lines report before the Ch.1–97 line. Where legacy China 301 and 232 both apply, 301 reports first.",
+    authority: `CSMS #${STACKING_CSMS} / CBP Form 7501 Chapter 99 reporting sequence`,
+    sequence: STACKING_SEQUENCE.map(({ slot, line }) => ({ slot, line })),
+    note: STACKING_ORDER_NOTE,
     hts_table: htsTableMeta(),
   });
 });

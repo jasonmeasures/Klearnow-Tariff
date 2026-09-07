@@ -5,6 +5,15 @@ US Chapter 99 duty allocation against the file-authored `tariff-rules` pack.
 Local build first. Rollout: **playground → WordPress (external) → engine framework**.
 See [`DEPLOYMENT.md`](DEPLOYMENT.md) and [`wordpress/klearnow-duty-stack/`](wordpress/klearnow-duty-stack/).
 
+**Share for review**
+
+| Audience | Document |
+|----------|----------|
+| Developers + compliance (rules sign-off) | [`tariff-rules/docs/RULES.md`](tariff-rules/docs/RULES.md) · **[HTML](tariff-rules/docs/RULES.html)** |
+| Operators (how to use the app) | [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) · **[HTML](docs/USER_MANUAL.html)** |
+| What’s new (release notes) | [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md) · **[HTML](docs/RELEASE_NOTES.html)** |
+| Other apps / API contract | [`tariff-rules/docs/FRAMEWORK.md`](tariff-rules/docs/FRAMEWORK.md) |
+
 ```bash
 # Backend (port 8080)
 cd backend && npm install && npm run dev
@@ -19,7 +28,7 @@ Open http://localhost:3000. Default API key: `dev-internal` (admin). Guest/exter
 
 | Who | Sign-on | What they get |
 |-----|---------|---------------|
-| External (WordPress) | Auth0 optional · guest allowed | Duty stack / HTS list / Audit only · **5 stacks + 2 extracts / day** (50+10 when signed in) · **no admin** |
+| External (WordPress) | Auth0 optional · guest allowed | Duty stack only · **5 stacks + 2 extracts / day** · **unlimited when signed in** · **no admin** |
 | Playground internal | Auth0 | Full product for authors; Manage / Rule chat / **Users** when DB role is `admin` |
 | Engine framework | Auth0 | Same roles as playground (later) |
 
@@ -40,8 +49,8 @@ Manage UI: **Manage → Users** (admin only). See [`DEPLOYMENT.md`](DEPLOYMENT.m
 
 | Audience | Path |
 |---|---|
-| Most users | **Check duty** — HTS / origin / value / date → allocation |
-| Catalog / ops | **HTS list** — Excel / CSV / JSON / paste → which rules apply (no value) |
+| Most users | **Check duty** — HTS / origin / value / date → allocation. Walkthrough: [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) |
+| Catalog / ops | **HTS list** — Excel / CSV / JSON / paste → which rules apply, including 232 vehicles / MHDV / wood / semiconductors (no value) |
 | Authors | **Rule chat** — Claude drafts CSMS / tariff pack updates; Apply hot-reloads (no rebuild) |
 | Power users | Advanced panel — multi-line, Auto vs Ch99 engines, scenario A/B |
 | Authors / AI | **MCP** (`mcp/`) + `PUT /v1/admin/s301fl/...` — hot-update rules, no rebuild |
@@ -131,3 +140,20 @@ cd backend && npm test
 4. Engine framework reuses the same Auth0 apps / admin claim.
 
 Also see [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+## Regression QA
+
+Duty math, copy, and Quick Check chips are locked in `tariff-rules/data/qa_goldens.json`. CI runs this on every push/PR (`.github/workflows/qa.yml`).
+
+```bash
+cd backend && npm test          # all unit + golden + UI contract tests
+cd backend && npm run qa:dump -- qc-de-pharma   # print current numbers after a stack change
+```
+
+When you change a stack, a claim, or the wording on a result:
+
+1. Re-run the scenario in Quick Check and confirm it looks right.
+2. If numbers or copy changed on purpose, update the matching `expect` in `qa_goldens.json` (or dump it).
+3. If you add a Try-an-example chip, add it to `examples` **and** `frontend/index.html` — the UI contract test requires both.
+4. `npm test` must pass before merge.
+

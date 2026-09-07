@@ -4,6 +4,14 @@
  */
 import * as XLSX from "xlsx";
 import { auditEntry, type LineIn } from "./assess.ts";
+import {
+  LIMITS,
+  LimitError,
+  decodeXlsxBase64,
+  es003Caps,
+  yieldEventLoop,
+  type Es003Caps,
+} from "./loadGuard.ts";
 import { normalizeCh99 } from "../../tariff-rules/src/tariffRules.ts";
 import {
   IEEPA_END,
@@ -267,15 +275,32 @@ export function groupEs003Lines(tariffs: RawTariff[]): Es003ParsedLine[] {
   return lines;
 }
 
-export function parseEs003Buffer(buf: Buffer): { lines: Es003ParsedLine[]; meta: Es003ParseMeta } {
+export function parseEs003Buffer(
+  buf: Buffer,
+  caps: Es003Caps = es003Caps(false),
+): { lines: Es003ParsedLine[]; meta: Es003ParseMeta } {
   const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
   const { name, sheet } = pickSheet(wb);
   const tariffs = sheetToTariffRows(sheet);
   if (!tariffs.length) throw new Error("No ES-003 tariff rows found.");
+  if (tariffs.length > caps.tariffRows) {
+    throw new LimitError(
+      caps.signedIn
+        ? `Max ${caps.tariffRows} ES-003 tariff rows per request.`
+        : `Max ${caps.tariffRows} ES-003 tariff rows for guests. Sign in for up to ${LIMITS.es003TariffRowsSignedIn}.`,
+    );
+  }
   const headers = Object.keys(
     XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" })[0] || {},
   );
   const lines = groupEs003Lines(tariffs);
+  if (lines.length > caps.lines) {
+    throw new LimitError(
+      caps.signedIn
+        ? `Max ${caps.lines} entry lines per ES-003 request.`
+        : `Max ${caps.lines} entry lines for guests. Sign in for up to ${LIMITS.es003LinesSignedIn}.`,
+    );
+  }
   const dates = lines.map((l) => l.entry_date).filter(Boolean).sort();
   return {
     lines,
@@ -292,9 +317,11 @@ export function parseEs003Buffer(buf: Buffer): { lines: Es003ParsedLine[]; meta:
   };
 }
 
-export function parseEs003Base64(b64: string): { lines: Es003ParsedLine[]; meta: Es003ParseMeta } {
-  const cleaned = String(b64 || "").replace(/^data:.*base64,/, "");
-  return parseEs003Buffer(Buffer.from(cleaned, "base64"));
+export function parseEs003Base64(
+  b64: string,
+  caps: Es003Caps = es003Caps(false),
+): { lines: Es003ParsedLine[]; meta: Es003ParseMeta } {
+  return parseEs003Buffer(decodeXlsxBase64(b64), caps);
 }
 
 function toLineIn(row: Es003ParsedLine): LineIn {
@@ -322,17 +349,23 @@ export function auditEs003(body: {
   /** Optional pre-parsed lines (tests). */
   lines?: Es003ParsedLine[];
   meta?: Es003ParseMeta;
+  caps?: Es003Caps;
 }) {
+  const caps = body.caps || es003Caps(false);
   const parsed = body.lines
     ? { lines: body.lines, meta: body.meta! }
     : body.xlsx_base64
-      ? parseEs003Base64(body.xlsx_base64)
+      ? parseEs003Base64(body.xlsx_base64, caps)
       : null;
   if (!parsed?.lines?.length) {
     throw new Error("Provide xlsx_base64 from an ACE ES-003 export.");
   }
-  if (parsed.lines.length > 8000) {
-    throw new Error("Max 8000 entry lines per ES-003 audit.");
+  if (parsed.lines.length > caps.lines) {
+    throw new LimitError(
+      caps.signedIn
+        ? `Max ${caps.lines} entry lines per ES-003 audit.`
+        : `Max ${caps.lines} entry lines for guests. Sign in for up to ${LIMITS.es003LinesSignedIn}.`,
+    );
   }
 
   const lineIns = parsed.lines.filter((l) => l.hts).map((l) => toLineIn(l));
@@ -651,7 +684,7 @@ function buildEntryReviews(
             : "Live rule pack expects Chapter 99 heading(s) that were not filed on this entry.";
     } else if (status === "needs_inputs") {
       guidance =
-        "Metals-family codes appear on a metals-triage HTS. ES-003 cannot confirm metal content / melt-pour — use Quick Check.";
+        "Metals-family codes or listed copper conductor HTS may need metal content, melt/pour, or ACE 54-12 smelt/cast — not visible in ES-003. Use Quick Check.";
     } else if (status === "extra") {
       guidance = `Filed Chapter 99 code(s) not produced for ${eraLbl} — confirm claims or remove.`;
     } else if (status === "out_of_range") {
@@ -702,9 +735,14 @@ function buildEntryReviews(
 }
 
 /** Stage A — parse only (no duty engine). */
-export function ingestEs003(body: { xlsx_base64?: string; filename?: string }) {
+export function ingestEs003(body: {
+  xlsx_base64?: string;
+  filename?: string;
+  caps?: Es003Caps;
+}) {
   if (!body.xlsx_base64) throw new Error("Provide xlsx_base64 from an ACE ES-003 export.");
-  const { lines, meta } = parseEs003Base64(body.xlsx_base64);
+  const caps = body.caps || es003Caps(false);
+  const { lines, meta } = parseEs003Base64(body.xlsx_base64, caps);
   return {
     ok: true,
     stage: "A" as const,
@@ -713,6 +751,7 @@ export function ingestEs003(body: { xlsx_base64?: string; filename?: string }) {
     ready: true,
     message: `${meta.tariff_rows} tariff rows · ${meta.entry_lines} entry lines · ${meta.entries} entries — ready to audit`,
     preview_dates: { min: meta.date_min, max: meta.date_max },
+    limits: { entry_lines: caps.lines, tariff_rows: caps.tariffRows, signed_in: caps.signedIn },
     lines_sample: lines.slice(0, 3).map((l) => ({
       entry_number: l.entry_number,
       line_number: l.line_number,
@@ -721,4 +760,32 @@ export function ingestEs003(body: { xlsx_base64?: string; filename?: string }) {
       entry_date: l.entry_date,
     })),
   };
+}
+
+/** Parse (if needed), yield once, then audit so queued Duty-stack requests can run. */
+export async function auditEs003Async(body: {
+  xlsx_base64?: string;
+  filename?: string;
+  knowledge_date?: string;
+  lines?: Es003ParsedLine[];
+  meta?: Es003ParseMeta;
+  caps?: Es003Caps;
+}) {
+  const caps = body.caps || es003Caps(false);
+  const parsed = body.lines
+    ? { lines: body.lines, meta: body.meta! }
+    : body.xlsx_base64
+      ? parseEs003Base64(body.xlsx_base64, caps)
+      : null;
+  if (!parsed?.lines?.length) {
+    throw new Error("Provide xlsx_base64 from an ACE ES-003 export.");
+  }
+  await yieldEventLoop();
+  return auditEs003({
+    filename: body.filename,
+    knowledge_date: body.knowledge_date,
+    lines: parsed.lines,
+    meta: parsed.meta,
+    caps,
+  });
 }

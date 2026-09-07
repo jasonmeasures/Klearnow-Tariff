@@ -2,7 +2,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupChina301List } from "../../tariff-rules/src/s301China.ts";
+import { lookupChina301Note31 } from "../../tariff-rules/src/s301ChinaNote31.ts";
 import { classify232Metals } from "../../tariff-rules/src/s232Metals.ts";
+import { resolvedHtsRatesPath, resolvedHtsReplacementsPath } from "./import_hts.ts";
+import {
+  joinDescPath,
+  resolvedHtsDescPath,
+  type DescPathPack,
+} from "./import_hts_desc.ts";
 
 export type HtsRate = {
   hts: string;
@@ -15,6 +22,18 @@ export type HtsRate = {
   uom2?: string;
   duty_code?: string;
   desc?: string;
+  pga_codes?: string[];
+  add?: boolean;
+  cvd?: boolean;
+  add_hts?: boolean;
+};
+
+export type HtsFlags = {
+  pga: string[];
+  fda: string[];
+  add: boolean;
+  cvd: boolean;
+  add_hts: boolean;
 };
 
 export type HtsReplacement = {
@@ -40,7 +59,7 @@ type ReplacementPack = {
   replacements: HtsReplacement[];
 };
 
-const DATA = join(dirname(fileURLToPath(import.meta.url)), "../../tariff-rules/data/hts_rates.json");
+/** Live pack path (tests redirect via TARIFF_HTS_REPLACEMENTS_PATH). */
 export const HTS_REPLACEMENTS_PATH = join(
   dirname(fileURLToPath(import.meta.url)),
   "../../tariff-rules/data/hts_replacements.json",
@@ -50,18 +69,24 @@ let pack: Pack | null = null;
 let byHts: Map<string, HtsRate[]> | null = null;
 /** 8-digit legal-line index → 10-digit HTS keys (for sibling suggestions). */
 let byStem8: Map<string, string[]> | null = null;
+/** Sorted 10-digit keys for prefix typeahead. */
+let sortedHtsKeys: string[] | null = null;
 let replPack: ReplacementPack | null = null;
 let byFrom: Map<string, HtsReplacement> | null = null;
+let descPack: DescPathPack | null = null;
+let byDescPath: Map<string, string[]> | null = null;
 
 function load(): Pack {
   if (pack) return pack;
-  if (!existsSync(DATA)) {
+  const ratesPath = resolvedHtsRatesPath();
+  if (!existsSync(ratesPath)) {
     pack = { version: "0", as_of: "", source: "", row_count: 0, rates: [] };
     byHts = new Map();
     byStem8 = new Map();
+    sortedHtsKeys = [];
     return pack;
   }
-  pack = JSON.parse(readFileSync(DATA, "utf8")) as Pack;
+  pack = JSON.parse(readFileSync(ratesPath, "utf8")) as Pack;
   byHts = new Map();
   byStem8 = new Map();
   for (const r of pack.rates) {
@@ -75,17 +100,19 @@ function load(): Pack {
     sibs.push(hts);
     byStem8.set(stem, sibs);
   }
+  sortedHtsKeys = [...byHts.keys()].sort();
   return pack;
 }
 
 function loadReplacements(): ReplacementPack {
   if (replPack) return replPack;
-  if (!existsSync(HTS_REPLACEMENTS_PATH)) {
+  const path = resolvedHtsReplacementsPath();
+  if (!existsSync(path)) {
     replPack = { version: "0", as_of: "", source: "", row_count: 0, replacements: [] };
     byFrom = new Map();
     return replPack;
   }
-  replPack = JSON.parse(readFileSync(HTS_REPLACEMENTS_PATH, "utf8")) as ReplacementPack;
+  replPack = JSON.parse(readFileSync(path, "utf8")) as ReplacementPack;
   byFrom = new Map();
   for (const r of replPack.replacements || []) {
     const from = normalizeHtsDigits(r.from);
@@ -96,15 +123,48 @@ function loadReplacements(): ReplacementPack {
   return replPack;
 }
 
+function loadDescPaths(): DescPathPack {
+  if (descPack) return descPack;
+  const path = resolvedHtsDescPath();
+  if (!existsSync(path)) {
+    descPack = { version: "0", as_of: "", source: "", row_count: 0, paths: [] };
+    byDescPath = new Map();
+    return descPack;
+  }
+  descPack = JSON.parse(readFileSync(path, "utf8")) as DescPathPack;
+  byDescPath = new Map();
+  for (const row of descPack.paths || []) {
+    const key = normalizeHtsDigits(row.hts);
+    if (!key || !Array.isArray(row.path) || !row.path.length) continue;
+    byDescPath.set(key, row.path);
+  }
+  return descPack;
+}
+
+export function flagsFromRate(pick: HtsRate): HtsFlags {
+  const pga = (pick.pga_codes || []).map((c) => String(c).trim().toUpperCase()).filter(Boolean);
+  return {
+    pga,
+    fda: pga.filter((c) => c.startsWith("FD")),
+    add: pick.add === true,
+    cvd: pick.cvd === true,
+    add_hts: pick.add_hts === true,
+  };
+}
+
 /** Drop cache after re-import or external HTS table update. */
 export function reloadHtsTable(): ReturnType<typeof htsTableMeta> {
   pack = null;
   byHts = null;
   byStem8 = null;
+  sortedHtsKeys = null;
   replPack = null;
   byFrom = null;
+  descPack = null;
+  byDescPath = null;
   load();
   loadReplacements();
+  loadDescPaths();
   return htsTableMeta();
 }
 
@@ -125,6 +185,7 @@ export function formatHtsDisplay(hts: string): string {
 export function htsTableMeta() {
   const p = load();
   const rp = loadReplacements();
+  const dp = loadDescPaths();
   return {
     loaded: p.row_count > 0,
     version: p.version,
@@ -133,6 +194,9 @@ export function htsTableMeta() {
     row_count: p.row_count,
     replacements: rp.row_count,
     replacements_source: rp.source || null,
+    desc_paths: dp.row_count,
+    desc_paths_source: dp.source || null,
+    desc_paths_as_of: dp.as_of || null,
   };
 }
 
@@ -159,14 +223,25 @@ export function usitcSearchUrl(hts: string): string {
   return `https://hts.usitc.gov/search?query=${encodeURIComponent(q)}`;
 }
 
+export function lookupDescPath(hts: string): string[] | null {
+  loadDescPaths();
+  const key = normalizeHtsDigits(hts);
+  if (!key || !byDescPath) return null;
+  return byDescPath.get(key) || null;
+}
+
 export type ResolvedCol1 = HtsRate & {
   as_of: string;
   rate_label: string;
   needs_quantity: boolean;
   china_301: ReturnType<typeof lookupChina301List>;
+  china_301_fy: ReturnType<typeof lookupChina301Note31>["hit"];
   metals: ReturnType<typeof classify232Metals>;
   needs_metal_content: boolean;
   usitc_url: string;
+  flags: HtsFlags;
+  desc_path: string[] | null;
+  desc_full: string | null;
 };
 
 export type WindowStatus = "active" | "ended" | "unknown";
@@ -191,15 +266,20 @@ export type HtsLookupResult = {
 function enrich(pick: HtsRate, day: string): ResolvedCol1 {
   const needs_quantity = Boolean(pick.col1_specific_usd && pick.col1_specific_usd > 0);
   const metals = classify232Metals(pick.hts);
+  const desc_path = lookupDescPath(pick.hts);
   return {
     ...pick,
     as_of: day,
     rate_label: formatCol1Rate(pick),
     needs_quantity,
     china_301: lookupChina301List(pick.hts),
+    china_301_fy: lookupChina301Note31({ hts: pick.hts, date: day }).hit,
     metals,
     needs_metal_content: Boolean(metals),
     usitc_url: usitcSearchUrl(pick.hts),
+    flags: flagsFromRate(pick),
+    desc_path,
+    desc_full: desc_path?.length ? joinDescPath(desc_path) : null,
   };
 }
 
@@ -256,6 +336,49 @@ export function suggestRelatedHts(hts: string, asOf: string, limit = 8): Related
   return out.sort((a, b) => a.hts.localeCompare(b.hts));
 }
 
+function firstKeyIndex(keys: string[], prefix: string): number {
+  let lo = 0;
+  let hi = keys.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (keys[mid] < prefix) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Active 10-digit statistical lines whose HTS starts with the typed digits.
+ * Used by Duty stack typeahead once the user has entered 4+ digits.
+ */
+export function suggestHtsPrefix(q: string, asOf: string, limit = 12): RelatedHts[] {
+  load();
+  const digits = String(q || "").replace(/\D/g, "");
+  if (digits.length < 4 || !byHts || !sortedHtsKeys?.length) return [];
+  const prefix = digits.slice(0, 10);
+  const day = (asOf || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const cap = Math.min(40, Math.max(1, Number(limit) || 12));
+  const out: RelatedHts[] = [];
+  for (let i = firstKeyIndex(sortedHtsKeys, prefix); i < sortedHtsKeys.length; i++) {
+    const code = sortedHtsKeys[i];
+    if (!code.startsWith(prefix)) break;
+    const list = byHts.get(code);
+    if (!list?.length) continue;
+    const inWindow = list.filter((r) => r.start <= day && day <= r.end);
+    if (!inWindow.length) continue;
+    const pick = sortWindowsNewestFirst(inWindow)[0];
+    out.push({
+      hts: code,
+      hts_display: formatHtsDisplay(code),
+      desc: pick.desc || null,
+      col1_pct: pick.col1_pct,
+      rate_label: formatCol1Rate(pick),
+    });
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
 /**
  * Resolve column-1 rate(s) for an HTS on a rate-determination date (ISO yyyy-mm-dd).
  * Prefers an in-window row; if none match, falls back to the newest window (legacy behaviour
@@ -280,6 +403,7 @@ export function resolveCol1(hts: string, asOf: string): ResolvedCol1 | null {
 export function lookupHts(hts: string, asOf: string): HtsLookupResult {
   load();
   loadReplacements();
+  loadDescPaths();
   const key = normalizeHtsDigits(hts);
   const day = (asOf || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
   const repl = key ? findReplacement(key) : null;

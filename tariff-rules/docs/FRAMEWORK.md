@@ -1,13 +1,15 @@
 # KlearNow Tariff Rules Framework (shareable)
 
-**Version 1.3.0 · as of 2026-08-05 · US jurisdiction**  
+**Version 1.7.0 · as of 2026-08-31 · US jurisdiction**  
 **Status:** Interim pack for **other apps** until the core Duty-stack engine is exposed as a **shared API**.
 
 | Artifact | Path |
 |----------|------|
 | **This guide** | `tariff-rules/docs/FRAMEWORK.md` |
+| **Review pack (devs + compliance)** | [`RULES.md`](./RULES.md) |
+| Operator manual | [`../../docs/USER_MANUAL.md`](../../docs/USER_MANUAL.md) |
 | **Machine contract** | [`../data/framework_contract.json`](../data/framework_contract.json) |
-| Narrative / inventory | [`RULES_ENGINE.md`](./RULES_ENGINE.md), [`RULES.md`](./RULES.md), [`OPEN_ITEMS.md`](./OPEN_ITEMS.md) |
+| Narrative / inventory | [`RULES_ENGINE.md`](./RULES_ENGINE.md), [`OPEN_ITEMS.md`](./OPEN_ITEMS.md) |
 | Live data | `tariff-rules/data/*.json` |
 
 Pin results to **`framework_contract.version`** + backend **`rulepack.hash`** when you share assessments across apps.
@@ -44,7 +46,12 @@ tariff-rules/
   data/ch99_codes.json
   data/s301fl_pack.json
   data/s301_brazil.json
+  data/s338_canada.json
   data/s232_auto_parts_annex.json
+  data/s232_autos_vehicles.json
+  data/s232_mhdv.json
+  data/s232_wood.json
+  data/s232_semiconductors.json
   data/s301_china_lists.json
   data/ch99_rules.json       ← if using ch99 engine
   data/hts_rates.json        ← Column-1 (large; optional if API supplies col-1)
@@ -56,7 +63,7 @@ Optional: point them at HTTP preview (when Tariff backend is up):
 |----------|-----|
 | `GET /health` | Liveness |
 | `GET /v1/config` | Surface / Auth0 / quotas |
-| `GET /v1/hts/{hts}?as_of=` | Col-1 + `s232_auto_parts` annex hit |
+| `GET /v1/hts/{hts}?as_of=` | Col-1 + `s232_auto_parts` + `s232_universe` |
 | `POST /v1/entries:assess` | Full stack |
 | `POST /v1/entries:audit` | Filed vs required |
 | `GET /v1/openapi.json` | Contract |
@@ -116,6 +123,17 @@ Pack: `s232_auto_parts_annex.json` (~130 published stems, CBP Attachment 2 / U.S
 | **Out** | e.g. `8544.42.90`, `8544.49`, sign plates `8310…` |
 
 Chapter membership alone is **not** a determination.
+
+### Other Section 232 packs (2026-08-14)
+
+| Pack | CSMS | Auto vs claim | Duty |
+|------|------|---------------|------|
+| Passenger vehicles / light trucks `s232_autos_vehicles.json` | [#64624801](https://content.govdelivery.com/accounts/USDHSCBP/bulletins/3da18a1) | Auto from HTS list | `9903.94.01` @ 25% |
+| MHDV / buses / parts `s232_mhdv.json` | [#66665333](https://content.govdelivery.com/accounts/USDHSCBP/bulletins/3f93b75) | Vehicles/buses auto; **parts claim-gated** | `9903.74.01` @ 25% / `.02` @ 10% / `.08` @ 25% |
+| Wood `s232_wood.json` | [#66492057](https://content.govdelivery.com/accounts/USDHSCBP/bulletins/3f69699) | Auto from HTS list | `9903.76.01` @ 10%; furniture/cabinets 25% (UK 10 / JP 15 / EU 15) |
+| Semiconductors `s232_semiconductors.json` | [#67400472](https://content.govdelivery.com/accounts/USDHSCBP/bulletins/4047318) | **Claim-gated** Note 39(b) params | `9903.79.01` @ 25% on 8471.50 / 8471.80 / 8473.30 |
+
+Precedence: claimed semiconductors beat autos/MHDV/metals; MHDV beats metals and wood; autos/parts beat wood. `8704.60.00` is on both passenger and MHDV lists — default passenger unless `flags.s232_mhdv`.
 
 ---
 
@@ -207,6 +225,10 @@ Full list: [`OPEN_ITEMS.md`](./OPEN_ITEMS.md).
 
 | Ver | Date | Notes |
 |-----|------|-------|
+| **1.7.0** | 2026-08-31 | Align with RULES 1.6.5: R1–R13 in contract; UAS Note 51(c); section-stable CSMS #69668138 order; QSP R12. App release **1.9.0** (Watch for / Coverage) is operator UI — see [`docs/RELEASE_NOTES.md`](../../docs/RELEASE_NOTES.md). |
+| **1.6.0** | 2026-08-24 | Section 338 Canada `9903.03.12`–`.16` (CSMS #69606660); 50% additional from 12:01 a.m. EST 2026-08-22 |
+| **1.5.0** | 2026-08-17 | Review pack (`RULES.md`) + user manual; HTS list surfaces 232 vehicles / MHDV / wood / semiconductors (auto vs claim) |
+| **1.4.0** | 2026-08-14 | Section 232 wood / passenger vehicles / MHDV / semiconductors packs from CSMS; 232 still wins via `9903.05.90` |
 | **1.3.1** | 2026-08-06 | Brazil Section 301 `9903.05.01` @ 25% wired (CSMS #69302472); stacks with 301-FL; R2c |
 | **1.3.0** | 2026-08-05 | Shareable framework + `framework_contract.json`; 232 annex auto-apply; 301-FL flowchart; API preview |
 | 1.2.0 | 2026-08-03 | Era stacking contract; Sec 122 entry-level; `9903.82.09` |

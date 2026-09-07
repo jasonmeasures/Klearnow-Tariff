@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KlearNow Tariff — Release notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --color-primary-50: #E7ECF0;
+  --color-primary-100: #B0C3CC;
+  --color-primary-500: #003F5B;
+  --color-primary-600: #013A56;
+  --color-primary-700: #022E44;
+  --color-blue-sapphire-50: #E6F0F2;
+  --color-blue-sapphire-700: #01435A;
+  --color-blue-sapphire-900: #002834;
+  --color-blue-gray-50: #F8FAFC;
+  --color-blue-gray-100: #F1F5F9;
+  --color-blue-gray-200: #E2E8F0;
+  --color-blue-gray-600: #475569;
+  --color-blue-gray-700: #334155;
+  --color-green-50: #F3FCF7;
+  --color-green-800: #116A33;
+  --color-red-50: #FFF5F4;
+  --color-red-800: #8B221C;
+  --color-marigold-50: #FDF4E5;
+  --color-marigold-700: #B06604;
+  --color-orange-50: #FFF7ED;
+  --ink: var(--color-blue-sapphire-900);
+  --muted: var(--color-blue-gray-600);
+  --bg: #fff;
+  --accent: var(--color-primary-500);
+  --font: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--color-blue-gray-50);
+  line-height: 1.55;
+  font-size: 16px;
+}
+a { color: var(--color-primary-600); }
+a:hover { color: var(--color-primary-700); }
+.top {
+  background: var(--color-primary-600);
+  color: #fff;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.brand {
+  font-weight: 700;
+  letter-spacing: .04em;
+  background: #fff;
+  color: var(--color-primary-600);
+  width: 2.25rem; height: 2.25rem;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  font-size: .85rem;
+}
+.top h1 { font-size: 1.05rem; margin: 0; font-weight: 650; }
+.top .sub { font-size: .8rem; opacity: .85; }
+.top .spacer { flex: 1; }
+.top nav { display: flex; gap: .75rem; font-size: .85rem; }
+.top nav a { color: #fff; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,.4); }
+.layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 52rem);
+  gap: 2rem;
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+.toc {
+  position: sticky;
+  top: 4.5rem;
+  align-self: start;
+  background: #fff;
+  border: 1px solid var(--color-blue-gray-200);
+  border-radius: 12px;
+  padding: 1rem 1rem 1rem 0;
+  max-height: calc(100vh - 6rem);
+  overflow: auto;
+  font-size: .82rem;
+}
+.toc p {
+  margin: 0 0 .5rem 1rem;
+  font-size: .7rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--muted);
+}
+.toc a { color: var(--color-blue-gray-700); text-decoration: none; display: block; padding: .2rem 1rem; border-left: 3px solid transparent; }
+.toc a:hover, .toc a:focus { background: var(--color-primary-50); border-left-color: var(--accent); }
+.toc .l3 { padding-left: 1.6rem; font-size: .78rem; color: var(--muted); }
+.prose { background: #fff; border: 1px solid var(--color-blue-gray-200); border-radius: 12px; padding: 2rem 2.25rem 3rem; }
+.prose h1 { font-size: 1.85rem; line-height: 1.25; margin: 0 0 .5rem; color: var(--color-primary-700); }
+.prose h2 { font-size: 1.35rem; margin: 2.25rem 0 .75rem; padding-top: .5rem; color: var(--color-primary-700); border-top: 1px solid var(--color-blue-gray-200); }
+.prose h2:first-of-type { border-top: 0; }
+.prose h3 { font-size: 1.08rem; margin: 1.6rem 0 .5rem; color: var(--color-blue-sapphire-700); }
+.prose p { margin: 0 0 .85rem; }
+.prose ul, .prose ol { margin: 0 0 1rem; padding-left: 1.35rem; }
+.prose li { margin: .25rem 0; }
+.prose hr { border: 0; border-top: 1px solid var(--color-blue-gray-200); margin: 1.75rem 0; }
+.prose code {
+  font-family: var(--mono);
+  font-size: .86em;
+  background: var(--color-blue-gray-100);
+  padding: .1em .35em;
+  border-radius: 4px;
+}
+.prose pre {
+  background: var(--color-primary-700);
+  color: #E7ECF0;
+  padding: 1rem 1.1rem;
+  border-radius: 10px;
+  overflow: auto;
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.prose pre code { background: none; color: inherit; padding: 0; }
+.prose pre.mermaid { background: var(--color-blue-gray-50); color: var(--ink); border: 1px solid var(--color-blue-gray-200); }
+.table-wrap { overflow-x: auto; margin: 0 0 1.15rem; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { border: 1px solid var(--color-blue-gray-200); padding: .45rem .65rem; text-align: left; vertical-align: top; }
+th { background: var(--color-primary-50); color: var(--color-primary-700); font-weight: 650; }
+tr:nth-child(even) td { background: var(--color-blue-gray-50); }
+td.blank { background: #fff; min-width: 6rem; height: 2rem; }
+table.signoff td.blank { background: repeating-linear-gradient(-45deg, #fff, #fff 6px, var(--color-blue-gray-50) 6px, var(--color-blue-gray-50) 7px); }
+.note {
+  background: var(--color-marigold-50);
+  border-left: 4px solid var(--color-marigold-700);
+  padding: .75rem 1rem;
+  margin: 0 0 1.25rem;
+  font-size: .92rem;
+}
+.foot { margin-top: 2rem; font-size: .8rem; color: var(--muted); }
+@media (max-width: 920px) {
+  .layout { grid-template-columns: 1fr; }
+  .toc { position: static; max-height: none; }
+  .prose { padding: 1.25rem; }
+}
+@media print {
+  body { background: #fff; }
+  .top { position: static; }
+  .top nav .print-hide, .toc { display: none; }
+  .layout { display: block; max-width: none; padding: 0; }
+  .prose { border: 0; }
+  h2 { break-after: avoid; }
+  table, pre { break-inside: avoid; }
+  a { color: inherit; text-decoration: none; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand" aria-hidden="true">KN</div>
+  <div>
+    <div class="sub">What’s new</div>
+    <h1>KlearNow Tariff — Release notes</h1>
+  </div>
+  <div class="spacer"></div>
+  <nav>
+    <a href="/">Open app</a>
+    <a href="./USER_MANUAL.html">User manual</a>
+    <a href="../tariff-rules/docs/RULES.html">Rules review pack</a>
+    <a class="print-hide" href="#" onclick="window.print(); return false;">Print / PDF</a>
+  </nav>
+</header>
+<div class="layout">
+  <nav class="toc" aria-label="Contents">
+    <p>Contents</p>
+    <a class="l2" href="#1-9-0-2026-08-31">1.9.0 — 2026-08-31</a>
+<a class="l3" href="#what-s-new">What’s new</a>
+<a class="l3" href="#data-api">Data / API</a>
+<a class="l3" href="#not-in-this-release">Not in this release</a>
+<a class="l3" href="#try-it">Try it</a>
+<a class="l2" href="#earlier-highlights">Earlier highlights</a>
+  </nav>
+  <article class="prose">
+    <p class="note">Shareable HTML generated from <code>docs/RELEASE_NOTES.md</code>. Markdown remains the source of truth. Print this page to PDF if you need a file for review.</p>
+    <h1 id="klearnow-tariff-release-notes">KlearNow Tariff — Release notes</h1>
+<p>Operator-facing ship notes. Rules/compliance review pack: <a href="../tariff-rules/docs/RULES.html"><code>../tariff-rules/docs/RULES.md</code></a> · <strong><a href="../tariff-rules/docs/RULES.html">HTML</a></strong>. How to use the app: <a href="./USER_MANUAL.html"><code>USER_MANUAL.md</code></a> · <strong><a href="./USER_MANUAL.html">HTML</a></strong>.</p>
+<p>In the live app: left nav <strong>Release notes</strong>, or top bar <strong>What’s new</strong>.</p>
+<hr />
+<h2 id="1-9-0-2026-08-31">1.9.0 — 2026-08-31</h2>
+<p><strong>PGA Watch for · Coverage · collapsible Chapter 99 stack</strong></p>
+<p>Playground: <a href="https://github.com/klearnow/kn-playground/pull/93" target="_blank" rel="noopener noreferrer">kn-playground#93</a> · Local branch <code>feature/s232-packs-qa-csms</code> · Jira <a href="https://klearnow.atlassian.net/browse/CORE-84927" target="_blank" rel="noopener noreferrer">CORE-84927</a></p>
+<h3 id="what-s-new">What’s new</h3>
+<ul><li><strong>About this HTS</strong> on Duty stack Results — before or after you run: - <strong>Watch for</strong> — Partner Government Agency and trade-remedy signals from the classification table (FDA, USDA AMS, AD, CVD, additional HTS). Expand a row for filing notes and ACE codes; agency names are shown by default. - <strong>Description</strong> — readable path; <strong>Show hierarchy</strong> opens Heading → Subheading → Line.</li><li><strong>Collapsible Chapter 99 / provision layers</strong> — each layer starts collapsed; open one row or use <strong>Expand all</strong> for reason, source (CSMS / proclamation), and duty basis. The commodity row shows the real 10-digit HTS.</li><li><strong>Coverage</strong> (renamed from <strong>HTS list</strong>) — same bulk which-rules-apply flow, plus a <strong>Watch for</strong> column, expandable row detail, and CSV export of PGA / AD / CVD / additional-HTS flags.</li><li><strong>Instructions &amp; tooltips</strong> — Quick directions, empty states, Coverage tips, and the user manual match the new UI.</li></ul>
+<h3 id="data-api">Data / API</h3>
+<ul><li>Classification flags and USITC description paths: <code>hts_rates.json</code> flags + <code>hts_desc_path.json</code></li><li><code>GET /v1/hts/:hts</code> and <code>POST /v1/hts:coverage</code> return <code>flags</code> / Watch for fields</li><li>Pack notes: <a href="../tariff-rules/docs/HTS_FLAGS_AND_DESC.html"><code>../tariff-rules/docs/HTS_FLAGS_AND_DESC.md</code></a></li></ul>
+<h3 id="not-in-this-release">Not in this release</h3>
+<ul><li>Duty math for AD/CVD case rates (Watch for is a notice only)</li><li>Auth / invite / RDS SSL changes on playground (preserved on sync)</li></ul>
+<h3 id="try-it">Try it</h3>
+<ol><li>Duty stack — enter an HTS with PGA flags (e.g. food / FDA lines) → expand <strong>Watch for</strong> → <strong>Run the stack</strong> → <strong>Expand all</strong> on Chapter 99.</li><li>Coverage — paste a short HTS list → confirm <strong>Watch for</strong> column → open a row → export CSV.</li></ol>
+<hr />
+<h2 id="earlier-highlights">Earlier highlights</h2>
+<div class="table-wrap"><table><thead><tr><th>Version</th><th>Date</th><th>Summary</th></tr></thead><tbody><tr><td><strong>1.8.x</strong></td><td>2026-08</td><td>Section-stable Ch.99 order (CSMS #69668138); MHDV dual-list <code>9903.74.11</code>; Chapter 98 dutiable basis; UAS / QSP / 338 docs</td></tr>
+<tr><td><strong>1.7.x</strong></td><td>2026-08</td><td>Duty stack UI restore + context-gated claims; Section 338 Canada</td></tr>
+<tr><td><strong>1.5–1.6</strong></td><td>2026-08</td><td>232 vehicle / MHDV / wood / semiconductor packs; operator manual</td></tr></tbody></table></div>
+    <p class="foot">KlearNow Tariff · generated 2026-08-31</p>
+  </article>
+</div>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });
+</script>
+</body>
+</html>

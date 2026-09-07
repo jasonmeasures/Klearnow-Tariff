@@ -10,28 +10,40 @@ import {
   s301flMeta,
   type FlCountry,
 } from "../../tariff-rules/src/s301fl.ts";
+import { reloadS301ChinaNote31 } from "../../tariff-rules/src/s301ChinaNote31.ts";
+import { reloadS338Canada, s338Meta } from "../../tariff-rules/src/s338Canada.ts";
+import { reloadS201Qsp, s201QspMeta } from "../../tariff-rules/src/s201Qsp.ts";
+import { reloadS232Uas, s232UasMeta } from "../../tariff-rules/src/s232Uas.ts";
 import { requireAdmin, requireScope } from "./auth.ts";
 import { htsTableMeta, reloadHtsTable } from "./htsLookup.ts";
 import { importHtsFromBuffer } from "./import_hts.ts";
+import { LimitError, runHeavy } from "./loadGuard.ts";
 import { refreshRulepackState, rulepackPublic } from "./state.ts";
 
 export const adminRouter = Router();
 
 adminRouter.post("/admin/reload", requireScope("write_rules"), requireAdmin, (_req, res) => {
   reloadS301fl();
+  reloadS301ChinaNote31();
+  reloadS338Canada();
+  reloadS201Qsp();
+  reloadS232Uas();
   reloadHtsTable();
   refreshRulepackState();
   res.json({
     ok: true,
     rulepack: rulepackPublic(),
     s301fl: s301flMeta(),
+    s338: s338Meta(),
+    s201: s201QspMeta(),
+    s232_uas: s232UasMeta(),
     hts: htsTableMeta(),
     note: "Ch99 reciprocal engine constants are loaded at process start — restart backend after editing ch99_rules.json.",
   });
 });
 
 /** Full HTS classification workbook import (xlsx / xls) — replaces hts_rates.json. */
-adminRouter.post("/admin/hts:import", requireScope("write_rules"), requireAdmin, (req, res) => {
+adminRouter.post("/admin/hts:import", requireScope("write_rules"), requireAdmin, async (req, res) => {
   try {
     const b64 = String(req.body?.xlsx_base64 || req.body?.file_base64 || "").replace(
       /^data:.*base64,/,
@@ -54,7 +66,7 @@ adminRouter.post("/admin/hts:import", requireScope("write_rules"), requireAdmin,
       res.status(413).json({ detail: "Workbook exceeds 80 MB limit." });
       return;
     }
-    const result = importHtsFromBuffer(buf, filename, asOf);
+    const result = await runHeavy(() => importHtsFromBuffer(buf, filename, asOf));
     const hts = reloadHtsTable();
     refreshRulepackState();
     res.json({
@@ -65,6 +77,11 @@ adminRouter.post("/admin/hts:import", requireScope("write_rules"), requireAdmin,
       note: "Baseline Column-1 table replaced and reloaded in-process — no server restart needed.",
     });
   } catch (e) {
+    if (e instanceof LimitError) {
+      if (e.status === 503) res.setHeader("Retry-After", "3");
+      res.status(e.status).json({ detail: e.message });
+      return;
+    }
     res.status(400).json({ detail: e instanceof Error ? e.message : String(e) });
   }
 });
@@ -212,7 +229,26 @@ function openApiDoc(serverUrl: string) {
         },
       },
       "/v1/hts/{hts}": {
-        get: { summary: "Alias — baseline HTS rate", responses: { "200": { description: "Rate window" } } },
+        get: {
+          summary: "Alias — baseline HTS rate",
+          parameters: [
+            { name: "hts", in: "path", required: true, schema: { type: "string" } },
+            { name: "as_of", in: "query", schema: { type: "string", format: "date" } },
+            { name: "coo", in: "query", schema: { type: "string" }, description: "ISO-2 origin for 232 heading preview" },
+          ],
+          responses: { "200": { description: "Rate window" }, "404": { description: "Not found" } },
+        },
+      },
+      "/v1/hts:suggest": {
+        get: {
+          summary: "Typeahead — active 10-digit HTS lines matching typed digits",
+          parameters: [
+            { name: "q", in: "query", required: true, schema: { type: "string" } },
+            { name: "as_of", in: "query", schema: { type: "string", format: "date" } },
+            { name: "limit", in: "query", schema: { type: "integer" } },
+          ],
+          responses: { "200": { description: "Matching statistical lines" } },
+        },
       },
       "/v1/hts:coverage": {
         post: {
@@ -245,8 +281,14 @@ function openApiDoc(serverUrl: string) {
       },
       "/v1/chat": {
         post: {
-          summary: "Conversational CSMS / rule authoring (Anthropic + tools)",
-          responses: { "200": { description: "Reply + pending actions" } },
+          summary: "Ask about an HTS or live-pack rule (Anthropic + table tools)",
+          responses: { "200": { description: "Reply + optional pending admin actions" } },
+        },
+      },
+      "/v1/csms": {
+        get: {
+          summary: "Recent CBP CSMS bulletins (GovDelivery RSS)",
+          responses: { "200": { description: "Messages" } },
         },
       },
       "/v1/chat/apply": {

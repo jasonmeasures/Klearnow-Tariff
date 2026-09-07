@@ -5,6 +5,11 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  BRAZIL_ANNEX_HEADING,
+  matchBrazil301Annex,
+  matchBrazil301ExceptHeading,
+} from "./s301BrazilHts.ts";
 
 export const BRAZIL_301_START = "2026-07-22";
 export const BRAZIL_301_DUTY = "9903.05.01";
@@ -83,6 +88,7 @@ export type Brazil301Assessment = {
  */
 export function assessBrazil301(opts: {
   coo: string;
+  hts?: string;
   in232Universe?: boolean;
   flags?: Record<string, boolean>;
 }): Brazil301Assessment | null {
@@ -93,6 +99,35 @@ export function assessBrazil301(opts: {
 
   const p = load();
   const flags = opts.flags || {};
+  const hts = opts.hts || "";
+
+  const annexHit = matchBrazil301Annex(hts);
+  if (annexHit) {
+    const ex = p.exemptions.find((e) => e.heading === BRAZIL_ANNEX_HEADING)!;
+    return {
+      heading: ex.heading,
+      rate_pct_decimal: 0,
+      label: "Brazil Section 301 — exempt (annex HTS)",
+      reason: `${ex.heading}: HTS on U.S. note 50(a)(ii) annex list (stem ${annexHit.matched_stem}). ${ex.notes}`,
+      exempt: true,
+    };
+  }
+
+  for (const ex of p.exemptions) {
+    if (ex.heading === BRAZIL_ANNEX_HEADING) continue;
+    const hit = matchBrazil301ExceptHeading(hts, ex.heading);
+    if (!hit) continue;
+    if (ex.claim_flag && !flags[ex.claim_flag]) continue;
+    return {
+      heading: ex.heading,
+      rate_pct_decimal: 0,
+      label: `Brazil Section 301 — exempt (${ex.kind})`,
+      reason: ex.claim_flag
+        ? `${ex.heading}: ${ex.notes}`
+        : `${ex.heading}: HTS on imported exception list (stem ${hit.matched_stem}). ${ex.notes}`,
+      exempt: true,
+    };
+  }
 
   if (opts.in232Universe) {
     const ex = p.exemptions.find((e) => e.heading === BRAZIL_301_232_EXEMPT)!;

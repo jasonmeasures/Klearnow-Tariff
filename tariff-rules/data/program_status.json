@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
-  "as_of": "2026-07-31",
+  "version": "1.7.0",
+  "as_of": "2026-08-25",
   "programs": [
     {
       "id": "IEEPA",
@@ -26,24 +26,61 @@
     },
     {
       "id": "SEC_232_AUTOS",
-      "ch99_family": "9903.94.xx (per 2026-07-27 framing) / 9903.74.xx exclusions",
+      "ch99_family": "9903.94.01–.04 vehicles / 9903.94.05+ parts / 9903.74.xx MHDV (separate program)",
       "status": "ACTIVE",
-      "detail": "Proclamation 10908. Unaffected by IEEPA ruling. Japan: col-1 under 15% topped up to 15% (9903.94.43), 15% on Ch.99 line, zero on Ch.1-97 line. Annex is 10-digit specific — chapter-level triage is NOT a determination. 232 auto-part status is the master switch for the whole stack.",
+      "detail": "Proclamation 10908. Passenger vehicles/light trucks auto-apply from the CSMS #64624801 list. Default heading 9903.94.01 @ 25% additional. Origin splits (COO + date + Column 1): JP 9903.94.40/.41 from 2025-09-16; EU 9903.94.50/.51 from 2025-08-01; KR 9903.94.60/.61 from 2025-11-01. Auto-parts annex default 9903.94.05; JP/EU/KR/UK parts use combined-cap headings. MHDV is a separate program (Proclamation 10984).",
       "compute": true
+    },
+    {
+      "id": "SEC_232_MHDV",
+      "ch99_family": "9903.74.01–.11",
+      "status": "ACTIVE",
+      "detail": "Proclamation 10984 / CSMS #66665333, effective 2025-11-01. MHDV vehicles 9903.74.01 @ 25%, buses 9903.74.02 @ 10% from the published HTS lists. MHDV parts 9903.74.08 is claim-gated (9903.74.11 exists for listed articles that are not MHDV parts). Not subject to 232 metals or wood when MHDV applies.",
+      "compute": true
+    },
+    {
+      "id": "SEC_232_WOOD",
+      "ch99_family": "9903.76.xx",
+      "status": "ACTIVE",
+      "detail": "Proclamation 10976 / CSMS #66492057, effective 2025-10-14. Softwood 9903.76.01 @ 10%. Upholstered furniture and kitchen cabinets 25% (UK 10% / JP 15% / EU 15%). Autos 232 wins if both apply.",
+      "compute": true
+    },
+    {
+      "id": "SEC_232_SEMI",
+      "ch99_family": "9903.79.01–.09",
+      "status": "ACTIVE",
+      "detail": "January 14, 2026 proclamation / CSMS #67400472, effective 2026-01-15. 9903.79.01 @ 25% only when HTS is 8471.50 / 8471.80 / 8473.30 AND Note 39(b) TPP/DRAM params are claimed (flags.s232_semiconductor). 0% headings .02–.09 are claim-gated exclusions. Claimed .01 wins over autos/MHDV/metals.",
+      "compute": true,
+      "compute_caveat": "Do not infer TPP/DRAM bandwidth from HTS — duty path is claim-gated"
     },
     {
       "id": "SEC_232_METALS",
       "ch99_family": "9903.82.02 (articles, 50% metal-content) / 9903.82.09 (derivatives/copper, 25% entered value) / 9903.03.06 (Sec 122 exclusion)",
       "status": "ACTIVE",
-      "detail": "CSMS #68253075 / U.S. note 16. 9903.82.02 assesses +50% on metal-content value (R4). 9903.82.09 assesses +25% on entered value for copper articles and derivative aluminum/steel. Mutually exclusive with 301-FL → 9903.05.90. Suppresses Sec 122 via 9903.03.06 (R2b). Chapter triage 72–74/76; annex derivatives outside those chapters are claim-gated when 9903.82.09 / 9903.03.06 are filed.",
+      "detail": "CSMS #68253075 / #68855869 / U.S. note 16. 9903.82.02 assesses +50% on metal-content value (R4). 9903.82.09 assesses +25% on entered value for copper articles and derivative aluminum/steel on the Metals HTS List. Mutually exclusive with 301-FL → 9903.05.90. Suppresses Sec 122 via 9903.03.06 (R2b). Chapter triage 72–74/76; annex derivatives outside those chapters require list membership + content, or filed 9903.82.09 / 9903.03.06 / s232_metals claim — content alone on off-list HTS (e.g. 8541.43) does not invent metals.",
       "compute": true,
       "compute_caveat": "Do not fold into parts TOTAL"
+    },
+    {
+      "id": "SEC_232_PHARMA",
+      "ch99_family": "9903.04.60–.69",
+      "status": "ACTIVE",
+      "detail": "Proclamation 11020 / CSMS #69395344, #69415934. Patented pharmaceutical articles and ingredients (Ch.29/30). Default 9903.04.60 @ 100% combined Col-1+232; JP/EU/KR/CH/LI 9903.04.62 @ 15% combined; UK 9903.04.63 @ 0% additional from 2026-07-31. Generic 9903.04.67 @ 0%. Claim-gated (s232_pharma_patented / s232_pharma_generic). Suppresses 301-FL. Distinct from 301-FL pharmaceutical-use 9903.05.89 (Note 52(e)).",
+      "compute": true,
+      "compute_caveat": "Do not infer patented vs generic from HTS. Combined Col-1+232 mechanic TBC on some headings — report rate, warn on total."
     },
     {
       "id": "SEC_301_CHINA_LEGACY",
       "ch99_family": "9903.88.xx",
       "status": "ACTIVE",
-      "detail": "Legacy China 301 lists. NOT suppressed by 232 — both report, 301 first. Also stacks with Sec 122 (9903.03.01) when the line is outside the 232 universe. Continues in the 301-FL era alongside 9903.05.xx.",
+      "detail": "Legacy China 301 lists (U.S. note 20). NOT suppressed by 232 — both report, 301 first. Also stacks with Sec 122 (9903.03.01) when the line is outside the 232 universe. Continues in the 301-FL era alongside 9903.05.xx. Superseded on a given HTS by the four-year review heading when U.S. note 31 applies.",
+      "compute": true
+    },
+    {
+      "id": "SEC_301_CHINA_FY",
+      "ch99_family": "9903.91.01–.10 / 9903.92.10/.80",
+      "status": "ACTIVE",
+      "detail": "China 301 four-year review (89 FR 76581 / CSMS #62411889 / U.S. note 31). Products of China. 9903.91.01 +25% from 2024-09-27 covers steel/aluminum (incl. 7601.10.30) and listed minerals/battery parts. Later waves: .02 solar 50% (2024-09-27), .03 EVs/syringes 100% (2024-09-27), .04 facemasks 25% (2025 only), .05 semiconductors 50% (2025-01-01), .06 graphite/magnets/Li-ion 25% (2026-01-01), .07 masks 50% (2026-01-01), .08 gloves 100% (2026-01-01). Stacks with 232 (R2); replaces 9903.88.xx for the same HTS. Ship-to-shore cranes 9903.92.10 are claim-gated.",
       "compute": true
     },
     {
@@ -54,10 +91,34 @@
       "compute": true
     },
     {
+      "id": "SECTION_338_CANADA",
+      "ch99_family": "9903.03.12–.14 (50% additional) / 9903.03.15–.16 (0% exclusions)",
+      "status": "ACTIVE",
+      "detail": "Section 338 (19 U.S.C. §1338) additional 50% on certain products of Canada. CSMS #69606660 / #69668138 / Proclamations 11046–11048, 11056. Original effective 2026-08-19 was suspended through 2026-08-21; live from 12:01 a.m. EST 2026-08-22. Product-of-Canada test (ISO CA; CATAIR X-codes normalize to CA). USMCA does not exempt. Drawback eligible. Note 51(c) 9903.03.15 when a 232-family heading already applies; 9903.03.16 civil aircraft needs civil_aircraft_gn6. Stacks on 301-FL / China 301 / AD/CVD / MPF/HMF. Evaluate after 232-family; report after Section 301 and before Section 232 on the 7501 (CSMS #69668138).",
+      "compute": true,
+      "compute_caveat": "Do not apply during 2026-08-19–2026-08-21 suspension. Do not suppress because of SPI/USMCA."
+    },
+    {
+      "id": "SEC_201_QSP",
+      "ch99_family": "9903.45.30 (in-quota) / 9903.45.31 (over-quota)",
+      "status": "ACTIVE",
+      "detail": "Section 201 quartz surface products TRQ. U.S. note 41 / 31 July 2026 proclamation. Live 2026-08-15 through 2030-08-14. Covered HTS 6810.99.0020, 6810.99.0040, 7020.00.6000. Year 1 in-quota 25% / over-quota 50%, then steps down. Vietnam, China, India, Malaysia, Spain, Italy, Turkey are in scope; CA/MX/KR/FTA/CBERA/listed developing countries are exempt. Stacks with 301-FL (does not suppress). Default in-quota; over-quota is a claim. AD/CVD is separate.",
+      "compute": true,
+      "compute_caveat": "Line-level assessment cannot see remaining quarterly quota — default 9903.45.30 and warn."
+    },
+    {
+      "id": "SEC_232_UAS",
+      "ch99_family": "9903.08.20–.26",
+      "status": "ACTIVE",
+      "detail": "Section 232 unmanned aircraft systems. Proclamation 11055 / U.S. note 43 / CSMS #69738151, effective 2026-09-03. Large UAS 8806.24/.29/.94/.99 auto 9903.08.21 @ 100%. Small UAS 8806.21–.23/.91–.93 auto 9903.08.22 @ 25% unless thermal is claimed (then .21 @ 100%). Docking 8504.40.9580 / 8537.10.9170 and 8807 parts are claim-gated. Suppresses 301-FL. Partner 10%/15% caps are rate-known but combined mechanic TBC and CBP says do not report them yet. Annex III 8807 @ 25% from 2027-02-09 when claimed.",
+      "compute": true,
+      "compute_caveat": "Do not auto-apply 100% on general-purpose docking HTS. Thermal vs non-thermal on overlapping 8806 stems is claim-gated for the 100% path."
+    },
+    {
       "id": "TRADE_DEALS",
-      "ch99_family": "9903.94.43/.45/.55/.63 (+ unassigned .33/.53/.65/.67/.69)",
+      "ch99_family": "9903.94.45/.55 (leftover flags only)",
       "status": "ACTIVE_MECHANIC_TBC",
-      "detail": "JP/EU/KR 15% headings confirmed at rate level. MFN cap mechanic (zeroed vs conditional) unresolved. KR/TW heading assignment unresolved.",
+      "detail": "Explicit trade_deal_eu / trade_deal_kr / trade_deal_tw flags and leftover headings 9903.94.45/.55 still block totals (R6). JP/EU/KR CSMS origin-split 232 headings (9903.94.40–.43, .50–.53, .60–.65) are CONFIRMED and computed. Taiwan vehicle/parts origin headings remain unpublished.",
       "compute": false,
       "compute_caveat": "Rate known; do not compute total duty until MFN_CAP_RULE resolved"
     }

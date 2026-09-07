@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KlearNow Duty Stack
  * Description: Embeds the KlearNow Tariff Duty stack (external surface) via shortcode for WordPress.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: KlearNow
  *
  * Usage: [klearnow_duty_stack height="720"]
@@ -18,7 +18,7 @@ define('KN_DUTY_STACK_DEFAULT_URL', 'https://tariff.klearnow.com/?embed=1&surfac
 function kn_duty_stack_shortcode($atts) {
   $a = shortcode_atts([
     'url' => get_option('kn_duty_stack_url', KN_DUTY_STACK_DEFAULT_URL),
-    'height' => '720',
+    'height' => '900',
     'title' => 'KlearNow Duty stack',
   ], $atts, 'klearnow_duty_stack');
 
@@ -62,7 +62,7 @@ function kn_duty_stack_settings_page() {
   ?>
   <div class="wrap">
     <h1>KlearNow Duty Stack</h1>
-    <p>Paste <code>[klearnow_duty_stack]</code> on any page. External visitors get Duty stack only (no admin / rule authoring), with daily try limits enforced by the API.</p>
+    <p>Paste <code>[klearnow_duty_stack]</code> on any page. External visitors get the Duty stack only (no admin), with <strong>5 stacks / 2 extracts per day</strong> until they sign in — signed-in users are unlimited.</p>
     <form method="post">
       <?php wp_nonce_field('kn_duty_stack_save'); ?>
       <table class="form-table">

@@ -25,6 +25,105 @@ describe("golden duty paths", () => {
     assert.ok(L.suppressed.some((s) => s.ch99 === "9903.05.31")); // CN flat FL heading
   });
 
+  it("CN 7601103000 on 2026-08-18 → 9903.91.01 + 232 metals 9903.82.02", () => {
+    const L = assessLine(
+      {
+        hts: "7601103000",
+        coo: "CN",
+        entered_value: 10000,
+        metal_content_value: 10000,
+        country_of_melt_pour: "CN",
+        entry_date: "2026-08-18",
+        flags: { s301_list_3: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.91.01"));
+    assert.ok(L.ch99_sequence.includes("9903.82.02"));
+    assert.ok(L.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!L.ch99_sequence.includes("9903.88.03"));
+    assert.ok(
+      L.ch99_sequence.indexOf("9903.91.01") < L.ch99_sequence.indexOf("9903.82.02"),
+    );
+    assert.equal(L.china_301_fy?.ch99, "9903.91.01");
+    // 2.6% col-1 + 25% note 31 + 50% 232 on metal content
+    assert.equal(L.totals.effective_duty_rate_pct, 77.6);
+    assert.equal(L.totals.duty, 7760);
+  });
+
+  it("VN 7601103000 does not get 9903.91.01", () => {
+    const L = assessLine(
+      {
+        hts: "7601103000",
+        coo: "VN",
+        entered_value: 10000,
+        metal_content_value: 10000,
+        country_of_melt_pour: "VN",
+        entry_date: "2026-08-18",
+      },
+      0,
+    );
+    assert.ok(!L.ch99_sequence.includes("9903.91.01"));
+    assert.ok(L.ch99_sequence.includes("9903.82.02"));
+  });
+
+  it("CN 7601103000 before 2024-09-27 does not get 9903.91.01", () => {
+    const L = assessLine(
+      {
+        hts: "7601103000",
+        coo: "CN",
+        entered_value: 10000,
+        metal_content_value: 10000,
+        country_of_melt_pour: "CN",
+        entry_date: "2024-09-26",
+      },
+      0,
+    );
+    assert.ok(!L.ch99_sequence.includes("9903.91.01"));
+  });
+
+  it("CN 4015.12.10 gloves → 9903.91.05 in 2025 and 9903.91.08 in 2026", () => {
+    const y25 = assessLine(
+      {
+        hts: "4015121000",
+        coo: "CN",
+        entered_value: 1000,
+        col1_rate_pct: 7.5,
+        entry_date: "2025-06-01",
+      },
+      0,
+    );
+    const y26 = assessLine(
+      {
+        hts: "4015121000",
+        coo: "CN",
+        entered_value: 1000,
+        col1_rate_pct: 7.5,
+        entry_date: "2026-08-18",
+      },
+      0,
+    );
+    assert.ok(y25.ch99_sequence.includes("9903.91.05"));
+    assert.ok(!y25.ch99_sequence.includes("9903.91.08"));
+    assert.ok(y26.ch99_sequence.includes("9903.91.08"));
+    assert.ok(!y26.ch99_sequence.includes("9903.91.05"));
+  });
+
+  it("CN enteral syringe 9018310080 exclusion expires 2026-01-01", () => {
+    const y25 = assessLine(
+      { hts: "9018310080", coo: "CN", entered_value: 1000, entry_date: "2025-10-01" },
+      0,
+    );
+    const y26 = assessLine(
+      { hts: "9018310080", coo: "CN", entered_value: 1000, entry_date: "2026-08-18" },
+      0,
+    );
+    assert.ok(y25.ch99_sequence.includes("9903.91.10"));
+    assert.ok(!y25.ch99_sequence.includes("9903.91.03"));
+    assert.ok(y26.ch99_sequence.includes("9903.91.03"));
+    assert.ok(!y26.ch99_sequence.includes("9903.91.10"));
+  });
+
   it("CN lubricating oil 2710193020 → List 2 9903.88.02 even if List 3 claimed", () => {
     const L = assessLine(
       {
@@ -193,6 +292,120 @@ describe("golden duty paths", () => {
     assert.ok(L.ch99_sequence.includes("9903.05.49"));
   });
 
+  it("8544.42.9090 JP after 2026-09-14 errors without copper smelt/cast", () => {
+    const L = assessLine(
+      {
+        hts: "8544429090",
+        coo: "JP",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: "2026-09-15",
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(
+      L.diagnostics.some((d) => d.code === "COPPER_SMELT_CAST_REQUIRED"),
+      "missing primary smelt and cast",
+    );
+    assert.ok(L.copper_smelt_cast?.required);
+    assert.equal(L.copper_smelt_cast?.complete, false);
+  });
+
+  it("8544.42.9090 JP with smelt/cast passes ACE filing check", () => {
+    const L = assessLine(
+      {
+        hts: "8544429090",
+        coo: "JP",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: "2026-09-15",
+        copper_smelt_cast: { primary_smelt: "CL", cast: "CN", secondary_smelt: "OTH" },
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(!L.diagnostics.some((d) => d.code === "COPPER_SMELT_CAST_REQUIRED"));
+    assert.ok(L.diagnostics.some((d) => d.code === "COPPER_SMELT_CAST_REPORTED"));
+    assert.equal(L.copper_smelt_cast?.complete, true);
+  });
+
+  it("8544.42.9090 US origin exempt from copper smelt/cast", () => {
+    const L = assessLine(
+      {
+        hts: "8544429090",
+        coo: "US",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: "2026-09-15",
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(!L.diagnostics.some((d) => d.code === "COPPER_SMELT_CAST_REQUIRED"));
+    assert.equal(L.copper_smelt_cast?.exempt, true);
+  });
+
+  it("TW 8544.42.9090 + 10% copper → 9903.82.03 and 9903.05.76 (not 05.90)", () => {
+    const L = assessLine(
+      {
+        hts: "8544429090",
+        coo: "TW",
+        entered_value: 10000,
+        col1_rate_pct: 2.6,
+        entry_date: "2026-08-21",
+        metal_contents: { copper: { pct: 10 } },
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.82.03"));
+    assert.ok(L.ch99_sequence.includes("9903.05.76"));
+    assert.ok(!L.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!L.ch99_sequence.includes("9903.82.09"));
+    const ex = L.layers.find((x) => x.ch99 === "9903.82.03");
+    assert.equal(ex?.duty_amount, 0);
+    assert.ok(L.diagnostics.some((d) => d.code === "S232_METALS_DE_MINIMIS"));
+  });
+
+  it("TW 8544.42.9090 + 15% copper → 9903.82.09 and 9903.05.90", () => {
+    const L = assessLine(
+      {
+        hts: "8544429090",
+        coo: "TW",
+        entered_value: 10000,
+        col1_rate_pct: 2.6,
+        entry_date: "2026-08-21",
+        metal_contents: { copper: { pct: 15 } },
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.82.09"));
+    assert.ok(L.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!L.ch99_sequence.includes("9903.82.03"));
+    assert.ok(!L.ch99_sequence.includes("9903.05.76"));
+    assert.equal(L.totals.metals_duty, 2500);
+  });
+
+  it("Ch.73 article with 10% metal still uses 9903.82.02, not 82.03", () => {
+    const L = assessLine(
+      {
+        hts: "7307923030",
+        coo: "TH",
+        entered_value: 10000,
+        metal_content_pct: 10,
+        country_of_melt_pour: "CN",
+        entry_date: "2026-07-27",
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.82.02"));
+    assert.ok(!L.ch99_sequence.includes("9903.82.03"));
+    assert.equal(L.totals.metals_duty, 500); // 50% × $1,000
+  });
+
   it("BR stacks Brazil 301 9903.05.01 @ 25% + 301-FL 9903.05.27 @ 12.5%", () => {
     const L = assessLine(
       {
@@ -281,10 +494,7 @@ describe("golden duty paths", () => {
     );
     assert.ok(L.ch99_sequence.includes("9903.88.15"));
     assert.ok(L.ch99_sequence.includes("9903.05.31"));
-    assert.equal(
-      L.ch99_sequence.indexOf("9903.88.15") < L.ch99_sequence.indexOf("9903.05.31"),
-      true,
-    );
+    // Both are Section 301 — CSMS #69668138 does not prescribe within-section order.
     assert.equal(L.totals.effective_duty_rate_pct, 25.29); // 7.5 + 12.5 + 5.29
     assert.equal(L.totals.duty, 2529);
     assert.ok(L.diagnostics.some((d) => d.code === "S301_LIST_RESOLVED"));
@@ -293,7 +503,7 @@ describe("golden duty paths", () => {
   it("CN HTS with no seeded list membership warns and does not invent China 301", () => {
     const L = assessLine(
       {
-        hts: "0101210010",
+        hts: "9703000000",
         coo: "CN",
         entered_value: 10000,
         col1_rate_pct: 0,
@@ -545,7 +755,8 @@ describe("program era routing", () => {
       0,
     );
     assert.ok(L.diagnostics.some((d) => d.code === "S232_ANNEX_HIT"));
-    assert.ok(L.ch99_sequence.includes("9903.94.05"));
+    assert.ok(L.ch99_sequence.includes("9903.94.53"));
+    assert.ok(!L.ch99_sequence.includes("9903.94.05"));
     assert.ok(L.ch99_sequence.includes("9903.05.90"));
     assert.ok(!L.ch99_sequence.includes("9903.05.39"));
   });
@@ -575,8 +786,43 @@ describe("program era routing", () => {
       0,
     );
     assert.ok(claimed.diagnostics.some((d) => d.code === "S232_ANNEX_CLAIM_GATED"));
-    assert.ok(claimed.ch99_sequence.includes("9903.94.05"));
+    assert.ok(claimed.ch99_sequence.includes("9903.94.53"));
+    assert.ok(!claimed.ch99_sequence.includes("9903.94.05"));
     assert.ok(claimed.ch99_sequence.includes("9903.05.90"));
+  });
+
+  it("HK 8483.50.9040 off-list auto-part claim → 9903.94.07 + 9903.05.90", () => {
+    const plain = assessLine(
+      {
+        hts: "8483509040",
+        coo: "HK",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: "2026-08-21",
+        flags: {},
+      },
+      0,
+    );
+    assert.ok(plain.ch99_sequence.includes("9903.05.43"));
+    assert.ok(!plain.ch99_sequence.includes("9903.94.07"));
+    assert.ok(!plain.ch99_sequence.includes("9903.94.05"));
+
+    const claimed = assessLine(
+      {
+        hts: "8483509040",
+        coo: "HK",
+        entered_value: 10000,
+        col1_rate_pct: 2.5,
+        entry_date: "2026-08-21",
+        flags: { s232_auto_part: true },
+      },
+      0,
+    );
+    assert.ok(claimed.diagnostics.some((d) => d.code === "S232_ANNEX_CLAIM_GATED"));
+    assert.ok(claimed.ch99_sequence.includes("9903.94.07"));
+    assert.ok(claimed.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!claimed.ch99_sequence.includes("9903.94.05"));
+    assert.ok(!claimed.ch99_sequence.includes("9903.05.43"));
   });
 
   it("MX plastics without USMCA → Col-1 + 301-FL flat 10%; with fta_usmca → Free Col-1 + 9903.05.94 + MPF exempt", () => {
@@ -632,6 +878,30 @@ describe("program era routing", () => {
     const hmf = R.entry_fees.find((f: { code: string }) => f.code === "HMF");
     assert.ok(hmf && hmf.amount > 0);
     assert.equal(R.totals.duty, 0);
+    assert.equal(R.hmf_applies, true);
+    assert.equal(R.mode_of_transport, "OCEAN");
+  });
+
+  it("air MOT: MPF still due; HMF is $0", () => {
+    const R = assessEntry({
+      mode_of_transport: "AIR",
+      formal_entry: true,
+      lines: [
+        {
+          hts: "6203420711",
+          coo: "VN",
+          entered_value: 25000,
+          entry_date: "2026-07-25",
+        },
+      ],
+    });
+    const hmf = R.entry_fees.find((f: { code: string }) => f.code === "HMF");
+    assert.ok(hmf);
+    assert.equal(hmf!.amount, 0);
+    assert.match(hmf!.rate_note, /Not due/i);
+    assert.equal(R.hmf_applies, false);
+    const mpf = R.entry_fees.find((f: { code: string }) => f.code === "MPF");
+    assert.ok(mpf && mpf.amount > 0);
   });
 
   it("CA USMCA claim → 9903.05.93 + Free Col-1; DE Note 52 claim → 9903.05.97 only (Col-1 stays)", () => {
@@ -695,6 +965,66 @@ describe("program era routing", () => {
     assert.ok(!both.ch99_sequence.includes("9903.05.89"));
     assert.equal(both.totals.effective_duty_rate_pct, 0);
     assert.ok(both.diagnostics.some((d) => d.code === "FL_PHARMA_SUPERSEDED"));
+  });
+
+  it("DE 2933.99.2200 pharma use → 9903.05.89 instead of EU 301-FL cap; Col-1 stays", () => {
+    const base = {
+      hts: "2933992200",
+      coo: "DE",
+      entered_value: 10000,
+      entry_date: "2026-08-07",
+    };
+    const cap = assessLine({ ...base, flags: {} }, 0);
+    assert.ok(
+      cap.ch99_sequence.includes("9903.05.38") || cap.ch99_sequence.includes("9903.05.39"),
+      `expected EU FL cap, got ${cap.ch99_sequence.join(",")}`,
+    );
+    assert.ok(!cap.ch99_sequence.includes("9903.05.89"));
+
+    const pharma = assessLine({ ...base, flags: { s301fl_pharma: true } }, 0);
+    assert.ok(pharma.ch99_sequence.includes("9903.05.89"));
+    assert.ok(!pharma.ch99_sequence.includes("9903.05.38"));
+    assert.ok(!pharma.ch99_sequence.includes("9903.05.39"));
+    assert.ok(!pharma.ch99_sequence.includes("9903.04.62"));
+    assert.ok(pharma.diagnostics.some((d) => d.code === "FL_PHARMA_APPLIED"));
+    assert.equal(pharma.totals.effective_duty_rate_pct, 6.5);
+    assert.equal(pharma.mpf_exempt, false);
+    assert.ok(!pharma.fta_compare, "Note 52 compare should not replace the pharma vs EU-cap story");
+    const pc = pharma.pharma_compare;
+    assert.ok(pc?.claimed);
+    assert.equal(pc.heading, "9903.05.89");
+    assert.equal(pc.instead_of, "9903.05.39");
+    assert.equal(pc.kind, "threshold_topup");
+    assert.equal(pc.eu_cap, true);
+    assert.equal(pc.cap_pct, 10);
+    assert.equal(pc.col1_pct, 6.5);
+    assert.equal(pc.additional_pct, 3.5);
+    assert.equal(pc.additional_duty, 350);
+    assert.equal(pc.with_claim.effective_duty_rate_pct, 6.5);
+    assert.equal(pc.without_claim.effective_duty_rate_pct, 10);
+    assert.equal(pc.without_claim.line_duty, 1000);
+    const msg = pharma.diagnostics.find((d) => d.code === "FL_PHARMA_APPLIED")?.message || "";
+    assert.match(msg, /skipped this EU cap/);
+    assert.match(msg, /capped at 10%/);
+    assert.match(msg, /Column-1 6\.5%/);
+    assert.match(msg, /extra 3\.5%/);
+    assert.match(msg, /\$350\.00/);
+    assert.match(msg, /not a second 10%/);
+    const suppressedEu = pharma.suppressed.find((s) => s.ch99 === "9903.05.39");
+    assert.ok(suppressedEu);
+    assert.match(suppressedEu.reason, /skipped this EU cap/);
+    assert.match(suppressedEu.reason, /capped at 10%/);
+    assert.match(suppressedEu.reason, /Column-1 6\.5%/);
+    assert.match(suppressedEu.reason, /extra 3\.5%/);
+    assert.match(suppressedEu.reason, /\$350\.00/);
+    assert.match(suppressedEu.reason, /not a second 10%/);
+
+    const both232 = assessLine(
+      { ...base, flags: { s301fl_pharma: true, s232_pharma_patented: true } },
+      0,
+    );
+    assert.ok(both232.ch99_sequence.includes("9903.05.89"));
+    assert.ok(!both232.ch99_sequence.includes("9903.04.62"));
   });
 
   it("GB patented pharma Ch.29 → 9903.04.63 @ 0% + FL suppress; 3907 off-scope for 232 pharma", () => {

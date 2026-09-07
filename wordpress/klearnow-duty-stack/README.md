@@ -2,6 +2,21 @@
 
 Install this folder as a WordPress plugin (`wp-content/plugins/klearnow-duty-stack/`).
 
+## Local dev (Docker)
+
+From repo root:
+
+```bash
+colima start          # once, if Docker is not running
+cd wordpress && docker-compose up -d
+../wordpress/run-local.sh --test-only   # tariff API :8080, SPA :3000, test page :8082
+```
+
+- **WordPress:** http://localhost:8081 — complete install, activate plugin, set embed URL to  
+  `http://localhost:3000/?embed=1&surface=external`
+- **Embed test page (no WP):** http://localhost:8082/test-embed.html
+- **Production site:** add `https://klearnow.ai.com` (and `https://www.klearnow.ai.com`) to backend `FRAME_ANCESTORS`
+
 ## Shortcode
 
 ```
@@ -11,9 +26,9 @@ Install this folder as a WordPress plugin (`wp-content/plugins/klearnow-duty-sta
 
 ## What external users see
 
-- Duty stack only (no Rules / Upload / Rule chat / admin)
-- Guest allowance: **5 stacks / day**, **2 extracts / day** (HTS list / ES-003)
-- Auth0 sign-in raises the cap to **50 / 10**
+- Duty stack only (no HTS list / Audit / Chat / CSMS / admin)
+- Guest allowance: **5 stacks / day**, **2 extracts / day**
+- **Sign in (Auth0) → unlimited** stacks and extracts
 - Admin role still never exposed through the embed chrome
 
 ## Backend env (API hosting the SPA)
@@ -26,8 +41,6 @@ AUTH0_AUDIENCE=https://api.klearnow.com/tariff
 FRAME_ANCESTORS='self' https://your-wordpress.example https://*.klearnow.com
 QUOTA_ANON_STACKS=5
 QUOTA_ANON_EXTRACTS=2
-QUOTA_USER_STACKS=50
-QUOTA_USER_EXTRACTS=10
 ```
 
 ## Frontend env (Amplify / SPA)

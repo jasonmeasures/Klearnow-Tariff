@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "as_of": "2026-08-14",
+  "program": {
+    "id": "s232_autos_vehicles",
+    "proclamation": "10908",
+    "title": "Section 232 — passenger vehicles and light trucks",
+    "effective": "2025-04-03",
+    "source_csms": ["64624801"],
+    "ch99_family": "9903.94.01–.04",
+    "detail": "Proclamation 10908 passenger vehicles (sedans, SUVs, CUVs, minivans, cargo vans) and light trucks. Distinct from the auto-parts annex (9903.94.05). USMCA non-U.S. content path 9903.94.03 requires Commerce approval — not auto-assessed."
+  },
+  "source": "CSMS #64624801 — GUIDANCE: Import Duties on Certain Automobiles (U.S. note 33 subdiv. (a)–(e))",
+  "source_url": "https://content.govdelivery.com/accounts/USDHSCBP/bulletins/3da18a1",
+  "headings": {
+    "duty": "9903.94.01",
+    "not_passenger_or_us_content": "9903.94.02",
+    "usmca_non_us_content": "9903.94.03",
+    "vintage_25yr": "9903.94.04"
+  },
+  "rates": {
+    "9903.94.01": { "rate_pct": 25, "rate_kind": "additional" },
+    "9903.94.02": { "rate_pct": 0, "rate_kind": "additional" },
+    "9903.94.03": { "rate_pct": 25, "rate_kind": "additional", "note": "Commerce approval required — do not auto-report" },
+    "9903.94.04": { "rate_pct": 0, "rate_kind": "additional" }
+  },
+  "notes": [
+    "8704.60.00 also appears on the MHDV vehicle list (Proclamation 10984). Default is passenger 9903.94.01 unless flags.s232_mhdv is set.",
+    "Heading depends on country of origin after the JP/EU/KR CSMS modifications. Default remains 9903.94.01 @ 25% additional. Japan vehicles use 9903.94.41 (combined 15%) / 9903.94.40 (0% additional) from 2025-09-16 — not the parts heading 9903.94.43."
+  ],
+  "hts": [
+    "8703.22.01", "8703.23.01", "8703.24.01",
+    "8703.31.01", "8703.32.01", "8703.33.01",
+    "8703.40.00", "8703.50.00", "8703.60.00", "8703.70.00", "8703.80.00",
+    "8703.90.01",
+    "8704.21.01", "8704.31.01", "8704.41.00", "8704.51.00", "8704.60.00"
+  ]
+}

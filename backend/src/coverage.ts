@@ -1,18 +1,26 @@
 /**
- * HTS list coverage — which baseline rates + Chapter 99 rules apply.
- * No entered value required (duty dollars are not the goal).
+ * HTS coverage — which baseline rates + Chapter 99 rules apply (bulk, no value).
+ * Also surfaces PGA / AD / CVD / Add. HTS watch signals from the Column-1 table.
  */
 import * as XLSX from "xlsx";
 import { assessS301fl, lookupS301fl } from "../../tariff-rules/src/s301fl.ts";
+import {
+  previewS232Universe,
+  type S232UniversePreview,
+} from "../../tariff-rules/src/s232Resolve.ts";
+import { previewCopperSmeltCast } from "../../tariff-rules/src/copperSmeltCast.ts";
 import { assessLine, type LineIn } from "./assess.ts";
 import {
+  flagsFromRate,
   formatHtsDisplay,
   lookupHts,
   normalizeHtsDigits,
   resolveCol1,
   suggestRelatedHts,
   usitcSearchUrl,
+  type HtsFlags,
 } from "./htsLookup.ts";
+import { LIMITS, assertMaxItems, decodeXlsxBase64, yieldEventLoop } from "./loadGuard.ts";
 import { rulepackPublic } from "./state.ts";
 
 export type CoverageRowIn = {
@@ -29,6 +37,14 @@ export type CoverageRowIn = {
   flags?: Record<string, boolean>;
   s301_list_3?: boolean | string;
   s232_auto_part?: boolean | string;
+  s232_auto_not_part?: boolean | string;
+  s232_mhdv_part?: boolean | string;
+  s232_mhdv?: boolean | string;
+  s232_semiconductor?: boolean | string;
+  s232_vehicle_vintage?: boolean | string;
+  s232_wood_not_cabinet?: boolean | string;
+  s232_uas_not_for_use?: boolean | string;
+  s232_uas_docking?: boolean | string;
 };
 
 export type AppliedRule = {
@@ -73,7 +89,227 @@ function rowFlags(row: CoverageRowIn): Record<string, boolean> {
   if (truthy(row.s232_auto_part) || truthy((row as { s232?: unknown }).s232)) {
     flags.s232_auto_part = true;
   }
+  if (truthy(row.s232_auto_not_part)) flags.s232_auto_not_part = true;
+  if (truthy(row.s232_mhdv_part) || truthy(row.s232_mhdv)) {
+    flags.s232_mhdv_part = true;
+    if (truthy(row.s232_mhdv)) flags.s232_mhdv = true;
+  }
+  if (truthy(row.s232_semiconductor)) flags.s232_semiconductor = true;
+  if (truthy(row.s232_vehicle_vintage)) flags.s232_vehicle_vintage = true;
+  if (truthy(row.s232_wood_not_cabinet)) flags.s232_wood_not_cabinet = true;
+  if (truthy(row.s232_uas_not_for_use)) flags.s232_uas_not_for_use = true;
+  if (truthy(row.s232_uas_docking)) flags.s232_uas_docking = true;
+  if (truthy((row as { civil_aircraft_gn6?: unknown }).civil_aircraft_gn6)) {
+    flags.civil_aircraft_gn6 = true;
+  }
   return flags;
+}
+
+function claimed(flags: Record<string, boolean>, ...keys: string[]): boolean {
+  return keys.some((k) => Boolean(flags[k]));
+}
+
+function auto232Rate(ch99: string): { rate: string; rate_pct: number | null } {
+  if (
+    [
+      "9903.94.41",
+      "9903.94.43",
+      "9903.94.51",
+      "9903.94.53",
+      "9903.94.61",
+      "9903.94.63",
+      "9903.94.65",
+    ].includes(ch99)
+  ) {
+    return { rate: "combined 15%", rate_pct: 0.15 };
+  }
+  if (ch99 === "9903.94.32") return { rate: "combined 10%", rate_pct: 0.1 };
+  if (ch99 === "9903.94.31") return { rate: "7.5% additional (UK TRQ)", rate_pct: 0.075 };
+  if (
+    [
+      "9903.94.40",
+      "9903.94.42",
+      "9903.94.50",
+      "9903.94.52",
+      "9903.94.60",
+      "9903.94.62",
+      "9903.94.64",
+    ].includes(ch99)
+  ) {
+    return { rate: "0% additional", rate_pct: 0 };
+  }
+  return { rate: "25% additional", rate_pct: 0.25 };
+}
+
+/** Section 232 list membership — auto-apply vs claim-gated — independent of entered value. */
+export function s232MembershipRules(
+  uni: S232UniversePreview,
+  flags: Record<string, boolean>,
+  coo: string,
+): AppliedRule[] {
+  const out: AppliedRule[] = [];
+
+  if (uni.semiconductor) {
+    if (claimed(flags, "s232_semiconductor", "s232_semi")) {
+      out.push({
+        program: "s232",
+        ch99: "9903.79.01",
+        label: "232 semiconductors — Note 39(b) params claimed",
+        rate: "25% additional",
+        rate_pct: 0.25,
+        reason: `HTS on semiconductor list stem ${uni.semiconductor.matched_stem} with s232_semiconductor claimed → 9903.79.01 @ 25% (CSMS #67400472). 301-FL suppressed via 9903.05.90.`,
+        source_ref: "CSMS #67400472 — Section 232 semiconductors",
+        status: "applies",
+      });
+    } else {
+      out.push({
+        program: "s232",
+        ch99: "9903.79.01",
+        label: "232 semiconductors — Note 39(b) claim",
+        rate: "25% additional if claimed",
+        rate_pct: 0.25,
+        reason: `HTS on semiconductor list stem ${uni.semiconductor.matched_stem} (8471.50 / 8471.80 / 8473.30). 9903.79.01 @ 25% applies only if U.S. note 39(b) TPP/DRAM bands are met — claim s232_semiconductor. HTS alone is not enough.`,
+        source_ref: "CSMS #67400472 — Section 232 semiconductors",
+        status: "needs_claim",
+      });
+    }
+  }
+
+  if (uni.mhdv_part_list) {
+    if (claimed(flags, "s232_mhdv_part", "s232_mhdv")) {
+      out.push({
+        program: "s232",
+        ch99: "9903.74.08",
+        label: "232 MHDV parts — claimed",
+        rate: "25% additional",
+        rate_pct: 0.25,
+        reason: `MHDV parts list stem ${uni.mhdv_part_list.matched_stem} with s232_mhdv_part claimed → 9903.74.08 @ 25% (CSMS #66665333). 301-FL suppressed via 9903.05.90.`,
+        source_ref: "CSMS #66665333 — Section 232 MHDV",
+        status: "applies",
+      });
+    } else {
+      out.push({
+        program: "s232",
+        ch99: "9903.74.08",
+        label: "232 MHDV parts — claim if part of an MHDV",
+        rate: "25% additional if claimed",
+        rate_pct: 0.25,
+        reason: `HTS on MHDV parts list stem ${uni.mhdv_part_list.matched_stem}. 9903.74.08 @ 25% applies only if the article is a part of a medium- or heavy-duty vehicle. On-list goods that are not MHDV parts use 9903.74.11 @ 0%.`,
+        source_ref: "CSMS #66665333 — Section 232 MHDV",
+        status: "needs_claim",
+      });
+    }
+  }
+
+  if (uni.passenger_vehicle) {
+    const heading = uni.passenger_vehicle.ch99;
+    const rt = auto232Rate(heading);
+    const originNote = coo
+      ? ` Origin ${coo} drives the heading.`
+      : " Default heading 9903.94.01 @ 25% additional until origin is set (JP 9903.94.41, EU .51, KR .61).";
+    out.push({
+      program: "s232",
+      ch99: heading,
+      label: "232 passenger vehicles / light trucks",
+      rate: rt.rate,
+      rate_pct: rt.rate_pct,
+      reason: `On passenger-vehicle / light-truck list stem ${uni.passenger_vehicle.matched_stem} → ${heading} (${rt.rate}, auto).${originNote}`,
+      source_ref: "CSMS #64624801 — Section 232 passenger vehicles (origin splits: JP/EU/KR CSMS)",
+      status: "applies",
+    });
+  }
+
+  if (uni.mhdv_vehicle) {
+    const overlap =
+      Boolean(uni.passenger_vehicle) && !claimed(flags, "s232_mhdv", "s232_mhdv_part");
+    out.push({
+      program: "s232",
+      ch99: uni.mhdv_vehicle.ch99,
+      label: overlap
+        ? "232 MHDV vehicle list (default is passenger)"
+        : "232 medium- and heavy-duty vehicles",
+      rate: overlap ? "not the default heading" : "25% additional",
+      rate_pct: overlap ? null : 0.25,
+      reason: overlap
+        ? `Also on MHDV vehicle list stem ${uni.mhdv_vehicle.matched_stem}. Default is passenger ${uni.passenger_vehicle?.ch99}; claim s232_mhdv to file ${uni.mhdv_vehicle.ch99} instead.`
+        : `On MHDV vehicle list stem ${uni.mhdv_vehicle.matched_stem} → ${uni.mhdv_vehicle.ch99} @ 25% (auto).`,
+      source_ref: "CSMS #66665333 — Section 232 MHDV",
+      status: overlap ? "info" : "applies",
+    });
+  }
+
+  if (uni.mhdv_bus) {
+    out.push({
+      program: "s232",
+      ch99: uni.mhdv_bus.ch99,
+      label: "232 buses and other vehicles",
+      rate: "10% additional",
+      rate_pct: 0.1,
+      reason: `On MHDV bus list stem ${uni.mhdv_bus.matched_stem} → ${uni.mhdv_bus.ch99} @ 10% (auto).`,
+      source_ref: "CSMS #66665333 — Section 232 MHDV",
+      status: "applies",
+    });
+  }
+
+  if (uni.wood) {
+    const originNote = coo
+      ? ""
+      : " Set origin for UK 10% / JP 15% / EU 15% furniture and cabinet headings.";
+    out.push({
+      program: "s232",
+      ch99: uni.wood.ch99,
+      label: `232 wood — ${uni.wood.bucket}`,
+      rate: uni.wood.ch99 === "9903.76.01" ? "10% additional" : "origin-based additional",
+      rate_pct: uni.wood.ch99 === "9903.76.01" ? 0.1 : null,
+      reason: `On wood 232 ${uni.wood.bucket} list stem ${uni.wood.matched_stem} → ${uni.wood.ch99}.${originNote} Autos/parts 232 wins if both apply.`,
+      source_ref: "CSMS #66492057 — Section 232 wood",
+      status: "applies",
+    });
+  }
+
+  if (uni.auto_parts) {
+    const heading = uni.auto_parts.ch99;
+    const rt = auto232Rate(heading);
+    out.push({
+      program: "s232",
+      ch99: heading,
+      label: "232 auto parts annex",
+      rate: rt.rate,
+      rate_pct: rt.rate_pct,
+      reason: `On Proclamation 10908 auto-parts annex stem ${uni.auto_parts.matched_stem} → ${heading} (${rt.rate}, auto). Chapter membership alone is not a determination.`,
+      source_ref: "Proclamation 10908 / U.S. note 33 auto-parts annex",
+      status: "applies",
+    });
+  }
+
+  return out;
+}
+
+function mergeMembership(rules: AppliedRule[], membership: AppliedRule[]): void {
+  for (const r of membership) {
+    const same = rules.find((x) => x.ch99 && r.ch99 && x.ch99 === r.ch99);
+    if (r.status === "applies" && same) continue;
+    if (r.status === "needs_claim" && same?.status === "applies") continue;
+    if (same && same.status === r.status) continue;
+    rules.push(r);
+  }
+}
+
+function universeHitCount(uni: S232UniversePreview): number {
+  return [
+    uni.passenger_vehicle,
+    uni.mhdv_vehicle,
+    uni.mhdv_bus,
+    uni.mhdv_part_list,
+    uni.wood,
+    uni.semiconductor,
+    uni.auto_parts,
+  ].filter(Boolean).length;
+}
+
+function hasWatchFlags(f: HtsFlags | null | undefined): boolean {
+  if (!f) return false;
+  return Boolean(f.pga?.length || f.add || f.cvd || f.add_hts);
 }
 
 export function coverOne(
@@ -84,8 +320,11 @@ export function coverOne(
   const htsKey = normalizeHtsDigits(htsRaw);
   const asOf = String(row.as_of || row.entry_date || opts.as_of).slice(0, 10);
   const coo = pickCoo(row, opts.default_coo);
+  const flags = rowFlags(row);
   const notes: string[] = [];
   const rules: AppliedRule[] = [];
+  const uni = previewS232Universe(htsRaw, coo, { rateDay: asOf, col1Rate: 0, flags });
+  const membership = s232MembershipRules(uni, flags, coo);
 
   if (!htsRaw) {
     return {
@@ -98,6 +337,7 @@ export function coverOne(
       error: "Missing HTS",
       rules: [],
       ch99_sequence: [],
+      s232_universe: uni,
       notes: ["Each row needs an HTS code."],
     };
   }
@@ -109,7 +349,8 @@ export function coverOne(
   const col1Dec = col1Pts == null ? 0 : col1Pts / 100;
   const usitc_url = usitcSearchUrl(htsRaw);
 
-  // Unknown HTS: do not invent Col-1 Free or Chapter 99 stacks (same contract as Duty stack).
+  // Unknown HTS: do not invent Col-1 Free or a full stack. Still surface published
+  // Section 232 list membership so HTS list supports the new 232 packs.
   if (look.window_status === "unknown") {
     const help_steps: string[] = [];
     if (look.replacement_hts) {
@@ -135,6 +376,12 @@ export function coverOne(
     notes.push(
       "HTS not found in the baseline Column-1 table - no duty rate until you use a valid 10-digit code.",
     );
+    if (membership.length) {
+      notes.push(
+        "Published Section 232 list membership is shown from the rule packs (vehicles / MHDV / wood / semiconductors / auto parts). Confirm the 10-digit code before filing.",
+      );
+      mergeMembership(rules, membership);
+    }
     if (!coo) {
       notes.push("No origin - set Default origin or a COO column for country stacks.");
     }
@@ -162,14 +409,16 @@ export function coverOne(
       help: {
         title: "This HTS is not in the Column-1 table",
         summary:
-          "Duty and Chapter 99 rules cannot be calculated for an unknown statistical line. Non-experts should confirm the 10-digit code (not padded zeros).",
+          "Duty dollars cannot be calculated for an unknown statistical line. Confirm the 10-digit code (not padded zeros). Section 232 list hits below are from published CSMS lists, not a filed stack.",
         steps: help_steps,
       },
       col1_pct: null,
       desc: null,
-      rules: [],
+      flags: null,
+      rules,
       ch99_sequence: [],
       stack_preview: [],
+      s232_universe: uni,
       diagnostics: [
         {
           severity: "ERROR",
@@ -181,6 +430,8 @@ export function coverOne(
       notes,
     };
   }
+
+  const htsFlags: HtsFlags | null = hit ? flagsFromRate(hit) : null;
 
   if (look.window_status === "ended") {
     notes.push(
@@ -206,6 +457,20 @@ export function coverOne(
       reason: hit.desc || "HTS Column 1 rate window",
       source_ref: `HTS table ${hit.start} -> ${hit.end}`,
       status: look.window_status === "ended" ? "info" : "applies",
+    });
+  }
+
+  if (hit?.metals) {
+    const m = hit.metals;
+    rules.push({
+      program: "s232",
+      ch99: m.duty_ch99,
+      label: `232 metals — ${m.metal}`,
+      rate: `${m.rate_pct}% ${m.basis === "METAL_CONTENT_VALUE" ? "on metal content" : "on entered value"}`,
+      rate_pct: m.rate_pct / 100,
+      reason: m.content_prompt,
+      source_ref: "CSMS #68253075 / #68855869 / U.S. note 16",
+      status: m.basis === "METAL_CONTENT_VALUE" ? "info" : "applies",
     });
   }
 
@@ -255,13 +520,12 @@ export function coverOne(
     }
   }
 
-  const flags = rowFlags(row);
   if (coo === "CN" && !flags.s301_list_3 && !flags.s301_list_4a && opts.assume_cn_list3) {
     flags.s301_list_3 = true;
     notes.push("Assumed China 301 List 3 for coverage (API override only).");
   } else if (coo === "CN" && !flags.s301_list_3 && !flags.s301_list_4a) {
     notes.push(
-      "China origin: legacy 301 applies only when this HTS is on a seeded USTR list (HTS membership), or an explicit list flag is set.",
+      "China origin: 301 four-year review (U.S. note 31 / 9903.91.xx) auto-applies by HTS and date. Legacy 9903.88.xx applies only when this HTS is on a seeded USTR list, or an explicit list flag is set.",
     );
   }
 
@@ -327,6 +591,28 @@ export function coverOne(
     }
   }
 
+  mergeMembership(rules, membership);
+  if (ch99_sequence.includes("9903.05.90")) {
+    for (const r of rules) {
+      if (r.program === "s301fl" && r.ch99 && r.ch99 !== "9903.05.90" && r.status === "applies") {
+        r.status = "info";
+        r.reason = `Suppressed by Section 232 via 9903.05.90. ${r.reason}`;
+      }
+    }
+  }
+  if (universeHitCount(uni) && !coo) {
+    notes.push(
+      "Section 232 list membership is shown without origin. Add a COO to see 301-FL and the filed Chapter 99 sequence.",
+    );
+  }
+
+  const copper_smelt_cast = previewCopperSmeltCast(htsRaw, coo || "", asOf);
+  if (copper_smelt_cast?.required) {
+    notes.push(
+      `Copper smelt/cast ACE 54-12 required (${copper_smelt_cast.source_csms}) — primary smelt + cast country on the entry line or ACE fatal ${copper_smelt_cast.ace_error_fatal}.`,
+    );
+  }
+
   return {
     hts: htsRaw,
     hts_key: htsKey,
@@ -350,15 +636,18 @@ export function coverOne(
     help: null,
     col1_pct: col1Pts,
     desc: hit?.desc || null,
+    flags: htsFlags,
     rules,
     ch99_sequence,
     stack_preview,
+    s232_universe: uni,
+    copper_smelt_cast,
     diagnostics,
     notes,
   };
 }
 
-export function coverRows(body: {
+function coverContext(body: {
   as_of?: string;
   default_coo?: string;
   assume_cn_list3?: boolean;
@@ -369,18 +658,27 @@ export function coverRows(body: {
     ? String(body.default_coo).trim().toUpperCase()
     : null;
   const rowsIn = Array.isArray(body.rows) ? body.rows : [];
-  const rows = rowsIn.map((r) =>
-    coverOne(r, {
+  assertMaxItems(rowsIn.length, LIMITS.coverageRows, "HTS rows");
+  return {
+    as_of,
+    default_coo,
+    rowsIn,
+    opts: {
       as_of,
       default_coo,
       assume_cn_list3: Boolean(body.assume_cn_list3),
-    }),
-  );
+    },
+  };
+}
 
+function coverResult(
+  ctx: ReturnType<typeof coverContext>,
+  rows: ReturnType<typeof coverOne>[],
+) {
   return {
     ok: true,
-    as_of,
-    default_coo,
+    as_of: ctx.as_of,
+    default_coo: ctx.default_coo,
     rulepack: rulepackPublic(),
     summary: {
       rows: rows.length,
@@ -394,9 +692,58 @@ export function coverRows(body: {
       with_related: rows.filter(
         (r) => Array.isArray(r.related_hts) && (r.related_hts as unknown[]).length > 0,
       ).length,
+      with_s232: rows.filter((r) =>
+        universeHitCount((r.s232_universe || {}) as S232UniversePreview),
+      ).length,
+      needs_claim: rows.filter(
+        (r) =>
+          Array.isArray(r.rules) &&
+          (r.rules as AppliedRule[]).some((x) => x.status === "needs_claim"),
+      ).length,
+      with_watch: rows.filter((r) => hasWatchFlags(r.flags as HtsFlags | null)).length,
+      with_pga: rows.filter((r) => {
+        const f = r.flags as HtsFlags | null;
+        return Boolean(f?.pga?.length);
+      }).length,
+      with_ad_cvd: rows.filter((r) => {
+        const f = r.flags as HtsFlags | null;
+        return Boolean(f?.add || f?.cvd);
+      }).length,
     },
     rows,
   };
+}
+
+export function coverRows(body: {
+  as_of?: string;
+  default_coo?: string;
+  assume_cn_list3?: boolean;
+  rows?: CoverageRowIn[];
+}) {
+  const ctx = coverContext(body);
+  return coverResult(
+    ctx,
+    ctx.rowsIn.map((r) => coverOne(r, ctx.opts)),
+  );
+}
+
+/** Same as coverRows, yielding every `yieldEvery` rows so Duty-stack requests can interleave. */
+export async function coverRowsAsync(
+  body: {
+    as_of?: string;
+    default_coo?: string;
+    assume_cn_list3?: boolean;
+    rows?: CoverageRowIn[];
+  },
+  yieldEvery = 25,
+) {
+  const ctx = coverContext(body);
+  const rows: ReturnType<typeof coverOne>[] = [];
+  for (let i = 0; i < ctx.rowsIn.length; i++) {
+    rows.push(coverOne(ctx.rowsIn[i], ctx.opts));
+    if (yieldEvery > 0 && (i + 1) % yieldEvery === 0) await yieldEventLoop();
+  }
+  return coverResult(ctx, rows);
 }
 
 const HTS_HEADER_RE =
@@ -526,6 +873,23 @@ function sheetToCoverageRows(sheet: XLSX.WorkSheet): CoverageRowIn[] {
       const v = String(obj[s232Key] ?? "").trim().toUpperCase();
       if (v === "Y" || v === "YES" || v === "TRUE" || v === "1") obj.s232_auto_part = true;
     }
+    const mhdvKey = headers.find(
+      (h) => h.includes("mhdv") || (h.includes("232") && h.includes("part") && !h.includes("auto")),
+    );
+    if (mhdvKey) {
+      const v = String(obj[mhdvKey] ?? "").trim().toUpperCase();
+      if (v === "Y" || v === "YES" || v === "TRUE" || v === "1") obj.s232_mhdv_part = true;
+    }
+    const semiKey = headers.find((h) => h.includes("semiconductor") || h.includes("s232_semi"));
+    if (semiKey) {
+      const v = String(obj[semiKey] ?? "").trim().toUpperCase();
+      if (v === "Y" || v === "YES" || v === "TRUE" || v === "1") obj.s232_semiconductor = true;
+    }
+    const vintageKey = headers.find((h) => h.includes("vintage") || h.includes("25_year") || h.includes("25yr"));
+    if (vintageKey) {
+      const v = String(obj[vintageKey] ?? "").trim().toUpperCase();
+      if (v === "Y" || v === "YES" || v === "TRUE" || v === "1") obj.s232_vehicle_vintage = true;
+    }
     const listKey = headers.find((h) => h.includes("301") && h.includes("list"));
     if (listKey) {
       const v = String(obj[listKey] ?? "").trim().toUpperCase();
@@ -572,7 +936,7 @@ export function parseCoverageInput(body: {
     return body.json.map(normalizeParsedRow);
   }
   if (body.xlsx_base64) {
-    const buf = Buffer.from(String(body.xlsx_base64).replace(/^data:.*base64,/, ""), "base64");
+    const buf = decodeXlsxBase64(body.xlsx_base64);
     const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
     return sheetToCoverageRows(pickCoverageSheet(wb));
   }
@@ -690,6 +1054,10 @@ function normalizeParsedRow(raw: Record<string, unknown> | CoverageRowIn): Cover
 
   const listRaw = get("s301_list_3", "list_3", "list3", "legacy_china_301_list_input");
   const s232Raw = get("s232_auto_part", "s232", "auto_part", "232_auto_part_input_y_n_review");
+  const mhdvRaw = get("s232_mhdv_part", "s232_mhdv", "mhdv_part", "mhdv");
+  const semiRaw = get("s232_semiconductor", "s232_semi", "semiconductor");
+  const vintageRaw = get("s232_vehicle_vintage", "s232_auto_vintage", "vintage", "vintage_25yr");
+  const woodNotCabRaw = get("s232_wood_not_cabinet", "wood_not_cabinet");
 
   let part = String(
     get(
@@ -726,10 +1094,19 @@ function normalizeParsedRow(raw: Record<string, unknown> | CoverageRowIn): Cover
     sku: sku || undefined,
     as_of: String(get("as_of", "entry_date", "date", "rate_date", "entry_date_input") ?? "").trim() ||
       undefined,
+    flags: (r.flags as Record<string, boolean> | undefined) || undefined,
     s301_list_3: truthy(listRaw) || undefined,
     s232_auto_part:
       truthy(s232Raw) ||
       String(s232Raw ?? "").trim().toUpperCase() === "Y" ||
       undefined,
+    s232_mhdv_part:
+      truthy(mhdvRaw) || String(mhdvRaw ?? "").trim().toUpperCase() === "Y" || undefined,
+    s232_semiconductor:
+      truthy(semiRaw) || String(semiRaw ?? "").trim().toUpperCase() === "Y" || undefined,
+    s232_vehicle_vintage:
+      truthy(vintageRaw) || String(vintageRaw ?? "").trim().toUpperCase() === "Y" || undefined,
+    s232_wood_not_cabinet:
+      truthy(woodNotCabRaw) || String(woodNotCabRaw ?? "").trim().toUpperCase() === "Y" || undefined,
   };
 }

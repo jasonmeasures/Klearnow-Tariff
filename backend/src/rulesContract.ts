@@ -24,8 +24,8 @@ export {
 
 /** Machine-readable stacking contract — asserted by rulesMatrix.test.ts */
 export const STACKING_CONTRACT = {
-  version: "1.3.0",
-  as_of: "2026-08-05",
+  version: "1.5.0",
+  as_of: "2026-08-27",
   eras: [
     {
       id: "ieepa",
@@ -52,7 +52,7 @@ export const STACKING_CONTRACT = {
   rules: [
     {
       id: "R2",
-      text: "Legacy China 301 (9903.88.xx) is NOT suppressed by 232 or Sec 122. Reports first; stacks with both when applicable.",
+      text: "China 301 (legacy 9903.88.xx and four-year review 9903.91.xx / 9903.92.10) is NOT suppressed by 232 or Sec 122. Reports first; stacks with both when applicable. Note 31 replaces 9903.88.xx on the same HTS.",
     },
     {
       id: "R2b",
@@ -68,11 +68,19 @@ export const STACKING_CONTRACT = {
     },
     {
       id: "R4b",
-      text: "9903.82.09 — copper / derivative alu+steel (U.S. note 16): +25% on entered value. Claim-gated outside Ch.72–76 when filed.",
+      text: "9903.82.09 — copper / derivative alu+steel (U.S. note 16 / CSMS #68855869 list): +25% on entered value. Outside Ch.72–76, applies when HTS is on the metals matrix and content is 15%+ (or filed 9903.82.09 / claim). Under 15% on a listed HTS selects 9903.82.03 at 0% and keeps 301-FL. Off-list HTS (e.g. 8541.43) ignore bare metal-content fields.",
     },
     {
       id: "R4c",
       text: "Sec 122 is entry-level: 9903.03.01 filed on any ESL of an Entry Summary Number satisfies the entry.",
+    },
+    {
+      id: "R11",
+      text: "Section 338 Canada (9903.03.12–.14 @ 50%) reports after Section 301 and before Section 232 on the entry summary line (CSMS #69668138). USMCA does not exempt. 232-family headings gate 9903.03.15; civil aircraft GN6 gates 9903.03.16. Drawback eligible. Live from 12:01 a.m. EST 2026-08-22 (suspended 2026-08-19–21).",
+    },
+    {
+      id: "R12",
+      text: "Section 201 QSP TRQ (9903.45.30 in-quota / 9903.45.31 over-quota) auto-applies on 6810.99.0020 / .0040 / 7020.00.6000 from 2026-08-15 through 2030-08-14. Stacks with 301-FL. Default in-quota; over-quota is a claim.",
     },
   ],
   boundary_days: {

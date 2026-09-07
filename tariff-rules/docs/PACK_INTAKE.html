@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KlearNow Tariff — Pack intake form</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --color-primary-50: #E7ECF0;
+  --color-primary-100: #B0C3CC;
+  --color-primary-500: #003F5B;
+  --color-primary-600: #013A56;
+  --color-primary-700: #022E44;
+  --color-blue-sapphire-50: #E6F0F2;
+  --color-blue-sapphire-700: #01435A;
+  --color-blue-sapphire-900: #002834;
+  --color-blue-gray-50: #F8FAFC;
+  --color-blue-gray-100: #F1F5F9;
+  --color-blue-gray-200: #E2E8F0;
+  --color-blue-gray-600: #475569;
+  --color-blue-gray-700: #334155;
+  --color-green-50: #F3FCF7;
+  --color-green-700: #116A33;
+  --color-red-50: #FFF5F4;
+  --color-red-800: #8B221C;
+  --color-marigold-50: #FDF4E5;
+  --color-marigold-700: #B06604;
+  --ink: var(--color-blue-sapphire-900);
+  --muted: var(--color-blue-gray-600);
+  --accent: var(--color-primary-500);
+  --font: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --radius: 10px;
+  --field: #fff;
+  --field-border: var(--color-blue-gray-200);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--color-blue-gray-50);
+  line-height: 1.5;
+  font-size: 15.5px;
+}
+a { color: var(--color-primary-600); }
+a:hover { color: var(--color-primary-700); }
+.top {
+  background: var(--color-primary-600);
+  color: #fff;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex-wrap: wrap;
+}
+.brand {
+  font-weight: 700;
+  letter-spacing: .04em;
+  background: #fff;
+  color: var(--color-primary-600);
+  width: 2.25rem; height: 2.25rem;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  font-size: .85rem;
+  flex-shrink: 0;
+}
+.top h1 { font-size: 1.05rem; margin: 0; font-weight: 650; }
+.top .sub { font-size: .8rem; opacity: .85; }
+.top .spacer { flex: 1; min-width: .5rem; }
+.top nav { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.top nav a, .btn {
+  font-family: var(--font);
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.35);
+  background: transparent;
+  color: #fff;
+  padding: .4rem .75rem;
+  text-decoration: none;
+}
+.top nav a:hover, .btn:hover { background: rgba(255,255,255,.12); }
+.btn-solid {
+  background: #fff;
+  color: var(--color-primary-600);
+  border-color: #fff;
+}
+.btn-solid:hover { background: var(--color-primary-50); }
+.layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, 52rem);
+  gap: 1.75rem;
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 1.35rem 1.25rem 4rem;
+}
+.toc {
+  position: sticky;
+  top: 4.5rem;
+  align-self: start;
+  background: #fff;
+  border: 1px solid var(--color-blue-gray-200);
+  border-radius: 12px;
+  padding: 1rem 0;
+  max-height: calc(100vh - 6rem);
+  overflow: auto;
+  font-size: .82rem;
+}
+.toc p {
+  margin: 0 0 .5rem 1rem;
+  font-size: .7rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--muted);
+}
+.toc a {
+  color: var(--color-blue-gray-700);
+  text-decoration: none;
+  display: block;
+  padding: .28rem 1rem;
+  border-left: 3px solid transparent;
+}
+.toc a:hover, .toc a:focus { background: var(--color-primary-50); border-left-color: var(--accent); }
+.sheet {
+  background: #fff;
+  border: 1px solid var(--color-blue-gray-200);
+  border-radius: 12px;
+  padding: 1.75rem 2rem 2.5rem;
+}
+.sheet > h1 {
+  font-size: 1.7rem;
+  line-height: 1.25;
+  margin: 0 0 .4rem;
+  color: var(--color-primary-700);
+}
+.lede { color: var(--muted); margin: 0 0 1.25rem; max-width: 42rem; }
+.related {
+  font-size: .88rem;
+  margin: 0 0 1.5rem;
+  padding: .75rem 1rem;
+  background: var(--color-blue-sapphire-50);
+  border-radius: var(--radius);
+}
+.related a { margin-right: .35rem; }
+section.block {
+  margin: 0 0 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-blue-gray-200);
+}
+section.block:first-of-type { border-top: 0; padding-top: 0; }
+section.block h2 {
+  font-size: 1.2rem;
+  margin: 0 0 .65rem;
+  color: var(--color-primary-700);
+}
+section.block h3 {
+  font-size: 1rem;
+  margin: 1.15rem 0 .5rem;
+  color: var(--color-blue-sapphire-700);
+}
+.note {
+  background: var(--color-marigold-50);
+  border-left: 4px solid var(--color-marigold-700);
+  padding: .7rem 1rem;
+  margin: 0 0 1rem;
+  font-size: .9rem;
+}
+.ok {
+  background: var(--color-green-50);
+  border-left: 4px solid var(--color-green-700);
+  padding: .7rem 1rem;
+  margin: 0 0 1rem;
+  font-size: .9rem;
+}
+.warn {
+  background: var(--color-red-50);
+  border-left: 4px solid var(--color-red-800);
+  padding: .7rem 1rem;
+  margin: 0 0 1rem;
+  font-size: .9rem;
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .85rem 1.15rem;
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .85rem 1.15rem;
+}
+.field { display: flex; flex-direction: column; gap: .3rem; }
+.field.span-2 { grid-column: span 2; }
+.field.span-3 { grid-column: 1 / -1; }
+label.lbl {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+input[type="text"],
+input[type="date"],
+input[type="number"],
+select,
+textarea {
+  font: inherit;
+  font-size: .95rem;
+  padding: .55rem .7rem;
+  border: 1px solid var(--field-border);
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--ink);
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--color-primary-100);
+  border-color: var(--color-primary-500);
+}
+textarea { min-height: 4.5rem; resize: vertical; font-family: var(--mono); font-size: .85rem; line-height: 1.45; }
+textarea.notes { font-family: var(--font); font-size: .92rem; }
+.check-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1.1rem;
+  align-items: center;
+  padding: .35rem 0;
+}
+.check-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .92rem;
+  cursor: pointer;
+}
+.check-row input { width: 1rem; height: 1rem; accent-color: var(--color-primary-500); }
+.table-wrap { overflow-x: auto; margin: 0 0 1rem; }
+table.score {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: .9rem;
+}
+table.score th, table.score td {
+  border: 1px solid var(--color-blue-gray-200);
+  padding: .55rem .65rem;
+  text-align: left;
+  vertical-align: top;
+}
+table.score th {
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  font-weight: 650;
+}
+table.score tr:nth-child(even) td { background: var(--color-blue-gray-50); }
+table.score .result {
+  white-space: nowrap;
+  width: 9.5rem;
+}
+table.score .result label {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  margin-right: .55rem;
+  font-size: .85rem;
+  cursor: pointer;
+}
+.steps { list-style: none; margin: 0; padding: 0; }
+.steps li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .65rem;
+  align-items: start;
+  padding: .55rem .65rem;
+  border: 1px solid var(--color-blue-gray-200);
+  border-radius: 8px;
+  margin-bottom: .45rem;
+  background: var(--color-blue-gray-50);
+}
+.steps li.done { background: var(--color-green-50); border-color: #b7e0c4; }
+.steps input { margin-top: .2rem; accent-color: var(--color-primary-500); width: 1.05rem; height: 1.05rem; }
+.steps strong { display: block; color: var(--color-primary-700); }
+.steps span { font-size: .88rem; color: var(--muted); }
+.pill-row { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0 0; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border: 1px solid var(--color-blue-gray-200);
+  border-radius: 999px;
+  padding: .3rem .7rem;
+  font-size: .85rem;
+  background: #fff;
+  cursor: pointer;
+}
+.pill input { accent-color: var(--color-primary-500); }
+.foot {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-blue-gray-200);
+  font-size: .8rem;
+  color: var(--muted);
+}
+.status-bar {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  border-top: 1px solid var(--color-blue-gray-200);
+  padding: .65rem 1.25rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .85rem;
+  z-index: 20;
+  box-shadow: 0 -4px 16px rgba(2, 46, 68, .06);
+}
+.status-bar .meta { color: var(--muted); }
+.status-bar .actions { display: flex; gap: .45rem; flex-wrap: wrap; }
+.status-bar .btn {
+  border: 1px solid var(--color-blue-gray-200);
+  color: var(--color-primary-700);
+  background: #fff;
+}
+.status-bar .btn-solid {
+  background: var(--color-primary-600);
+  color: #fff;
+  border-color: var(--color-primary-600);
+}
+.status-bar .btn-solid:hover { background: var(--color-primary-700); }
+#toast {
+  position: fixed;
+  bottom: 4.5rem;
+  right: 1.25rem;
+  background: var(--color-primary-700);
+  color: #fff;
+  padding: .55rem .9rem;
+  border-radius: 8px;
+  font-size: .85rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+  z-index: 40;
+}
+#toast.show { opacity: 1; }
+@media (max-width: 920px) {
+  .layout { grid-template-columns: 1fr; }
+  .toc { position: static; max-height: none; }
+  .sheet { padding: 1.25rem; }
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .field.span-2, .field.span-3 { grid-column: auto; }
+}
+@media print {
+  body { background: #fff; font-size: 11.5pt; }
+  .top { position: static; }
+  .top nav, .toc, .status-bar, #toast { display: none !important; }
+  .layout { display: block; max-width: none; padding: 0; }
+  .sheet { border: 0; padding: 0; }
+  section.block { break-inside: avoid; }
+  input, select, textarea {
+    border: 0 !important;
+    border-bottom: 1px solid #ccc !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  textarea { border: 1px solid #ccc !important; min-height: 2.5rem; }
+  .steps li { background: #fff !important; }
+  a { color: inherit; text-decoration: none; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand" aria-hidden="true">KN</div>
+  <div>
+    <div class="sub">Pack completeness · developers &amp; compliance</div>
+    <h1>Pack intake form</h1>
+  </div>
+  <div class="spacer"></div>
+  <nav class="print-hide" aria-label="Actions">
+    <a href="./PACK_INTAKE.md">Markdown source</a>
+    <a href="./RULES.html">Rules pack</a>
+    <button type="button" class="btn" id="btn-print">Print / PDF</button>
+    <button type="button" class="btn btn-solid" id="btn-copy">Copy for PR</button>
+  </nav>
+</header>
+
+<div class="layout">
+  <nav class="toc print-hide" aria-label="Contents">
+    <p>Contents</p>
+    <a href="#purpose">Purpose</a>
+    <a href="#gate">Gate</a>
+    <a href="#scorecard">Weekly scorecard</a>
+    <a href="#intake">Intake fields</a>
+    <a href="#steps">Workflow steps</a>
+    <a href="#broker">Broker dispute</a>
+    <a href="#llm">LLM / agent use</a>
+    <a href="#sources">Weekly sources</a>
+    <a href="#antipatterns">Anti-patterns</a>
+    <a href="#done">Definition of done</a>
+  </nav>
+
+  <main class="sheet">
+    <h1 id="purpose">Pack intake checklist</h1>
+    <p class="lede">
+      Keep tariff <strong>rules + data packs</strong> complete and current.
+      Completeness is a <strong>source / pack / golden</strong> problem — not an LLM-depth problem.
+      Use this form for any new or amended CSMS, Federal Register annex, proclamation, or broker dispute that touches Chapter 99 / HTS lists.
+    </p>
+    <p class="related">
+      Related:
+      <a href="../data/program_watch.json"><code>program_watch.json</code></a>
+      <a href="../data/program_status.json"><code>program_status.json</code></a>
+      <a href="./OPEN_ITEMS.md"><code>OPEN_ITEMS.md</code></a>
+      <a href="./RULES.html"><code>RULES</code></a>
+    </p>
+
+    <form id="intake-form" autocomplete="on">
+      <section class="block" id="gate" aria-labelledby="gate-h">
+        <h2 id="gate-h">Gate: when a pack may exist</h2>
+        <p class="note">A pack is allowed <strong>only</strong> when authority names all three. Investigations without a proclamation / FR annex / CSMS → <code>PENDING</code> in <code>program_watch</code>. Do <strong>not</strong> invent headings.</p>
+        <div class="check-row">
+          <label><input type="checkbox" name="gate_ch99" /> Chapter 99 heading(s) + rates / basis</label>
+          <label><input type="checkbox" name="gate_hts" /> HTS list (or claim-gated rule + note text)</label>
+          <label><input type="checkbox" name="gate_date" /> Effective date (sunset / suspension if any)</label>
+        </div>
+        <div class="grid-2" style="margin-top:.85rem">
+          <div class="field">
+            <label class="lbl" for="gate_decision">Gate decision</label>
+            <select id="gate_decision" name="gate_decision">
+              <option value="">— select —</option>
+              <option value="ALLOW">ALLOW — pack may exist</option>
+              <option value="PENDING">PENDING — watch only</option>
+              <option value="BLOCK">BLOCK — incomplete authority</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="lbl" for="form_date">Form filled</label>
+            <input type="date" id="form_date" name="form_date" />
+          </div>
+        </div>
+      </section>
+
+      <section class="block" id="scorecard" aria-labelledby="score-h">
+        <h2 id="score-h">Weekly scorecard (per LIVE program)</h2>
+        <p class="warn">Fail any row → program is <strong>incomplete</strong> for shipping duty math, even if the UI “looks right.”</p>
+        <div class="grid-2" style="margin-bottom:.85rem">
+          <div class="field">
+            <label class="lbl" for="score_program">Program id</label>
+            <input type="text" id="score_program" name="score_program" placeholder="e.g. SEC_232_METALS" />
+          </div>
+          <div class="field">
+            <label class="lbl" for="score_reviewer">Reviewer</label>
+            <input type="text" id="score_reviewer" name="score_reviewer" placeholder="Initials / name" />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="score">
+            <thead>
+              <tr>
+                <th style="width:2.2rem">#</th>
+                <th>Check</th>
+                <th>Pass if</th>
+                <th class="result">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1</td>
+                <td><strong>Authority freshness</strong></td>
+                <td>Pack <code>source_csms</code> / <code>source_csms_amended</code> / FR cite matches the <strong>latest</strong> CSMS or FR</td>
+                <td class="result">
+                  <label><input type="radio" name="sc1" value="pass" /> Pass</label>
+                  <label><input type="radio" name="sc1" value="fail" /> Fail</label>
+                </td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td><strong>HTS list fidelity</strong></td>
+                <td>Attachment stems re-diffed (or row-count + spot-check); hash / <code>as_of</code> updated</td>
+                <td class="result">
+                  <label><input type="radio" name="sc2" value="pass" /> Pass</label>
+                  <label><input type="radio" name="sc2" value="fail" /> Fail</label>
+                </td>
+              </tr>
+              <tr>
+                <td>3</td>
+                <td><strong>Engine wired</strong></td>
+                <td><code>engine_module</code> exists; <code>program_status</code> ACTIVE+compute agrees with watch</td>
+                <td class="result">
+                  <label><input type="radio" name="sc3" value="pass" /> Pass</label>
+                  <label><input type="radio" name="sc3" value="fail" /> Fail</label>
+                </td>
+              </tr>
+              <tr>
+                <td>4</td>
+                <td><strong>Goldens</strong></td>
+                <td>≥1 automated test per major path (auto / claim / Ch.98 / origin split / exclusion)</td>
+                <td class="result">
+                  <label><input type="radio" name="sc4" value="pass" /> Pass</label>
+                  <label><input type="radio" name="sc4" value="fail" /> Fail</label>
+                </td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td><strong>RULES worked example</strong></td>
+                <td><code>RULES.md</code> example matches the golden; EXPIRED programs stay dark</td>
+                <td class="result">
+                  <label><input type="radio" name="sc5" value="pass" /> Pass</label>
+                  <label><input type="radio" name="sc5" value="fail" /> Fail</label>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="field">
+          <label class="lbl" for="score_notes">Scorecard notes / OPEN_ITEMS</label>
+          <textarea class="notes" id="score_notes" name="score_notes" placeholder="Open broker disputes → add/update OPEN_ITEMS.md with owner + blocking flag."></textarea>
+        </div>
+      </section>
+
+      <section class="block" id="intake" aria-labelledby="intake-h">
+        <h2 id="intake-h">Intake workflow (new or amended authority)</h2>
+        <p class="ok">Fill this block, then use <strong>Copy for PR</strong> to paste into the ticket or pull request.</p>
+
+        <h3>Identity</h3>
+        <div class="grid-2">
+          <div class="field">
+            <label class="lbl" for="program_id">Program id</label>
+            <input type="text" id="program_id" name="program_id" placeholder="e.g. SEC_232_METALS" />
+          </div>
+          <div class="field">
+            <label class="lbl" for="effective">Effective (entry)</label>
+            <input type="text" id="effective" name="effective" placeholder="YYYY-MM-DD (timezone if given)" />
+          </div>
+          <div class="field span-2">
+            <label class="lbl" for="authority">Authority</label>
+            <input type="text" id="authority" name="authority" placeholder="CSMS #________ / FR ________ / Proc. ________" />
+          </div>
+          <div class="field span-2">
+            <label class="lbl" for="supersedes">Supersedes</label>
+            <input type="text" id="supersedes" name="supersedes" placeholder="CSMS #________ (or none)" />
+          </div>
+        </div>
+
+        <h3>List &amp; code paths</h3>
+        <div class="field" style="margin-bottom:.75rem">
+          <span class="lbl">HTS list source</span>
+          <div class="check-row">
+            <label><input type="checkbox" name="src_csms" /> CSMS attachment</label>
+            <label><input type="checkbox" name="src_fr" /> FR annex</label>
+            <label><input type="checkbox" name="src_other" /> Other</label>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field span-2">
+            <label class="lbl" for="src_other_text">Other source detail</label>
+            <input type="text" id="src_other_text" name="src_other_text" placeholder="Filename / URL / docket" />
+          </div>
+          <div class="field">
+            <label class="lbl" for="pack_files">Pack file(s)</label>
+            <input type="text" id="pack_files" name="pack_files" placeholder="tariff-rules/data/________.json" />
+          </div>
+          <div class="field">
+            <label class="lbl" for="engine_module">Engine module</label>
+            <input type="text" id="engine_module" name="engine_module" placeholder="tariff-rules/src/________.ts" />
+          </div>
+          <div class="field span-2">
+            <label class="lbl" for="assess_paths">Assess / coverage</label>
+            <input type="text" id="assess_paths" name="assess_paths" placeholder="backend/src/assess.ts (+ coverage if list preview)" />
+          </div>
+        </div>
+
+        <h3>Diff summary</h3>
+        <div class="grid-3">
+          <div class="field">
+            <label class="lbl" for="diff_adds">Adds (stems)</label>
+            <input type="text" id="diff_adds" name="diff_adds" placeholder="____" />
+          </div>
+          <div class="field">
+            <label class="lbl" for="diff_removes">Removes (stems)</label>
+            <input type="text" id="diff_removes" name="diff_removes" placeholder="____" />
+          </div>
+          <div class="field">
+            <label class="lbl" for="diff_rates">Heading / rate changes</label>
+            <input type="text" id="diff_rates" name="diff_rates" placeholder="____" />
+          </div>
+        </div>
+        <div class="field" style="margin-top:.75rem">
+          <label class="lbl" for="diff_detail">Diff notes</label>
+          <textarea id="diff_detail" name="diff_detail" placeholder="Stem-level summary; prefer list diff over prose."></textarea>
+        </div>
+
+        <h3>Claim vs auto · stacking</h3>
+        <div class="grid-2">
+          <div class="field">
+            <label class="lbl" for="claim_auto">Auto</label>
+            <input type="text" id="claim_auto" name="claim_auto" placeholder="When does duty auto-apply?" />
+          </div>
+          <div class="field">
+            <label class="lbl" for="claim_gated">Claim-gated</label>
+            <input type="text" id="claim_gated" name="claim_gated" placeholder="Flag / claim name" />
+          </div>
+          <div class="field span-2">
+            <label class="lbl" for="stacking">Stacking notes (R1–R13)</label>
+            <input type="text" id="stacking" name="stacking" placeholder="Interactions with 301-FL / 338 / metals / wood…" />
+          </div>
+          <div class="field span-2">
+            <label class="lbl" for="expired">Expired / do-not-compute</label>
+            <input type="text" id="expired" name="expired" placeholder="Programs to keep dark" />
+          </div>
+        </div>
+
+        <h3>Goldens</h3>
+        <div class="check-row">
+          <label><input type="checkbox" name="g1" /> Scenario 1 (HTS / COO / date → expected Ch.99 seq)</label>
+          <label><input type="checkbox" name="g2" /> Scenario 2</label>
+          <label><input type="checkbox" name="g3" /> Ch.98 / exclusion path if relevant</label>
+        </div>
+        <div class="field" style="margin-top:.5rem">
+          <label class="lbl" for="golden_notes">Golden scenarios</label>
+          <textarea id="golden_notes" name="golden_notes" placeholder="HTS / COO / date → expected headings&#10;Include must-not-apply cases for expired / off-list."></textarea>
+        </div>
+
+        <h3>Docs &amp; dispute</h3>
+        <div class="check-row">
+          <label><input type="checkbox" name="doc_rules" /> RULES.md worked example + changelog</label>
+          <label><input type="checkbox" name="doc_watch" /> program_watch + program_status source_csms / as_of</label>
+          <label><input type="checkbox" name="doc_open" /> OPEN_ITEMS if still blocked</label>
+        </div>
+        <div class="grid-2" style="margin-top:.75rem">
+          <div class="field">
+            <label class="lbl" for="broker_yn">Broker dispute?</label>
+            <select id="broker_yn" name="broker_yn">
+              <option value="N">N</option>
+              <option value="Y">Y</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="lbl" for="broker_ticket">Ticket / name</label>
+            <input type="text" id="broker_ticket" name="broker_ticket" placeholder="If Y" />
+          </div>
+        </div>
+        <div class="field" style="margin-top:.75rem">
+          <span class="lbl">Scorecard 1–5 (check when pass)</span>
+          <div class="pill-row">
+            <label class="pill"><input type="checkbox" name="sc_pill_1" /> 1 Authority</label>
+            <label class="pill"><input type="checkbox" name="sc_pill_2" /> 2 HTS list</label>
+            <label class="pill"><input type="checkbox" name="sc_pill_3" /> 3 Engine</label>
+            <label class="pill"><input type="checkbox" name="sc_pill_4" /> 4 Goldens</label>
+            <label class="pill"><input type="checkbox" name="sc_pill_5" /> 5 RULES</label>
+          </div>
+        </div>
+      </section>
+
+      <section class="block" id="steps" aria-labelledby="steps-h">
+        <h2 id="steps-h">Steps (in order)</h2>
+        <ul class="steps">
+          <li>
+            <input type="checkbox" name="step1" data-step />
+            <div><strong>1. Capture authority</strong><span>Save CSMS id, FR cite, effective date, attachment filename.</span></div>
+          </li>
+          <li>
+            <input type="checkbox" name="step2" data-step />
+            <div><strong>2. Diff the list</strong><span>Attachment HTS vs current pack JSON (stem-level). Prefer list diff over prose.</span></div>
+          </li>
+          <li>
+            <input type="checkbox" name="step3" data-step />
+            <div><strong>3. Update pack</strong><span>JSON only; set <code>source_csms</code>, <code>source_csms_amended</code> if applicable, <code>as_of</code>, row_count.</span></div>
+          </li>
+          <li>
+            <input type="checkbox" name="step4" data-step />
+            <div><strong>4. Wire or adjust engine</strong><span>Auto vs claim; never invent off-list from UI fields alone (metals / solar lesson).</span></div>
+          </li>
+          <li>
+            <input type="checkbox" name="step5" data-step />
+            <div><strong>5. Add goldens</strong><span>Real broker HTS when available; include “must not apply” cases for expired / off-list.</span></div>
+          </li>
+          <li>
+            <input type="checkbox" name="step6" data-step />
+            <div><strong>6. Update RULES</strong><span>One worked example + changelog; mark EXPIRED programs explicitly.</span></div>
+          </li>
+          <li>
+            <input type="checkbox" name="step7" data-step />
+            <div><strong>7. Update watch/status</strong><span><code>program_watch</code> + <code>program_status</code>; CI must keep LIVE ↔ engine_module aligned.</span></div>
+          </li>
+          <li>
+            <input type="checkbox" name="step8" data-step />
+            <div><strong>8. Sign-off</strong><span>Compliance initials on RULES §14 when the program is reviewed.</span></div>
+          </li>
+        </ul>
+      </section>
+
+      <section class="block" id="broker" aria-labelledby="broker-h">
+        <h2 id="broker-h">Broker dispute intake (highest-signal QA)</h2>
+        <p>When a licensed broker or compliance reviewer disagrees with the tool — capture, then route to: golden → pack fix or invent fix → RULES example → close OPEN item.</p>
+        <div class="grid-2">
+          <div class="field">
+            <label class="lbl" for="bd_hts">HTS / COO / rate date</label>
+            <input type="text" id="bd_hts" name="bd_hts" placeholder="8541.43.0080 / CN / 2026-08-28" />
+          </div>
+          <div class="field">
+            <label class="lbl" for="bd_ch98">Ch.98 / claims</label>
+            <input type="text" id="bd_ch98" name="bd_ch98" placeholder="9802.00.50, repair value" />
+          </div>
+          <div class="field span-2">
+            <label class="lbl" for="bd_tool">Tool produced</label>
+            <textarea class="notes" id="bd_tool" name="bd_tool" placeholder="Ch.99 sequence + key diagnostics"></textarea>
+          </div>
+          <div class="field span-2">
+            <label class="lbl" for="bd_expected">Expected stack</label>
+            <textarea class="notes" id="bd_expected" name="bd_expected" placeholder="Headings + rates + CSMS cite"></textarea>
+          </div>
+          <div class="field">
+            <label class="lbl" for="bd_pack">Pack vs attachment?</label>
+            <input type="text" id="bd_pack" name="bd_pack" placeholder="Y/N — which stem missing / extra" />
+          </div>
+          <div class="field">
+            <label class="lbl" for="bd_expired">Expired program wrongly live?</label>
+            <input type="text" id="bd_expired" name="bd_expired" placeholder="e.g. CSPV 201" />
+          </div>
+        </div>
+      </section>
+
+      <section class="block" id="llm" aria-labelledby="llm-h">
+        <h2 id="llm-h">LLM / agent use (optional)</h2>
+        <div class="grid-2">
+          <div class="ok">
+            <strong>Do use</strong> models to:
+            <ul style="margin:.4rem 0 0; padding-left:1.2rem">
+              <li>Diff an attached CSMS HTS list against pack JSON</li>
+              <li>Draft goldens from a filled intake + authority PDF/text</li>
+              <li>Explain assess output vs expected stack (pack gap vs invent bug)</li>
+            </ul>
+          </div>
+          <div class="warn">
+            <strong>Do not</strong> ask models:
+            <ul style="margin:.4rem 0 0; padding-left:1.2rem">
+              <li>“Are we complete for Section 232?” without the attachment</li>
+              <li>To invent Chapter 99 headings or HTS membership from memory</li>
+            </ul>
+          </div>
+        </div>
+        <p class="note" style="margin-top:1rem">
+          <strong>Required prompt pattern:</strong> attach <strong>primary document + current pack</strong>;
+          require <em>heading + HTS stem + effective date</em>; if not in attachment → <strong>OUT OF SCOPE</strong>.
+        </p>
+      </section>
+
+      <section class="block" id="sources" aria-labelledby="sources-h">
+        <h2 id="sources-h">Sources (weekly pull)</h2>
+        <p>Same as <code>program_watch.sources</code>. Target: <strong>30–45 minutes/week</strong> — scan new CSMS touching <code>9903.*</code>, run scorecard on affected LIVE programs.</p>
+        <div class="check-row">
+          <label><input type="checkbox" name="src_wh" /> White House presidential actions</label>
+          <label><input type="checkbox" name="src_fr_scan" /> Federal Register (HTS annex PDFs)</label>
+          <label><input type="checkbox" name="src_cbp" /> CBP CSMS (GovDelivery / in-app)</label>
+          <label><input type="checkbox" name="src_ustr" /> USTR enforcement dockets</label>
+        </div>
+        <div class="field" style="margin-top:.75rem">
+          <label class="lbl" for="weekly_notes">This week’s finds</label>
+          <textarea class="notes" id="weekly_notes" name="weekly_notes" placeholder="CSMS ids / FR cites to triage"></textarea>
+        </div>
+      </section>
+
+      <section class="block" id="antipatterns" aria-labelledby="anti-h">
+        <h2 id="anti-h">Anti-patterns (lessons learned)</h2>
+        <div class="table-wrap">
+          <table class="score">
+            <thead>
+              <tr><th>Anti-pattern</th><th>Instead</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Cite April CSMS while June list governs coverage</td>
+                <td>Keep <code>source_csms</code> + <code>source_csms_amended</code>; re-diff attachment</td>
+              </tr>
+              <tr>
+                <td>Invent <code>9903.82.09</code> from metal-content on off-list HTS</td>
+                <td>List membership (or explicit claim / filed heading) only</td>
+              </tr>
+              <tr>
+                <td>Reuse QSP 201 headings for CSPV solar</td>
+                <td>CSPV expired; QSP is quartz-only</td>
+              </tr>
+              <tr>
+                <td>Treat Ch.98 repair as suppressing 301 / FL</td>
+                <td><code>9802.00.40</code> / <code>.50</code> keep remedies on repair value</td>
+              </tr>
+              <tr>
+                <td>Assume AD/CVD case numbers in the stacker</td>
+                <td>Flag only; separate case register (OPEN #9)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="block" id="done" aria-labelledby="done-h">
+        <h2 id="done-h">Definition of done</h2>
+        <div class="check-row" style="flex-direction:column;align-items:flex-start;gap:.55rem">
+          <label><input type="checkbox" name="done1" /> Scorecard 1–5 pass for the program</label>
+          <label><input type="checkbox" name="done2" /> Pack JSON + engine + ≥1 golden merged</label>
+          <label><input type="checkbox" name="done3" /> RULES example + changelog</label>
+          <label><input type="checkbox" name="done4" /> <code>program_watch</code> / <code>program_status</code> authority fields current</label>
+          <label><input type="checkbox" name="done5" /> No silent invent of off-list or expired programs</label>
+        </div>
+        <div class="grid-2" style="margin-top:1rem">
+          <div class="field">
+            <label class="lbl" for="signoff_dev">Developer sign-off</label>
+            <input type="text" id="signoff_dev" name="signoff_dev" placeholder="Name / date" />
+          </div>
+          <div class="field">
+            <label class="lbl" for="signoff_comp">Compliance sign-off</label>
+            <input type="text" id="signoff_comp" name="signoff_comp" placeholder="Initials / date (RULES §14)" />
+          </div>
+        </div>
+      </section>
+    </form>
+
+    <p class="foot">
+      Source of truth: <a href="./PACK_INTAKE.md"><code>PACK_INTAKE.md</code></a>.
+      Form values are saved in this browser (localStorage) until cleared.
+      Open the HTML file directly or Print → PDF to distribute.
+    </p>
+  </main>
+</div>
+
+<div class="status-bar print-hide">
+  <div class="meta" id="save-status">Saved locally</div>
+  <div class="actions">
+    <button type="button" class="btn" id="btn-clear">Clear form</button>
+    <button type="button" class="btn" id="btn-print-2">Print / PDF</button>
+    <button type="button" class="btn btn-solid" id="btn-copy-2">Copy for PR</button>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  const form = document.getElementById("intake-form");
+  const STORAGE_KEY = "kn-pack-intake-v1";
+  const toastEl = document.getElementById("toast");
+  const saveStatus = document.getElementById("save-status");
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastEl._t);
+    toastEl._t = setTimeout(() => toastEl.classList.remove("show"), 1800);
+  }
+
+  function val(name) {
+    const el = form.elements.namedItem(name);
+    if (!el) return "";
+    if (el instanceof RadioNodeList || (el.length && el[0] && el[0].type === "radio")) {
+      const checked = form.querySelector(`input[name="${name}"]:checked`);
+      return checked ? checked.value : "";
+    }
+    if (el.type === "checkbox") return el.checked ? "yes" : "";
+    return (el.value || "").trim();
+  }
+
+  function checked(name) {
+    const el = form.elements.namedItem(name);
+    return el && el.checked;
+  }
+
+  function mark(name) {
+    return checked(name) ? "[x]" : "[ ]";
+  }
+
+  function collect() {
+    const data = {};
+    const fd = new FormData(form);
+    for (const [k, v] of fd.entries()) {
+      if (data[k] !== undefined) {
+        data[k] = [].concat(data[k], v);
+      } else {
+        data[k] = v;
+      }
+    }
+    form.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+      if (!(cb.name in data)) data[cb.name] = "";
+      else if (cb.checked) data[cb.name] = "on";
+    });
+    form.querySelectorAll('input[type="radio"]').forEach((r) => {
+      if (!(r.name in data)) data[r.name] = "";
+    });
+    return data;
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(collect()));
+      const t = new Date().toLocaleTimeString();
+      saveStatus.textContent = "Saved locally · " + t;
+    } catch (_) {
+      saveStatus.textContent = "Could not save (storage blocked)";
+    }
+  }
+
+  function restore() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      Object.keys(data).forEach((name) => {
+        const els = form.querySelectorAll(`[name="${CSS.escape(name)}"]`);
+        if (!els.length) return;
+        const v = data[name];
+        els.forEach((el) => {
+          if (el.type === "checkbox") {
+            el.checked = v === "on" || v === true || v === "yes";
+          } else if (el.type === "radio") {
+            el.checked = el.value === v;
+          } else {
+            el.value = Array.isArray(v) ? v[0] : (v || "");
+          }
+        });
+      });
+      syncSteps();
+    } catch (_) { /* ignore */ }
+  }
+
+  function syncSteps() {
+    form.querySelectorAll(".steps li").forEach((li) => {
+      const cb = li.querySelector("input[type=checkbox]");
+      li.classList.toggle("done", cb && cb.checked);
+    });
+  }
+
+  function buildPrBlock() {
+    const src = [
+      checked("src_csms") ? "CSMS attachment" : null,
+      checked("src_fr") ? "FR annex" : null,
+      checked("src_other") ? ("other: " + (val("src_other_text") || "____")) : null,
+    ].filter(Boolean).join("  ") || "[ ] CSMS attachment  [ ] FR annex  [ ] other: ____";
+
+    const scPills = [1, 2, 3, 4, 5]
+      .map((n) => mark("sc_pill_" + n))
+      .join(" ");
+
+    const lines = [
+      "### Pack intake",
+      "",
+      "Program id:           " + (val("program_id") || "________"),
+      "Authority:            " + (val("authority") || "CSMS #________ / FR ________ / Proc. ________"),
+      "Effective (entry):    " + (val("effective") || "YYYY-MM-DD"),
+      "Supersedes:           " + (val("supersedes") || "CSMS #________ (or none)"),
+      "",
+      "HTS list source:      " + src,
+      "Pack file(s):         " + (val("pack_files") || "tariff-rules/data/________.json"),
+      "Engine module:        " + (val("engine_module") || "tariff-rules/src/________.ts"),
+      "Assess / coverage:    " + (val("assess_paths") || "backend/src/assess.ts (+ coverage if list preview)"),
+      "",
+      "Diff summary:",
+      "  Adds:    " + (val("diff_adds") || "____") + " stems",
+      "  Removes: " + (val("diff_removes") || "____") + " stems",
+      "  Heading / rate changes: " + (val("diff_rates") || "____"),
+    ];
+    if (val("diff_detail")) {
+      lines.push("  Notes: " + val("diff_detail").replace(/\n/g, " "));
+    }
+    lines.push(
+      "",
+      "Claim vs auto:",
+      "  Auto: " + (val("claim_auto") || "________"),
+      "  Claim-gated: " + (val("claim_gated") || "________"),
+      "",
+      "Stacking notes (R1–R13): " + (val("stacking") || "________"),
+      "Expired / do-not-compute: " + (val("expired") || "________"),
+      "",
+      "Goldens added:",
+      "  " + mark("g1") + " scenario 1 (HTS / COO / date → expected Ch.99 seq)",
+      "  " + mark("g2") + " scenario 2",
+      "  " + mark("g3") + " Ch.98 / exclusion path if relevant",
+    );
+    if (val("golden_notes")) {
+      lines.push("  Detail:");
+      val("golden_notes").split("\n").forEach((ln) => lines.push("    " + ln));
+    }
+    lines.push(
+      "",
+      "Docs:",
+      "  " + mark("doc_rules") + " RULES.md worked example + changelog",
+      "  " + mark("doc_watch") + " program_watch + program_status source_csms / as_of",
+      "  " + mark("doc_open") + " OPEN_ITEMS if still blocked",
+      "",
+      "Broker dispute?  " + (val("broker_yn") || "N") +
+        (val("broker_ticket") ? " — ticket / name: " + val("broker_ticket") : ""),
+      "Scorecard 1–5:   " + scPills,
+      "Gate:            " + (val("gate_decision") || "—") +
+        " (Ch99 " + mark("gate_ch99") +
+        " · HTS " + mark("gate_hts") +
+        " · date " + mark("gate_date") + ")",
+    );
+
+    const scRows = [1, 2, 3, 4, 5].map((n) => {
+      const r = val("sc" + n) || "—";
+      return "  " + n + ". " + r.toUpperCase();
+    });
+    lines.push("", "Scorecard results:", ...scRows);
+
+    if (val("bd_hts") || val("bd_expected") || val("bd_tool")) {
+      lines.push(
+        "",
+        "### Broker dispute",
+        "HTS / COO / date: " + (val("bd_hts") || "—"),
+        "Ch.98 / claims:   " + (val("bd_ch98") || "—"),
+        "Tool produced:    " + (val("bd_tool") || "—").replace(/\n/g, " | "),
+        "Expected stack:   " + (val("bd_expected") || "—").replace(/\n/g, " | "),
+        "Pack vs attach:   " + (val("bd_pack") || "—"),
+        "Expired wrongly:  " + (val("bd_expired") || "—"),
+      );
+    }
+
+    return lines.join("\n");
+  }
+
+  async function copyPr() {
+    const text = buildPrBlock();
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Copied intake block for PR");
+    } catch (_) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+      toast("Copied intake block for PR");
+    }
+  }
+
+  function clearForm() {
+    if (!confirm("Clear all fields on this form?")) return;
+    form.reset();
+    localStorage.removeItem(STORAGE_KEY);
+    syncSteps();
+    saveStatus.textContent = "Form cleared";
+    toast("Form cleared");
+  }
+
+  form.addEventListener("input", () => {
+    syncSteps();
+    persist();
+  });
+  form.addEventListener("change", () => {
+    syncSteps();
+    persist();
+  });
+
+  document.getElementById("btn-print").onclick =
+  document.getElementById("btn-print-2").onclick = () => window.print();
+  document.getElementById("btn-copy").onclick =
+  document.getElementById("btn-copy-2").onclick = () => copyPr();
+  document.getElementById("btn-clear").onclick = clearForm;
+
+  if (!form.form_date.value) {
+    form.form_date.value = new Date().toISOString().slice(0, 10);
+  }
+  restore();
+  if (!form.form_date.value) {
+    form.form_date.value = new Date().toISOString().slice(0, 10);
+  }
+  persist();
+})();
+</script>
+</body>
+</html>

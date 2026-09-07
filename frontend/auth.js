@@ -121,12 +121,3 @@ export function getDemoRole() {
 export function isEmbed() {
   return embed || SURFACE === "external";
 }
-
-/** External RPS app URL (kn-playground/applications/RPS). Empty hides the top-bar link. */
-export function rpsUrl() {
-  const raw = import.meta.env.VITE_RPS_URL;
-  if (raw === "" || raw === "false" || raw === "0") return "";
-  if (typeof raw === "string" && raw.trim()) return raw.trim().replace(/\/$/, "");
-  // Sensible local default when env is unset
-  return SURFACE === "local" ? "http://localhost:3002" : "";
-}

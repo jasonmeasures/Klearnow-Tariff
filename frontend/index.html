@@ -26,9 +26,18 @@
   </div>
   <span class="chip juris" title="Jurisdiction. Other customs territories are not yet modelled.">US</span>
   <div class="spacer"></div>
-  <a class="tool-link" id="rps-link" href="http://localhost:3002" target="_blank" rel="noopener noreferrer"
-     title="Restricted Party Screening (applications/RPS)">
-    RPS <span aria-hidden="true">↗</span>
+  <a class="tool-link" id="release-link" href="/docs/RELEASE_NOTES.html" target="_blank" rel="noopener noreferrer"
+     title="What’s new in this release">
+    What’s new <span aria-hidden="true">↗</span>
+  </a>
+  <a class="tool-link" id="manual-link" href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer"
+     title="Operator guide — how to use Duty stack, Coverage, and Audit">
+    Help <span aria-hidden="true">↗</span>
+  </a>
+  <a class="tool-link" id="csms-link" href="https://www.cbp.gov/trade/automated/cargo-systems-messaging-service"
+     target="_blank" rel="noopener noreferrer"
+     title="CBP Cargo Systems Messaging Service">
+    CSMS <span aria-hidden="true">↗</span>
   </a>
   <label class="role-switch" id="role-switch" title="Local demo — Auth0 replaces this in playground / WordPress">
     <span class="cap">View as</span>
@@ -50,8 +59,9 @@
   <nav class="side" aria-label="Sections">
     <div class="navgroup eyebrow">Use</div>
     <button data-view="calc" aria-current="page">Duty stack</button>
-    <button data-view="lookup">HTS list</button>
-    <button data-view="chat" data-admin-only>Rule chat</button>
+    <button data-view="lookup">Coverage</button>
+    <button data-view="chat" data-user-surface>Chat</button>
+    <button data-view="csms" data-user-surface>CSMS</button>
     <button data-view="audit">Audit</button>
     <div class="navgroup eyebrow" data-admin-only>Manage</div>
     <button data-view="rules" data-admin-only data-rules-browse>Rules <span class="badge" id="nav-rules">—</span></button>
@@ -59,6 +69,8 @@
     <button data-view="history" data-admin-only>Snapshots <span class="badge" id="nav-snaps">—</span></button>
     <button data-view="users" data-admin-only>Users</button>
     <div class="navgroup eyebrow" data-rules-browse>Understand</div>
+    <a class="side-link" href="/docs/RELEASE_NOTES.html" target="_blank" rel="noopener noreferrer">Release notes ↗</a>
+    <a class="side-link" href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer">User manual ↗</a>
     <button data-view="insights" data-rules-browse>Insights</button>
     <button data-view="reference" data-rules-browse>API &amp; ref</button>
   </nav>
@@ -66,40 +78,115 @@
   <main>
     <!-- ============================ CALCULATOR ============================ -->
     <section class="view" id="view-calc">
-      <div class="hero-check">
-        <div class="hero-check-copy">
+      <div class="calc-head">
+        <div class="calc-head-copy">
           <p class="eyebrow">Duty stack</p>
-          <h2>Every layer.<br />Correct order.<br /><em>Before CBP sees it.</em></h2>
-          <p class="hero-lead">Proposed duty rates and Chapter&nbsp;99 application—
-            China&nbsp;301, Sec&nbsp;122 / 301-FL, 232—stacked the way the entry should file.</p>
+          <h2>Shipment details</h2>
+          <p class="calc-head-lead">Fill the line — <b>About this HTS</b> (Watch for / description), rates, and collapsible Chapter&nbsp;99 layers appear on the right.</p>
         </div>
+        <details class="help calc-head-help">
+          <summary>Quick directions</summary>
+          <div>
+            <ol>
+              <li>Enter <b>HTS</b> (type 4+ digits for suggestions), <b>origin</b>, <b>entered value</b>, and <b>rate date</b>.</li>
+              <li>Set <b>MOT</b> to Ocean if Harbor Maintenance Fee applies.</li>
+              <li>Tick any <b>claims</b> that appear — they only show when relevant.</li>
+              <li>Click <b>Run the stack</b>. On Results: expand <b>Watch for</b> rows (PGA / AD/CVD), use <b>Show hierarchy</b> for the description path, and open each Chapter&nbsp;99 layer (or <b>Expand all</b>) for reason and source.</li>
+              <li>Use <b>Coverage</b> for bulk which-rules-apply (includes Watch for) or <b>Audit</b> for ACE ES-003.</li>
+            </ol>
+            <p class="cap" style="margin:0">Full walkthrough:
+              <a href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer">User manual ↗</a>
+              · <a href="/docs/RELEASE_NOTES.html" target="_blank" rel="noopener noreferrer">Release notes ↗</a></p>
+          </div>
+        </details>
+      </div>
+
+      <div id="calcbanner"></div>
+
+      <div class="calc-workspace">
+        <div class="calc-inputs">
         <div class="quick-card">
           <div class="quick-grid">
             <div class="field"><label class="label" for="qc-hts">HTS</label>
               <input type="text" id="qc-hts" class="mono" spellcheck="false"
                 autocomplete="off" inputmode="decimal"
-                title="10-digit HTS classification (with or without dots)" /></div>
+                title="Type 4+ digits to search 10-digit HTS lines" /></div>
             <div class="field"><label class="label" for="qc-coo">Origin</label>
               <input type="text" id="qc-coo" class="country-field" data-country
                 title="Type ISO-2 and Tab, or search country name" /></div>
             <div class="field"><label class="label" for="qc-value">Entered value (USD)</label>
               <input type="text" id="qc-value" class="num" inputmode="decimal"
-                title="Customs entered value in US dollars" /></div>
+                title="Customs entered value in US dollars (thousands separator on blur)" /></div>
             <div class="field"><label class="label" for="qc-date">Rate date</label>
               <input type="date" id="qc-date" title="Rate-determination / entry date" /></div>
+            <div class="field">
+              <label class="label" for="qc-mode">MOT</label>
+              <select id="qc-mode" title="Mode of transport — Harbor Maintenance Fee is 0.125% on ocean / vessel only">
+                <option value="OCEAN" selected>Ocean</option>
+                <option value="AIR">Air</option>
+                <option value="TRUCK">Truck</option>
+                <option value="RAIL">Rail</option>
+              </select>
+              <p class="cap" style="margin:var(--sp-1) 0 0">HMF 0.125% on ocean only</p>
+            </div>
             <div class="field" id="qc-qty-wrap" hidden>
               <label class="label" for="qc-qty">Quantity <span id="qc-qty-uom" class="cap"></span></label>
               <input type="text" id="qc-qty" class="num" inputmode="decimal"
                 title="Quantity in the HTS unit of measure (required when Column 1 is specific)" />
               <p class="cap" id="qc-qty-hint" style="margin:var(--sp-1) 0 0"></p>
             </div>
-            <div class="field" id="qc-metal-wrap" hidden style="grid-column:1 / -1">
-              <div class="metals-panel">
-                <p class="eyebrow" id="qc-metal-title">Section 232 metals</p>
-                <p class="cap" id="qc-metal-hint" style="margin:0 0 var(--sp-2)"></p>
+            <div class="field" id="qc-copper-smelt-wrap" hidden style="grid-column:1 / -1">
+              <details class="metals-panel is-required" id="qc-copper-smelt-panel" open>
+                <summary class="metals-summary">
+                  <span class="metals-summary-text">
+                    <span class="eyebrow" id="qc-copper-smelt-title">Copper smelt &amp; cast (ACE)</span>
+                    <span class="cap" id="qc-copper-smelt-meta">Required for filing — CSMS #69711865</span>
+                  </span>
+                  <span class="metals-chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="metals-body">
+                  <p class="cap" id="qc-copper-smelt-hint" style="margin:0 0 var(--sp-2)">
+                    Primary country of smelt and country of cast are required on the entry summary line (ACE 54 record type 12).
+                    Use <span class="mono">OTH</span> when unknown. Secondary smelt is optional.
+                  </p>
+                  <div class="grid2">
+                    <div class="field">
+                      <label class="label" for="qc-copper-primary-smelt">Primary smelt *</label>
+                      <input type="text" id="qc-copper-primary-smelt" class="country-field" data-country
+                        title="Primary country of smelt — ISO-2 or OTH" placeholder="e.g. CL or OTH" />
+                    </div>
+                    <div class="field">
+                      <label class="label" for="qc-copper-secondary-smelt">Secondary smelt</label>
+                      <input type="text" id="qc-copper-secondary-smelt" class="country-field" data-country
+                        title="Secondary country of smelt (optional) — ISO-2 or OTH" placeholder="Optional" />
+                    </div>
+                    <div class="field">
+                      <label class="label" for="qc-copper-cast">Country of cast *</label>
+                      <input type="text" id="qc-copper-cast" class="country-field" data-country
+                        title="Country of cast — ISO-2 or OTH" placeholder="e.g. CN or OTH" />
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+            <div class="field" id="qc-metal-wrap" style="grid-column:1 / -1">
+              <details class="metals-panel" id="qc-metal-panel">
+                <summary class="metals-summary">
+                  <span class="metals-summary-text">
+                    <span class="eyebrow" id="qc-metal-title">Metal / copper content</span>
+                    <span class="cap" id="qc-metal-summary-meta">Optional — expand to enter %</span>
+                  </span>
+                  <span class="metals-chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="metals-body">
+                  <p class="cap" id="qc-metal-hint" style="margin:0 0 var(--sp-2)">
+                    Optional. Enter copper, steel, or aluminum as % of entered value.
+                    Under 15% on a non-article HTS files <span class="mono">9903.82.03</span> at 0% and keeps 301-FL.
+                    15% or more files <span class="mono">9903.82.09</span> at 25% (replaces 301-FL).
+                  </p>
                 <div class="content-mode" role="group" aria-label="Metal content input mode">
-                  <button type="button" class="mode-btn active" data-metal-mode="USD" id="qc-metal-mode-usd">USD value</button>
-                  <button type="button" class="mode-btn" data-metal-mode="PCT" id="qc-metal-mode-pct">% of entered</button>
+                  <button type="button" class="mode-btn" data-metal-mode="USD" id="qc-metal-mode-usd">USD value</button>
+                  <button type="button" class="mode-btn active" data-metal-mode="PCT" id="qc-metal-mode-pct">% of entered</button>
                 </div>
                 <div class="metals-rows" id="qc-metals-rows">
                   <div class="metal-row" data-metal="steel">
@@ -133,32 +220,32 @@
                     <div class="field">
                       <label class="label" for="qc-copper-content">Content</label>
                       <input type="text" id="qc-copper-content" class="num metal-content" inputmode="decimal"
+                        placeholder="e.g. 10"
                         title="Copper content — USD or % of entered" />
                     </div>
                     <div class="field">
-                      <label class="label" for="qc-copper-melt">Smelt / refine</label>
+                      <label class="label" for="qc-copper-melt">Smelt / cast</label>
                       <input type="text" id="qc-copper-melt" class="country-field" data-country
-                        title="Copper smelt / refined production country" />
+                        title="Copper smelt / cast country (232 metal-content basis)" />
                     </div>
                   </div>
                 </div>
                 <p class="cap" id="qc-metal-resolved" style="margin:var(--sp-2) 0 0"></p>
-                <div class="field" style="margin-top:var(--sp-2);max-width:220px">
-                  <label class="label" for="qc-mode">Mode of transport</label>
-                  <select id="qc-mode" title="Used for Harbor Maintenance Fee (ocean)">
-                    <option value="OCEAN" selected>Ocean</option>
-                    <option value="AIR">Air</option>
-                    <option value="TRUCK">Truck</option>
-                    <option value="RAIL">Rail</option>
-                  </select>
-                </div>
                 <div id="qc-exclusions" class="excl-list" hidden></div>
-              </div>
+                </div>
+              </details>
             </div>
           </div>
-          <div class="quick-flags">
-            <label class="check"><input type="checkbox" id="qc-232" />
-              <span>232 auto part <span class="cap" id="qc-232-hint">(claim if off-list)</span></span></label>
+          <div class="quick-flags" id="qc-flags">
+            <p class="cap qc-flags-empty" id="qc-flags-empty">No extra claims for this line. Programs that auto-apply from the HTS are already in the stack.</p>
+            <label class="check" id="qc-232-wrap" hidden>
+              <input type="checkbox" id="qc-232" />
+              <span>232 auto part <span class="cap" id="qc-232-hint">(off-list self-cert 9903.94.07)</span></span>
+            </label>
+            <label class="check" id="qc-232-not-wrap" hidden>
+              <input type="checkbox" id="qc-232-not" />
+              <span id="qc-232-not-label">Not an auto part (9903.94.06)</span>
+            </label>
             <label class="check" id="qc-fta-wrap" hidden>
               <input type="checkbox" id="qc-fta" />
               <span id="qc-fta-label">Claim FTA / USMCA</span>
@@ -171,7 +258,47 @@
               <input type="checkbox" id="qc-s232-pharma" />
               <span id="qc-s232-pharma-label">232 patented pharma</span>
             </label>
-            <details class="adv-override" id="qc-cn-adv">
+            <label class="check" id="qc-s232-mhdv-wrap" hidden>
+              <input type="checkbox" id="qc-s232-mhdv" />
+              <span id="qc-s232-mhdv-label">232 MHDV part</span>
+            </label>
+            <label class="check" id="qc-s232-mhdv-not-wrap" hidden>
+              <input type="checkbox" id="qc-s232-mhdv-not" />
+              <span id="qc-s232-mhdv-not-label">Not an MHDV part (9903.74.11)</span>
+            </label>
+            <label class="check" id="qc-s232-semi-wrap" hidden>
+              <input type="checkbox" id="qc-s232-semi" />
+              <span id="qc-s232-semi-label">232 semiconductor (Note 39 params)</span>
+            </label>
+            <label class="check" id="qc-s232-vintage-wrap" hidden>
+              <input type="checkbox" id="qc-s232-vintage" />
+              <span>25-year vehicle (0% 232)</span>
+            </label>
+            <label class="check" id="qc-s201-over-wrap" hidden>
+              <input type="checkbox" id="qc-s201-over" />
+              <span>201 QSP over-quota (9903.45.31)</span>
+            </label>
+            <label class="check" id="qc-s232-uas-thermal-wrap" hidden>
+              <input type="checkbox" id="qc-s232-uas-thermal" />
+              <span>232 UAS thermal imaging (9903.08.21)</span>
+            </label>
+            <label class="check" id="qc-s232-uas-docking-wrap" hidden>
+              <input type="checkbox" id="qc-s232-uas-docking" />
+              <span id="qc-s232-uas-docking-label">232 UAS docking station (9903.08.21)</span>
+            </label>
+            <label class="check" id="qc-s232-uas-not-wrap" hidden>
+              <input type="checkbox" id="qc-s232-uas-not" />
+              <span id="qc-s232-uas-not-label">Not for UAS use (9903.08.20)</span>
+            </label>
+            <label class="check" id="qc-s232-uas-annex-iii-wrap" hidden>
+              <input type="checkbox" id="qc-s232-uas-annex-iii" />
+              <span id="qc-s232-uas-annex-iii-label">232 UAS Annex III parts (9903.08.22)</span>
+            </label>
+            <label class="check" id="qc-gn6-wrap" hidden>
+              <input type="checkbox" id="qc-gn6" />
+              <span id="qc-gn6-label">Civil aircraft (General Note 6)</span>
+            </label>
+            <details class="adv-override" id="qc-cn-adv" hidden>
               <summary class="cap">Advanced: override China 301 list</summary>
               <div class="field" style="margin:var(--sp-2) 0 0;min-width:200px">
                 <label class="label" for="qc-cnlist">Manual list claim</label>
@@ -189,23 +316,60 @@
           </div>
           <div class="actions quick-actions">
             <button class="btn-primary btn-lg" id="qc-run" type="button">Run the stack</button>
-            <button class="btn-ghost btn-sm" id="qc-example" type="button">VN apparel</button>
-            <button class="btn-ghost btn-sm" id="qc-example-cn" type="button">CN parts</button>
           </div>
+          <details class="qc-examples-panel">
+            <summary>Try an example</summary>
+            <div class="qc-examples" role="group" aria-label="Example stacks">
+              <button type="button" class="qc-example" id="qc-example" data-example="vn">
+                <span class="qc-ex-name">VN apparel</span>
+                <span class="qc-ex-meta">6203.42.0711 · Vietnam</span>
+              </button>
+              <button type="button" class="qc-example" id="qc-example-cn" data-example="cn">
+                <span class="qc-ex-name">CN auto parts</span>
+                <span class="qc-ex-meta">8708.10.3050 · China · 232</span>
+              </button>
+              <button type="button" class="qc-example" id="qc-example-de" data-example="de">
+                <span class="qc-ex-name">DE pharma</span>
+                <span class="qc-ex-meta">2933.99.2200 · Germany</span>
+              </button>
+              <button type="button" class="qc-example" id="qc-example-vn-qsp" data-example="vn-qsp">
+                <span class="qc-ex-name">VN quartz 201</span>
+                <span class="qc-ex-meta">6810.99.0040 · Vietnam · Section 201 QSP</span>
+              </button>
+            </div>
+          </details>
           <div class="qc-meta" id="qc-htsmeta"></div>
         </div>
-      </div>
+        </div><!-- /.calc-inputs -->
 
-      <div id="calcbanner"></div>
+        <div class="calc-result">
+          <div class="card result-card">
+            <header><h5 id="resulttitle">Results</h5><div class="spacer"></div>
+              <span class="chip-inline" id="resultengine" hidden></span>
+              <button class="btn-ghost btn-sm" id="exportcsv" hidden>Export CSV</button>
+              <button class="btn-ghost btn-sm" id="copyall" hidden>Copy</button></header>
+            <div id="hts-context" class="hts-context" hidden></div>
+            <div id="results">
+              <div class="empty"><h4>Stack is empty</h4>
+                <p class="cap" style="max-width:40ch;margin:0 auto">Enter an HTS to see <b>About this HTS</b> (Watch for / description).
+                  Add origin, value, and date — then <b>Run the stack</b> for duty dollars and collapsible Chapter&nbsp;99 layers.</p></div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /.calc-workspace -->
 
-      <div class="cols c2 calc-body">
-        <div>
+      <aside class="calc-tools">
           <details class="adv-panel" id="adv-panel">
             <summary>
               <span class="adv-title">Multi-line &amp; scenarios</span>
-              <span class="cap">Batch paste · engine · A/B compare</span>
+              <span class="cap">Optional — full entry, paste, or A/B compare</span>
             </summary>
             <div class="adv-body">
+              <p class="adv-howto cap">
+                <b>One HTS?</b> Use the form on the left, then read Results on the right.
+                Open this when you need several lines on one entry, a paste from Excel,
+                or to pin two runs and compare (for example with vs without a claim).
+              </p>
               <div class="card">
                 <header><h5>Rule set</h5><div class="spacer"></div>
                   <span class="cap" id="enginehint">select before assess</span></header>
@@ -221,6 +385,9 @@
                 <header><h5>Scenarios</h5><div class="spacer"></div>
                   <button class="btn-ghost btn-sm" id="clearscenarios" type="button">Clear</button></header>
                 <div class="body">
+                  <p class="cap" style="margin:0 0 var(--sp-3)">
+                    After <b>Run the stack</b>, pin the result to A. Change a claim or origin, run again, pin to B, then compare.
+                  </p>
                   <div class="scenario-slots">
                     <div class="scenario-slot" data-slot="A">
                       <div class="scenario-slot-hd"><span class="eyebrow">A</span>
@@ -256,9 +423,11 @@
                     <div class="field"><label class="label" for="entryno">Entry number</label>
                       <input type="text" id="entryno" title="Optional entry number for the assessment" /></div>
                     <div class="field"><label class="label" for="mode">Mode of transport</label>
-                      <select id="mode">
-                        <option value="">Not stated</option><option value="OCEAN">Ocean</option>
-                        <option value="AIR">Air</option><option value="TRUCK">Truck</option>
+                      <select id="mode" title="Harbor Maintenance Fee is 0.125% on ocean / vessel only">
+                        <option value="">Not stated</option>
+                        <option value="OCEAN">Ocean</option>
+                        <option value="AIR">Air</option>
+                        <option value="TRUCK">Truck</option>
                         <option value="RAIL">Rail</option>
                       </select></div>
                     <div class="field"><label class="label" for="formal">Entry type</label>
@@ -307,32 +476,17 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
               </div>
             </div>
           </details>
-        </div>
-
-        <div>
-          <div class="card result-card">
-            <header><h5 id="resulttitle">Stack result</h5><div class="spacer"></div>
-              <span class="chip-inline" id="resultengine" hidden></span>
-              <button class="btn-ghost btn-sm" id="exportcsv" hidden>Export CSV</button>
-              <button class="btn-ghost btn-sm" id="copyall" hidden>Copy</button></header>
-            <div id="results">
-              <div class="empty"><h4>Stack is empty</h4>
-                <p class="cap" style="max-width:40ch;margin:0 auto">Drop in an HTS, origin, value, and rate date—
-                  then <b>Run the stack</b>. Rates, application order, and suppressions show here.</p></div>
-            </div>
-          </div>
-        </div>
-      </div>
+        </aside>
     </section>
 
-    <!-- ============================ RULE CHAT ============================ -->
+    <!-- ============================ CHAT (HTS / rules Q&A) ============================ -->
     <section class="view hide" id="view-chat">
       <div class="chat-hero">
         <div>
           <p class="eyebrow">Live pack</p>
-          <h2 class="display">Update rules when CSMS lands</h2>
-          <p class="hero-lead">Describe the notice in plain language. Claude proposes the pack
-            change; you confirm — hot-reload, no rebuild.</p>
+          <h2 class="display">Ask about an HTS or a rule</h2>
+          <p class="hero-lead">Answers come from the Column-1 table and Chapter&nbsp;99 pack—
+            rates, stacking, and which headings apply.</p>
         </div>
         <div class="chat-status" id="chat-status">
           <span class="busy"></span> Checking Anthropic…
@@ -343,35 +497,68 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
         <div class="chat-thread" id="chat-thread" aria-live="polite"></div>
         <div class="chat-pending" id="chat-pending" hidden></div>
         <div class="chat-suggest" id="chat-suggest">
-          <button type="button" data-prompt="A new CSMS updated Section 301 Forced Labor: country XX is now flat 12.5% under heading 9903.05.NN. Draft the pack upsert and wait for my confirmation.">New 301-FL flat rate</button>
+          <button type="button" data-prompt="tariff stack for 3907.69.0050, COO MX, USMCA, entered value 47000">MX USMCA plastics</button>
+          <button type="button" data-prompt="Look up HTS 8708.40.7580 Column-1 and show which Chapter 99 rules apply for COO BR on 2026-07-27.">HTS + Brazil</button>
+          <button type="button" data-prompt="Which rules apply to 6109.10.0012 from VN on 2026-08-01?">VN apparel</button>
           <button type="button" data-prompt="Explain how 301-FL and Section 232 interact for Japan auto parts after 2026-07-24.">JP 232 vs 301-FL</button>
-          <button type="button" data-prompt="Look up HTS 8708.40.7580 Column-1 and show which Chapter 99 rules apply for COO BR on 2026-07-27.">Sample HTS + BR</button>
-          <button type="button" data-prompt="List the live 301-FL economies and call out anything unusual.">List 301-FL pack</button>
+          <button type="button" data-prompt="What is the live 301-FL rate and heading for Vietnam?">301-FL VN</button>
+          <button type="button" data-admin-write data-prompt="A new CSMS updated Section 301 Forced Labor: country XX is now flat 12.5% under heading 9903.05.NN. Draft the pack upsert and wait for my confirmation.">Load a rule (admin)</button>
         </div>
         <form class="chat-composer" id="chat-form">
           <textarea id="chat-input" rows="2"
-            title="Describe the rule change to propose (CSMS, country, rate, heading)"
+            placeholder="Ask about an HTS, origin, date, or pack rule…"
+            title="Ask about an HTS or a live-pack rule"
             required></textarea>
           <button class="btn-primary" type="submit" id="chat-send">Send</button>
         </form>
-        <p class="cap chat-footnote">Requires <code class="mono">ANTHROPIC_API_KEY</code> on the backend.
-          Writes need author key (<code class="mono">dev-internal</code>). Claude Desktop MCP still works in parallel.</p>
+        <p class="cap chat-footnote">Stacks and HTS lookups use the live tables — no Anthropic key.
+          Loading a new rule is an upcoming admin feature (API key).</p>
       </div>
     </section>
 
-    <!-- ============================ HTS LIST / COVERAGE ============================ -->
+    <!-- ============================ CSMS ============================ -->
+    <section class="view hide" id="view-csms">
+      <div class="viewhead">
+        <h2>CSMS</h2>
+        <p class="cap">Recent Cargo Systems Messaging Service bulletins from CBP GovDelivery.
+          Official archive:
+          <a href="https://www.cbp.gov/trade/automated/cargo-systems-messaging-service" target="_blank" rel="noopener noreferrer">cbp.gov CSMS</a>.</p>
+      </div>
+      <div id="csmsbanner"></div>
+      <div class="card">
+        <header>
+          <h5>Recent messages</h5>
+          <div class="spacer"></div>
+          <label class="flex gap cap" style="align-items:center">
+            <input type="checkbox" id="csms-cams" /> Include CAMS
+          </label>
+          <input type="search" id="csms-q" class="input-sm" placeholder="Search title or number" />
+          <button type="button" class="btn-ghost btn-sm" id="csms-refresh">Refresh</button>
+          <a class="btn-ghost btn-sm" id="csms-subscribe" href="https://public.govdelivery.com/accounts/USDHSCBP/subscriber/new?topic_id=USDHSCBP_3"
+             target="_blank" rel="noopener noreferrer">Subscribe</a>
+        </header>
+        <div class="body flush" id="csms-out">
+          <div class="empty"><span class="busy"></span> Loading CSMS…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ COVERAGE (bulk which-rules-apply) ============================ -->
     <section class="view hide" id="view-lookup">
       <div class="viewhead">
         <h2>Which rules apply?</h2>
-        <p class="cap">Drop a spreadsheet, paste a list, or upload CSV / JSON / Excel.
-          See Column&nbsp;1 and Chapter&nbsp;99 for each HTS. Unknown codes get clear guidance,
-          same-heading alternatives from the table, and USITC links — no invented duty stacks.</p>
+        <p class="cap">Drop a spreadsheet, paste codes, or upload CSV / JSON / Excel.
+          See Column&nbsp;1, <b>Watch for</b> (PGA / FDA, AD/CVD, additional HTS), and Chapter&nbsp;99
+          for each line — including Section&nbsp;232 vehicle, MHDV, wood, and semiconductor lists.
+          Open a row for the rule trail (collapsible layers). Claim-gated headings show as <b>claim</b>.
+          Unknown codes get clear guidance and USITC links — no invented duty stacks.
+          <a href="/docs/USER_MANUAL.html#5-coverage-which-rules-apply" target="_blank" rel="noopener noreferrer">Coverage guide ↗</a></p>
       </div>
       <div id="lookupbanner"></div>
 
       <div class="lookup-layout">
         <div class="card lookup-input">
-          <header><h5>Your HTS list</h5>
+          <header><h5>Codes to check</h5>
             <div class="spacer"></div>
             <span class="cap" id="lookup-count">0 codes</span></header>
           <div class="body">
@@ -388,7 +575,8 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
               <input type="file" id="lookup-file" accept=".csv,.tsv,.txt,.json,.xlsx,.xls" hidden />
               <p class="drop-title">Drop Excel, CSV, or JSON</p>
               <p class="cap">or <button type="button" class="linkish" id="lookup-browse">browse</button>
-                · columns recognised: <span class="mono">hts</span>, <span class="mono">coo</span> / origin, date</p>
+                · columns recognised: <span class="mono">hts</span>, <span class="mono">coo</span> / origin, date,
+                <span class="mono">s232_mhdv_part</span>, <span class="mono">s232_semiconductor</span></p>
             </div>
 
             <div class="field" style="margin-top:var(--sp-4)">
@@ -397,7 +585,9 @@ placeholder="hts,coo,entered_value,col1_rate_pct,entry_date,release_date,flags
 placeholder="hts,coo
 6203.42.0711,VN
 8708.10.3050,CN
-8517.12.0020,DE
+8703.23.01,JP
+4407.11.00,CA
+8473.30.00,TW
 
 — or one HTS per line —
 8708103050
@@ -410,7 +600,8 @@ placeholder="hts,coo
               <button class="btn-ghost btn-sm" id="lookup-sample" type="button">Load sample list</button>
             </div>
             <p class="cap" style="margin:var(--sp-2) 0 0">Tip: with only HTS codes, set a
-              <b>default origin</b> so 301-FL and country stacks can resolve.</p>
+              <b>default origin</b> so 301-FL and country stacks can resolve.
+              Hover Watch for chips for agency detail; open a row to expand PGA notices and Chapter&nbsp;99 layers.</p>
           </div>
         </div>
 
@@ -420,10 +611,10 @@ placeholder="hts,coo
             <button class="btn-ghost btn-sm" id="lookup-export" type="button" hidden>Export CSV</button></header>
           <div id="lookup-out">
             <div class="empty">
-              <h4>No list yet</h4>
+              <h4>No codes yet</h4>
               <p class="cap" style="max-width:36ch;margin:0 auto">Add HTS codes on the left.
-                You’ll see Column&nbsp;1, 301-FL, and other Chapter&nbsp;99 headings that apply —
-                then open any row for the full rule trail.</p>
+                You’ll see Column&nbsp;1, Watch for (PGA / AD/CVD), 232 lists, and other Chapter&nbsp;99
+                headings — then open any row for the full rule trail.</p>
             </div>
           </div>
         </div>
@@ -435,7 +626,9 @@ placeholder="hts,coo
       <div class="viewhead">
         <h2>Audit from ACE</h2>
         <p class="cap">Upload ES-003 Entry Summary Line Tariff Details — we audit filed Ch.99
-          against the live stack using each line’s Entry Date.</p>
+          against the live stack using each line’s Entry Date.
+          Guests: up to 8,000 entry lines; signed-in: 25,000.
+          <a href="/docs/USER_MANUAL.html" target="_blank" rel="noopener noreferrer">Audit guide ↗</a></p>
       </div>
       <div id="auditbanner"></div>
       <div class="cols c2">
@@ -565,9 +758,13 @@ placeholder="hts,coo
       <div class="viewhead">
         <h2>Upload</h2>
         <p class="cap">Replace the baseline Column-1 HTS table from a classification workbook,
-          or merge CSV rate rows. Changes reload live for assessments and HTS list.</p>
+          or merge CSV rate rows. Changes reload live for Duty stack and Coverage.</p>
       </div>
       <div id="uploadbanner"></div>
+      <div class="card" id="hts-live-card">
+        <header><h5>Live Column-1 table</h5></header>
+        <div class="body" id="hts-live"><p class="cap">Loading current table…</p></div>
+      </div>
       <div class="card">
         <header><h5>What are you loading?</h5><div class="spacer"></div>
           <select id="uploadkind" style="width:auto">
@@ -694,7 +891,8 @@ placeholder="hts,coo
             <code class="mono">X-API-Key</code> (local default <code class="mono">dev-internal</code>).</p>
           <ul class="api-list">
             <li><code class="mono">GET /v1/hts/{code}</code> — baseline Column-1 rate</li>
-            <li><code class="mono">POST /v1/hts:coverage</code> — which rules apply to an HTS list (no value)</li>
+            <li><code class="mono">GET /v1/hts:suggest</code> — 10-digit HTS typeahead</li>
+            <li><code class="mono">POST /v1/hts:coverage</code> — Coverage: which rules apply (no value; includes Watch for flags)</li>
             <li><code class="mono">POST /v1/entries:assess</code> — duty stack (<code class="mono">engine=auto|ch99</code>)</li>
             <li><code class="mono">GET /v1/rules</code> — browse live rules</li>
             <li><code class="mono">PUT /v1/admin/s301fl/countries/{iso2}</code> — hot-update 301-FL (no rebuild)</li>
@@ -721,7 +919,7 @@ placeholder="hts,coo
 </div>
 
 <script type="module" src="/app.js"></script>
-<button type="button" class="chat-fab" id="chat-fab" title="Rule chat">
+<button type="button" class="chat-fab" id="chat-fab" title="Ask about an HTS or a rule">
   <span class="fab-pulse" aria-hidden="true"></span>
   Chat
 </button>

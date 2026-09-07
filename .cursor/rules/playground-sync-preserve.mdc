@@ -1,0 +1,44 @@
+---
+description: When syncing to kn-playground, preserve playground-only auth, DB SSL, and Auth0 invite/mail code (KD-3135 / PR #87).
+alwaysApply: true
+---
+
+# Playground sync — preserve playground-only code
+
+Local Tariff tool → `kn-playground/applications/Klearnow-Tariff-main` rsync **must not** blindly overwrite playground production/auth code. PR #85 sync broke production; **PR #87 (KD-3135)** restored it: https://github.com/klearnow/kn-playground/pull/87
+
+## After rsync — restore these playground-only files from `master`
+
+| File | Why |
+|------|-----|
+| `backend/src/auth0Mgmt.ts` | Auth0 Management API — create users + **email password-set invites** |
+| `backend/src/auth0Mgmt.test.ts` | Tests for invite flow |
+| `backend/src/db.ssl.test.ts` | Fails CI if RDS SSL config is dropped again |
+| `backend/src/apiKeys.test.ts` | Tests env-based API keys (`_apiKeyIdsForTest`) |
+
+```bash
+git checkout master -- applications/Klearnow-Tariff-main/backend/src/auth0Mgmt.ts \
+  applications/Klearnow-Tariff-main/backend/src/auth0Mgmt.test.ts \
+  applications/Klearnow-Tariff-main/backend/src/db.ssl.test.ts \
+  applications/Klearnow-Tariff-main/backend/src/apiKeys.test.ts
+```
+
+## Merge manually — do NOT replace with local copies
+
+- **`backend/src/auth.ts`** — `buildKeys()` reads `API_KEY_*` env vars; `dev-*` keys only on `SURFACE=local`. `EMAIL_CLAIMS` for Auth0 invite/login email resolution.
+- **`backend/src/db.ts`** — `sslConfig()` + `hostFromUrl()`; RDS requires TLS. Dropping this caused **production DB outage** (syncs `0fa182f9`, `683c793d`).
+- **`backend/src/users.ts`** — `inviteExternalUser()` on create; `POST /admin/users/:id/invite` resend.
+- **`frontend/app.js`** — Manage → Users invite UI (`data-user-invite`, `#user-invite`, `inviteUser()`); **Auth0 auth gate** (`openApp` / `showGate` / `bindGate`) — local app has no gate.
+- **`frontend/index.html`** — invite checkbox + Auth0 column; **`#auth-gate` markup** and `<body class="gated">`.
+- **`frontend/styles.css`** — `body.gated` / `#auth-gate` styles (append from master if local CSS overwrote them).
+- **`frontend/auth.js`** — loads `auth0_invite` / `auth0_mgmt` from `/v1/config`; deployed SPA takes Auth0 client id from config.
+- **`backend/package.json`** — `tsx` stays in **`dependencies`** (Docker runs `npm ci --omit=dev`; PR #86).
+
+## Also preserve (existing rule)
+
+- `backend/src/index.ts` — SPA static + fallback (`preserve-spa-static.mdc`).
+- Root `Dockerfile`, `.platform/`, `terraform/` — playground deploy only; never rsync from local.
+
+## Safe rsync pattern
+
+Sync `tariff-rules/`, assess logic, and data packs freely. For `auth.ts`, `db.ts`, `users.ts`, and frontend auth-gate / user-admin files: **diff against playground master** and port only tariff-specific hunks. After sync, confirm `#auth-gate` and `openApp`/`showGate` still exist.

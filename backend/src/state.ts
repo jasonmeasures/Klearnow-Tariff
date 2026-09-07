@@ -37,9 +37,23 @@ function fileHash(): string {
     "hts_rates.json",
     "s301fl_pack.json",
     "s301fl_pharma_hts.json",
+    "s301fl_except_hts.json",
+    "s301_brazil_hts.json",
+    "s232_metals_matrix.json",
     "s232_pharma.json",
+    "s232_auto_parts_annex.json",
+    "s232_autos_vehicles.json",
+    "s232_auto_origin.json",
+    "s232_mhdv.json",
+    "s232_wood.json",
+    "s232_semiconductors.json",
+    "s338_canada.json",
+    "s201_qsp.json",
+    "s232_uas.json",
+    "program_watch.json",
     "ch99_rules.json",
     "s301_china_lists.json",
+    "s301_china_note31.json",
   ];
   const parts = files
     .filter((f) => existsSync(join(DATA, f)))

@@ -14,7 +14,7 @@ import { rulepackPublic, STATE } from "./state.ts";
 
 export const rulesRouter = Router();
 
-function materializeRules() {
+export function materializeRules() {
   const codes = listCh99().map((c) => ({
     id: `ch99.${c.code}`,
     program: uiProg(c.program),
@@ -59,7 +59,7 @@ function materializeRules() {
             combined_to_cap_heading: c.combined_to_cap_heading,
           },
       basis: "ENTERED_VALUE",
-      stack_slot: "3.2",
+      stack_slot: "3.1",
       effective_start: String(flMeta.effective || `${STATE.pack.as_of}T00:00:00Z`),
       effective_end: null as string | null,
       authority: "Section 301 Forced Labor",
@@ -86,7 +86,7 @@ function materializeRules() {
       when: { applies_to: e.applies_to },
       rate: { kind: "NONE" },
       basis: "ENTERED_VALUE",
-      stack_slot: "3.2",
+      stack_slot: "3.1",
       effective_start: String(flMeta.effective || `${STATE.pack.as_of}T00:00:00Z`),
       effective_end: null as string | null,
       authority: "US Note 52",
@@ -107,7 +107,7 @@ function materializeRules() {
       when: { coo_in: e.origins },
       rate: { kind: "NONE" },
       basis: "ENTERED_VALUE",
-      stack_slot: "3.2",
+      stack_slot: "3.1",
       effective_start: String(flMeta.effective || `${STATE.pack.as_of}T00:00:00Z`),
       effective_end: null as string | null,
       authority: "US Note 52",
@@ -176,6 +176,8 @@ function materializeCh99Rules() {
 }
 
 function uiProg(p: string): string {
+  if (p.includes("201")) return "s201";
+  if (p.includes("338")) return "s338";
   if (p.includes("301_FL")) return "s301fl";
   if (p.includes("301")) return "s301";
   if (p.includes("232") || p.includes("TRADE")) return "s232";
@@ -185,7 +187,9 @@ function uiProg(p: string): string {
 }
 
 function slotFor(program: string, kind: string): string {
-  if (program.includes("301_FL") || kind === "SUPPRESSION") return "3.2";
+  if (program.includes("201")) return "3.4";
+  if (program.includes("338")) return "3.2";
+  if (program.includes("301_FL") || kind === "SUPPRESSION") return "3.1";
   if (program.includes("301")) return "3.1";
   if (program.includes("232") || program.includes("TRADE")) return "3.3";
   return "6.0";
@@ -224,6 +228,8 @@ rulesRouter.get("/rules", requireScope("read_rules"), (req, res) => {
 rulesRouter.get("/programs", requireScope("calculate"), (_req, res) => {
   const evaluation_order = [
     "s232",
+    "s201",
+    "s338",
     "s301",
     "s301fl",
     "ch99",
@@ -237,6 +243,18 @@ rulesRouter.get("/programs", requireScope("calculate"), (_req, res) => {
       authority: "Trade Expansion Act / Proclamation 10908",
       stack_slot: "3.3",
     },
+    s338: {
+      label: "Section 338 Canada",
+      status: "ACTIVE",
+      authority: "19 U.S.C. §1338 / CSMS #69668138",
+      stack_slot: "3.2",
+    },
+    s201: {
+      label: "Section 201 QSP TRQ",
+      status: "ACTIVE",
+      authority: "U.S. note 41 / 19 U.S.C. §§2251–2253",
+      stack_slot: "3.4",
+    },
     s301: {
       label: "Section 301 (incl. China legacy)",
       status: "ACTIVE",
@@ -247,7 +265,7 @@ rulesRouter.get("/programs", requireScope("calculate"), (_req, res) => {
       label: "Section 301 Forced Labor",
       status: "ACTIVE",
       authority: "CSMS #69326983",
-      stack_slot: "3.2",
+      stack_slot: "3.1",
     },
     ch99: {
       label: "Ch99 reciprocal / IEEPA / Annex I",
@@ -259,7 +277,7 @@ rulesRouter.get("/programs", requireScope("calculate"), (_req, res) => {
       label: "Section 122",
       status: "SUNSET",
       authority: "Sunset 2026-07-24",
-      stack_slot: "3.2",
+      stack_slot: "3.25",
     },
     ieepa: {
       label: "IEEPA",

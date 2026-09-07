@@ -4,6 +4,7 @@
    ========================================================================== */
 
 import { bindCountryField, countryIsoFrom, formatCountry, resolveCountryIso } from "./countries.js";
+import { bindHtsSuggest } from "./htsSuggest.js";
 import {
   SURFACE,
   apiKeyFromQuery,
@@ -18,9 +19,9 @@ import {
   login,
   logout,
   refreshToken,
-  rpsUrl,
   setDemoRole,
 } from "./auth.js";
+import goldens from "./qc-examples.json";
 
 let KEY = apiKeyFromQuery();
 
@@ -42,12 +43,14 @@ const ENGINE_TITLE = {
 const PROGRAM_COLOR = {
   s301: "var(--color-blue-500)", s301fl: "var(--color-indigo-500)",
   s232: "var(--color-teal-500)", s122: "var(--color-purple-500)",
+  s338: "var(--color-orange-500)", ch98: "var(--color-blue-gray-600)",
   ieepa: "var(--color-cyan-500)", s201: "var(--color-pink-500)",
   ch99: "var(--color-blue-sapphire-500)", base: "var(--color-blue-gray-400)",
 };
 const PROGRAM_NAME = {
   s301: "Section 301", s301fl: "Section 301 forced labor", s232: "Section 232",
-  s122: "Section 122", ieepa: "IEEPA", s201: "Section 201",
+  s122: "Section 122", s338: "Section 338 Canada", ch98: "Chapter 98",
+  ieepa: "IEEPA", s201: "Section 201",
   ch99: "Ch99 reciprocal", base: "Column 1",
 };
 
@@ -108,10 +111,14 @@ function show(view) {
   if (view === "insights") loadInsights();
   if (view === "history") loadSnapshots();
   if (view === "reference") loadReference();
-  if (view === "upload") renderUploadHelp();
+  if (view === "upload") {
+    renderUploadHelp({ keepStaged: true });
+    refreshHtsLive();
+  }
   if (view === "lookup") initLookup();
   if (view === "audit") initEs003Audit();
   if (view === "chat") initChat();
+  if (view === "csms") initCsms();
   if (view === "users") loadUsers();
 }
 $$("nav.side button").forEach(b => b.onclick = () => show(b.dataset.view));
@@ -130,7 +137,6 @@ async function boot() {
   }
 
   bindAuthChrome();
-  bindRpsLink();
 
   try {
     const h = await api("/v1/health");
@@ -158,9 +164,9 @@ async function boot() {
     renderQuota(S.me.quota);
     if (!isEmbed()) {
       const notes = {
-        admin: "You are Admin: sidebar shows Manage + Rule chat.",
-        user: "You are User: Duty stack only — Manage and Rule chat are hidden.",
-        guest: "You are Guest: same chrome as User, with daily stack/extract caps.",
+        admin: "You are Admin: sidebar shows Manage. Chat answers from the live tables; pack writes stay a preview.",
+        user: "You are User: Duty stack, Coverage, Chat, CSMS, and Audit.",
+        guest: "You are Guest: 5 stacks / 2 extracts per day. Sign in for unlimited.",
       };
       banner("#calcbanner", "info", notes[role] || "Signed in",
         role === "admin"
@@ -184,18 +190,6 @@ async function boot() {
   if ("serviceWorker" in navigator && !isEmbed()) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }
-}
-
-function bindRpsLink() {
-  const a = $("#rps-link");
-  if (!a) return;
-  const url = rpsUrl();
-  if (!url) {
-    a.hidden = true;
-    return;
-  }
-  a.hidden = false;
-  a.href = url;
 }
 
 function bindAuthChrome() {
@@ -241,9 +235,9 @@ function renderRoleChip(me) {
   const role = me.role || "user";
   el.className = `chip role-chip role-${role}`;
   const labels = {
-    admin: "Admin — Manage + Rule chat",
-    user: "User — Duty stack · no admin",
-    guest: "Guest — limited tries · no admin",
+    admin: "Admin — Manage + Chat",
+    user: "User — Duty stack · Chat · CSMS",
+    guest: "Guest — limited tries. Sign in for unlimited.",
   };
   el.textContent = labels[role] || role;
   el.title = me.auth === "api_key"
@@ -257,11 +251,11 @@ function renderQuota(q) {
   el.hidden = false;
   if (q.unlimited) {
     el.textContent = "Unlimited";
-    el.title = "Admin / internal — no daily caps";
+    el.title = "Signed in / internal — no daily caps";
     return;
   }
   el.textContent = `Stacks ${q.stacks_remaining}/${q.stacks_limit} · Extracts ${q.extracts_remaining}/${q.extracts_limit}`;
-  el.title = `Resets ${q.day} (UTC). Sign in for a higher allowance.`;
+  el.title = `Guest daily cap. Resets ${q.day} (UTC). Sign in for unlimited.`;
 }
 
 async function refreshMeQuota() {
@@ -322,36 +316,44 @@ function applyScopes() {
   const isAdmin = Boolean(can.admin || S.me?.role === "admin");
   const canManage = Boolean(can.write_rules || isAdmin);
   const canBrowseRules = Boolean(can.read_rules && canManage); // browse pack only with Manage
-
   const hideManage = !canManage || isEmbed() || SURFACE === "external";
+  const hideUserSurface = isEmbed() || SURFACE === "external";
+
   $$("[data-admin-only]").forEach((el) => el.classList.toggle("hide", hideManage));
   $$("[data-rules-browse]").forEach((el) =>
     el.classList.toggle("hide", hideManage),
   );
+  $$("[data-user-surface]").forEach((el) => el.classList.toggle("hide", hideUserSurface));
+  $$("[data-admin-write]").forEach((el) => el.classList.toggle("hide", hideManage));
 
-  // Non-admin / external: Use nav only (Duty stack, HTS list, Audit)
+  const manageViews = new Set(["rules", "upload", "history", "insights", "reference", "users"]);
   if (hideManage) {
-    ["rules", "upload", "history", "insights", "chat", "reference"].forEach((v) => {
+    manageViews.forEach((v) => {
       const b = document.querySelector(`nav.side button[data-view="${v}"]`);
       if (b) b.classList.add("hide");
     });
     $$("nav.side .navgroup").forEach((g) => {
       if (/manage|understand/i.test(g.textContent || "")) g.classList.add("hide");
     });
-    const fab = $("#chatfab");
-    if (fab) fab.hidden = true;
-    // If they were on an admin view, bounce to Duty stack
-    const adminViews = new Set(["rules", "upload", "history", "insights", "chat", "reference"]);
     const cur = document.querySelector("nav.side button[aria-current='page']");
-    if (cur && adminViews.has(cur.dataset.view)) show("calc");
+    if (cur && manageViews.has(cur.dataset.view)) show("calc");
   } else {
-    ["rules", "upload", "history", "insights", "chat", "reference"].forEach((v) => {
+    manageViews.forEach((v) => {
       const b = document.querySelector(`nav.side button[data-view="${v}"]`);
       if (b) b.classList.remove("hide");
     });
     $$("nav.side .navgroup").forEach((g) => g.classList.remove("hide"));
-    const fab = $("#chatfab");
-    if (fab) fab.hidden = false;
+  }
+
+  const fab = $("#chat-fab");
+  if (fab) fab.hidden = hideUserSurface;
+  if (hideUserSurface) {
+    ["chat", "csms"].forEach((v) => {
+      const b = document.querySelector(`nav.side button[data-view="${v}"]`);
+      if (b) b.classList.add("hide");
+    });
+    const cur = document.querySelector("nav.side button[aria-current='page']");
+    if (cur && (cur.dataset.view === "chat" || cur.dataset.view === "csms")) show("calc");
   }
 
   const pub = $("#publishcard");
@@ -359,8 +361,6 @@ function applyScopes() {
   if (canBrowseRules && !hideManage) {
     banner("#rulesbanner", "info", "Live pack + MCP",
       "Browse the seeded pack. Hot-update 301-FL via PUT /v1/admin/s301fl/countries/{iso2} or the MCP server (mcp/) — no rebuild. Full file edits still live in tariff-rules/data/.");
-    banner("#uploadbanner", "info", "Update baseline HTS",
-      "Drop the classification workbook (.xlsx) to replace Column-1 rates (optional Replacement HTS / Successor columns merge into the successor map), or paste/CSV to merge rates and from→to replacements. Requires write_rules / admin. Live reload — no restart.");
     banner("#historybanner", "info", "Single seeded snapshot",
       "The active snapshot is the pack on disk (hash refreshes on admin reload). Activate/publish UI disabled in v1.");
   }
@@ -382,6 +382,32 @@ function applyScopes() {
 }
 
 /* ================================================================ QUICK CHECK */
+const QC_DEFAULT_VALUE = 10000;
+
+function parseEnteredValue(raw) {
+  const n = Number(String(raw ?? "").replace(/[$,\s]/g, ""));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function formatEnteredValue(n) {
+  if (!Number.isFinite(n)) return "";
+  const cents = Math.round(n * 100) % 100 !== 0;
+  return n.toLocaleString("en-US", {
+    maximumFractionDigits: cents ? 2 : 0,
+    minimumFractionDigits: cents ? 2 : 0,
+  });
+}
+
+function syncEnteredValueField(el, { defaultIfEmpty = false } = {}) {
+  if (!el) return;
+  const parsed = parseEnteredValue(el.value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    if (defaultIfEmpty) el.value = formatEnteredValue(QC_DEFAULT_VALUE);
+    return;
+  }
+  el.value = formatEnteredValue(parsed);
+}
+
 function initCountryFields(root = document) {
   root.querySelectorAll("input.country-field, input[data-country]").forEach((el) => {
     bindCountryField(el);
@@ -394,11 +420,26 @@ function initQuickCheck() {
   if (d) d.addEventListener("change", () => previewHtsMeta());
   const hts = $("#qc-hts");
   if (hts) {
+    bindHtsSuggest(hts, {
+      fetchSuggestions: async (q) => {
+        const asOf = $("#qc-date")?.value || new Date().toISOString().slice(0, 10);
+        const r = await api(
+          `/v1/hts:suggest?q=${encodeURIComponent(q)}&as_of=${encodeURIComponent(asOf)}&limit=12`,
+        );
+        return r.hits || [];
+      },
+      onCommit: () => previewHtsMeta(),
+    });
     let t = null;
     hts.addEventListener("input", () => {
       clearTimeout(t);
       t = setTimeout(previewHtsMeta, 350);
     });
+  }
+  const valueEl = $("#qc-value");
+  if (valueEl) {
+    syncEnteredValueField(valueEl, { defaultIfEmpty: true });
+    valueEl.addEventListener("blur", () => syncEnteredValueField(valueEl, { defaultIfEmpty: true }));
   }
   document.querySelectorAll("[data-metal-mode]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -407,22 +448,40 @@ function initQuickCheck() {
       updateMetalResolved();
     });
   });
-  ["qc-value", "qc-steel-content", "qc-aluminum-content", "qc-copper-content"].forEach(id => {
+  ["qc-value", "qc-hts", "qc-steel-content", "qc-aluminum-content", "qc-copper-content"].forEach(id => {
     const el = $("#" + id);
     if (el) el.addEventListener("input", updateMetalResolved);
   });
+  syncMetalPanel(null);
   initCountryFields();
   const cooEl = $("#qc-coo");
   if (cooEl) {
     let tFta = null;
     const kick = () => {
       clearTimeout(tFta);
-      tFta = setTimeout(syncFtaClaimUi, 250);
+      tFta = setTimeout(() => {
+        syncFtaClaimUi();
+        previewHtsMeta();
+      }, 250);
     };
     ["change", "blur", "input"].forEach((ev) => cooEl.addEventListener(ev, kick));
   }
   syncFtaClaimUi();
   syncPharmaClaimUi();
+  const pharmaBox = $("#qc-pharma");
+  const s232Box = $("#qc-s232-pharma");
+  if (pharmaBox) {
+    pharmaBox.addEventListener("change", () => {
+      if (pharmaBox.checked && s232Box) s232Box.checked = false;
+    });
+  }
+  if (s232Box) {
+    s232Box.addEventListener("change", () => {
+      if (s232Box.checked && pharmaBox) pharmaBox.checked = false;
+    });
+  }
+  syncChina301AdvUi();
+  syncClaimEmptyState();
 }
 
 function metalInputMode() {
@@ -433,7 +492,7 @@ function metalInputMode() {
 function syncMetalModeUi() {
   const mode = metalInputMode();
   $$(".metal-content").forEach((input) => {
-    input.placeholder = "";
+    input.placeholder = (input.id === "qc-copper-content" && mode === "PCT") ? "e.g. 10" : "";
     input.title = mode === "PCT"
       ? "Percent of entered value for this metal"
       : "Dollar value of this metal’s content";
@@ -463,15 +522,19 @@ function readMetalContentsFromQuick() {
 function updateMetalResolved() {
   const el = $("#qc-metal-resolved");
   if (!el) return;
-  const entered = Number(($("#qc-value")?.value || "").replace(/[$,\s]/g, ""));
+  const entered = parseEnteredValue($("#qc-value")?.value);
   const mode = metalInputMode();
   const parts = [];
   let total = 0;
+  let pctSum = 0;
+  let hasPct = false;
   for (const k of ["steel", "aluminum", "copper"]) {
     const raw = Number(($(`#qc-${k}-content`)?.value || "").replace(/[$,\s]/g, ""));
     if (!Number.isFinite(raw) || raw <= 0) continue;
     let basis = raw;
     if (mode === "PCT") {
+      hasPct = true;
+      pctSum += raw;
       if (!(Number.isFinite(entered) && entered > 0)) {
         parts.push(`${k} ${raw}%`);
         continue;
@@ -481,28 +544,168 @@ function updateMetalResolved() {
     total += basis;
     parts.push(`${k} $${basis.toFixed(2)}`);
   }
-  if (!parts.length) { el.textContent = ""; return; }
-  el.textContent = `Metal-content basis ${parts.join(" + ")} = $${total.toFixed(2)}` +
-    (Number.isFinite(entered) && entered > 0 ? ` (${((total / entered) * 100).toFixed(1)}% of entered)` : "");
+  if (!parts.length) {
+    el.textContent = "";
+    const meta = $("#qc-metal-summary-meta");
+    if (meta && $("#qc-metal-wrap")?.dataset.required !== "1") {
+      meta.textContent = "Optional — expand to enter %";
+    }
+    return;
+  }
+  const pct = hasPct
+    ? pctSum
+    : (Number.isFinite(entered) && entered > 0 ? (total / entered) * 100 : null);
+  const dig = ($("#qc-hts")?.value || "").replace(/\D/g, "");
+  const ch = dig.slice(0, 2);
+  const article = ["72", "73", "74", "76"].includes(ch);
+  let path = "";
+  if (pct != null && pct > 0) {
+    if (article) {
+      path = " Steel/aluminum/copper article → 9903.82.02 (needs melt/pour).";
+    } else if (pct < 15) {
+      path = " Under 15% → 9903.82.03 at 0%. 301-FL still applies.";
+    } else {
+      path = " 15% or more → 9903.82.09 at 25% on entered value (replaces 301-FL).";
+    }
+  }
+  el.textContent = (hasPct && !(Number.isFinite(entered) && entered > 0)
+    ? `Metal content ${parts.join(" + ")}`
+    : `Metal-content basis ${parts.join(" + ")} = $${total.toFixed(2)}` +
+      (Number.isFinite(entered) && entered > 0 ? ` (${((total / entered) * 100).toFixed(1)}% of entered)` : ""))
+    + path;
+  const meta = $("#qc-metal-summary-meta");
+  if (meta) {
+    meta.textContent = path.trim() || `${((pct != null) ? pct.toFixed(1) + "% of entered" : parts.join(" + "))}`;
+  }
+}
+
+function copperCountryFrom(el) {
+  if (!el) return "";
+  const v = (el.value || "").trim();
+  if (/^(oth(er)?)$/i.test(v)) return "OTH";
+  return countryIsoFrom(el) || resolveCountryIso(v) || "";
+}
+
+function readCopperSmeltCastFromQuick() {
+  const primary = copperCountryFrom($("#qc-copper-primary-smelt"));
+  const secondary = copperCountryFrom($("#qc-copper-secondary-smelt"));
+  const cast = copperCountryFrom($("#qc-copper-cast"));
+  const out = {};
+  if (primary) out.primary_smelt = primary;
+  if (secondary) out.secondary_smelt = secondary;
+  if (cast) out.cast = cast;
+  return out;
+}
+
+function syncCopperSmeltPanel(hit) {
+  const wrap = $("#qc-copper-smelt-wrap");
+  if (!wrap) return;
+  const show = Boolean(hit && !hit.exempt);
+  wrap.hidden = !show;
+  const panel = $("#qc-copper-smelt-panel");
+  const required = Boolean(hit?.required);
+  if (panel) {
+    panel.classList.toggle("is-required", required);
+    if (required) panel.open = true;
+  }
+  const meta = $("#qc-copper-smelt-meta");
+  if (meta) {
+    meta.textContent = required
+      ? "Required for ACE filing — CSMS #69711865"
+      : show
+        ? `Reporting starts ${hit.effective} (CSMS #69711865)`
+        : "";
+  }
+  const hint = $("#qc-copper-smelt-hint");
+  if (hint && hit?.required) {
+    hint.innerHTML =
+      `Primary country of smelt and country of cast are required on the entry summary line (ACE 54 record type 12). ` +
+      `Missing → fatal <span class="mono">${esc(hit.ace_error_fatal)}</span>. Use <span class="mono">OTH</span> when unknown. Secondary smelt is optional.`;
+  }
+  if (show) initCountryFields(wrap);
+}
+
+function syncMetalPanel(articleHit) {
+  const wrap = $("#qc-metal-wrap");
+  const panel = $("#qc-metal-panel");
+  if (wrap) wrap.hidden = false;
+  const required = Boolean(articleHit);
+  if (wrap) wrap.dataset.required = required ? "1" : "";
+  if (panel) panel.classList.toggle("is-required", required);
+  const title = $("#qc-metal-title");
+  const hint = $("#qc-metal-hint");
+  const summaryMeta = $("#qc-metal-summary-meta");
+  if (articleHit) {
+    if (title) title.textContent = `Section 232 metals — ${articleHit.metal} (required)`;
+    if (summaryMeta) summaryMeta.textContent = "Required for this HTS — enter content";
+    if (hint) {
+      hint.textContent = `Primary from HTS: ${articleHit.metal}. Enter steel, aluminum, and/or copper content (USD or %). Melt/pour (or smelt) is required for each metal you enter.`;
+    }
+    $$(".metal-row").forEach((row) => {
+      row.style.outline = row.dataset.metal === articleHit.metal ? "2px solid var(--color-orange-500)" : "";
+    });
+    const excl = $("#qc-exclusions");
+    if (excl) {
+      excl.hidden = false;
+      excl.innerHTML = `<span class="eyebrow">Potential exclusion codes</span>` +
+        (articleHit.potential_exclusions || []).map(e =>
+          `<div class="excl-item"><code class="mono">${esc(e.ch99)}</code> ${esc(e.label)}</div>`
+        ).join("");
+    }
+  } else {
+    if (title) title.textContent = "Metal / copper content";
+    if (summaryMeta && !Object.keys(readMetalContentsFromQuick()).length) {
+      summaryMeta.textContent = "Optional — expand to enter %";
+    }
+    if (hint) {
+      hint.innerHTML = `Optional. Enter copper, steel, or aluminum as % of entered value.
+        Under 15% on a non-article HTS files <span class="mono">9903.82.03</span> at 0% and keeps 301-FL.
+        15% or more files <span class="mono">9903.82.09</span> at 25% (replaces 301-FL).`;
+    }
+    $$(".metal-row").forEach((row) => {
+      row.style.outline = "";
+    });
+    const excl = $("#qc-exclusions");
+    if (excl) excl.hidden = true;
+  }
+  const hasInput = Object.keys(readMetalContentsFromQuick()).length > 0;
+  if (panel && required) panel.open = true;
+  if (panel && !required && !hasInput && panel.dataset.wasRequired === "1") {
+    panel.open = false;
+  }
+  if (panel) panel.dataset.wasRequired = required ? "1" : "";
+  syncMetalModeUi();
+  initCountryFields($("#qc-metal-wrap"));
+  updateMetalResolved();
 }
 
 async function previewHtsMeta() {
   const el = $("#qc-htsmeta");
   const wrap = $("#qc-qty-wrap");
-  const metalWrap = $("#qc-metal-wrap");
   const hts = ($("#qc-hts")?.value || "").trim();
   if (!el) return;
   if (!hts || hts.replace(/\D/g, "").length < 6) {
     el.innerHTML = "";
+    clearHtsContext();
     if (wrap) wrap.hidden = true;
-    if (metalWrap) metalWrap.hidden = true;
+    syncMetalPanel(null);
+    syncCopperSmeltPanel(null);
     syncPharmaClaimUi();
+    syncS232ClaimUi();
+    syncS338ClaimUi();
+    syncS201ClaimUi();
+    sync232AutoPartClaimUi(null);
+    syncChina301AdvUi();
     return;
   }
   syncPharmaClaimUi();
+  syncChina301AdvUi();
   const asOf = $("#qc-date")?.value || new Date().toISOString().slice(0, 10);
+  const coo = countryIsoFrom($("#qc-coo"));
   try {
-    const r = await api(`/v1/hts/${encodeURIComponent(hts)}?as_of=${encodeURIComponent(asOf)}`);
+    const qs = new URLSearchParams({ as_of: asOf });
+    if (coo) qs.set("coo", coo);
+    const r = await api(`/v1/hts/${encodeURIComponent(hts)}?${qs.toString()}`);
     const bits = [];
     if (r.window_status === "ended") {
       bits.push(
@@ -512,7 +715,6 @@ async function previewHtsMeta() {
     if (r.rate_label || r.col1_pct != null) {
       bits.push(`Column 1 <b class="mono">${esc(r.rate_label || formatQuickCol1(r))}</b>`);
     }
-    if (r.desc) bits.push(esc(r.desc));
     if (r.start && r.end) bits.push(`<span class="cap">(${esc(r.start)} → ${esc(r.end)})</span>`);
     if (r.replacement_hts) {
       const replLabel = r.replacement_hts_display || r.replacement_hts;
@@ -530,23 +732,86 @@ async function previewHtsMeta() {
         `<span class="pill pill-301" title="Resolved from 8-digit HTS membership">China 301 ${esc(china.list.replace(/_/g, " "))} → ${esc(china.ch99)}</span>`,
       );
     }
+    const fy = r.china_301_fy;
+    if (fy?.ch99) {
+      bits.push(
+        `<span class="pill pill-301" title="${esc(fy.reason || "U.S. note 31")}">China 301 note 31 → ${esc(fy.ch99)} @ ${esc(String(fy.rate_pct))}%</span>`,
+      );
+    }
     if (r.metals) {
       bits.push(
         `<span class="pill pill-metals">232 ${esc(r.metals.metal)} → ${esc(r.metals.duty_ch99)} @ ${esc(String(r.metals.rate_pct))}%</span>`,
       );
     }
+    const uni = r.s232_universe || {};
+    if (uni.passenger_vehicle) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #64624801">232 passenger vehicle → ${esc(uni.passenger_vehicle.ch99)}</span>`,
+      );
+    }
+    if (uni.mhdv_vehicle) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #66665333">232 MHDV → ${esc(uni.mhdv_vehicle.ch99)}</span>`,
+      );
+    }
+    if (uni.mhdv_bus) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #66665333">232 bus → ${esc(uni.mhdv_bus.ch99)}</span>`,
+      );
+    }
+    if (uni.wood) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #66492057">232 wood ${esc(uni.wood.bucket)} → ${esc(uni.wood.ch99)}</span>`,
+      );
+    }
+    const s338 = r.section_338 || {};
+    if (s338.duty) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #69668138">Section 338 Canada → ${esc(s338.duty.heading)} @ 50%</span>`,
+      );
+    }
+    if (s338.aircraft) {
+      bits.push(
+        `<span class="pill pill-232" title="Civil aircraft list — claim General Note 6">Section 338 aircraft list → 9903.03.16</span>`,
+      );
+    }
+    const s201 = r.section_201 || {};
+    if (s201.covered || s201.in_quota) {
+      bits.push(
+        `<span class="pill pill-201" title="U.S. note 41 QSP TRQ">Section 201 QSP → ${esc(s201.in_quota || "9903.45.30")} (over ${esc(s201.over_quota || "9903.45.31")})</span>`,
+      );
+    }
+    const uas = uni.uas || {};
+    if (uas.annex_i) {
+      bits.push(
+        `<span class="pill pill-232" title="Proc. 11055 / U.S. note 43">232 UAS large → 9903.08.21 @ 100% from 2026-09-03</span>`,
+      );
+    } else if (uas.annex_ii) {
+      bits.push(
+        `<span class="pill pill-232" title="Proc. 11055 / U.S. note 43">232 UAS small → 9903.08.22 @ 25% from 2026-09-03</span>`,
+      );
+    }
+    if (uas.docking) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #69738151 / note 43(c)(1)">232 UAS docking list — tick the claim if this is a docking station or part → 9903.08.21 @ 100%</span>`,
+      );
+    }
+    if (uas.parts_8807) {
+      const annexIiiLive = asOf >= "2027-02-09";
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #69738151 / note 43(c)(2)/(c)(5)">232 UAS parts ${esc(uas.parts_8807.matched_stem)} → ${annexIiiLive ? "claim Annex III for 9903.08.22 @ 25%" : "Annex III 9903.08.22 @ 25% from 2027-02-09"}</span>`,
+      );
+    }
+    syncS338ClaimUi(s338);
+    syncS201ClaimUi(s201);
+    syncS232ClaimUi(uni);
+
     const annex = r.s232_auto_parts;
-    const box232 = $("#qc-232");
-    const hint232 = $("#qc-232-hint");
+    sync232AutoPartClaimUi(r);
     if (annex?.in_annex) {
       bits.push(
         `<span class="pill pill-232" title="${esc(annex.source || "Proclamation 10908")}">232 autos annex ${esc(annex.matched_stem)} → ${esc(annex.ch99 || "9903.94.05")}</span>`,
       );
-      if (box232) {
-        box232.checked = true;
-        box232.dataset.autoAnnex = "1";
-      }
-      if (hint232) hint232.textContent = "(annex — auto-applied)";
     } else {
       const dig = String(hts).replace(/\D/g, "");
       if (dig.startsWith("854442") || dig.startsWith("854449")) {
@@ -554,15 +819,29 @@ async function previewHtsMeta() {
           `<span class="pill pill-warn" title="CBP Auto Parts HTS list">Not 232 autos annex — list has 8544.30.00, not 8544.42/49</span>`,
         );
       }
-      if (box232 && box232.dataset.autoAnnex === "1") {
-        box232.checked = false;
-        delete box232.dataset.autoAnnex;
+      if (dig.startsWith("848350")) {
+        bits.push(
+          `<span class="pill pill-warn" title="CBP Auto Parts HTS list">Not 232 autos annex — list has 8483.10, not 8483.50. Check 232 auto part to self-cert 9903.94.07</span>`,
+        );
       }
-      if (hint232) hint232.textContent = "(claim only if off-list evidence)";
+    }
+
+    if (r.copper_smelt_cast?.required) {
+      bits.push(
+        `<span class="pill pill-warn" title="CSMS #69711865 — ACE 54-12">Copper smelt/cast required</span>`,
+      );
+    } else if (r.copper_smelt_cast && !r.copper_smelt_cast.exempt) {
+      bits.push(
+        `<span class="pill" title="CSMS #69711865">Copper smelt/cast from ${esc(r.copper_smelt_cast.effective)}</span>`,
+      );
     }
     const url = r.usitc_url || `https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}`;
     bits.push(`<a class="usitc-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">USITC HTS</a>`);
-    el.innerHTML = bits.join(" · ");
+
+    // Rate / program feedback stays under the form; HTS narrative + compliance live in Stack result.
+    el.innerHTML = `<div class="qc-meta-row">${bits.join(" · ")}</div>`;
+    renderHtsContext(r, hts);
+
     const useBtn = el.querySelector("[data-use-hts]");
     if (useBtn) {
       useBtn.addEventListener("click", (e) => {
@@ -604,34 +883,10 @@ async function previewHtsMeta() {
       }
     }
 
-    if (metalWrap) {
-      const m = r.metals;
-      metalWrap.hidden = !m;
-      if (m) {
-        const title = $("#qc-metal-title");
-        if (title) title.textContent = `Section 232 metals — ${m.metal} (enter all metals in the article)`;
-        const hint = $("#qc-metal-hint");
-        if (hint) {
-          hint.textContent = `Primary from HTS: ${m.metal}. Enter steel, aluminum, and/or copper content separately (USD or %). Melt/pour (or smelt) is required for each metal you enter. Duty uses the sum of content values.`;
-        }
-        // Highlight primary metal row
-        $$(".metal-row").forEach((row) => {
-          row.style.outline = row.dataset.metal === m.metal ? "2px solid var(--color-orange-500)" : "";
-        });
-        const excl = $("#qc-exclusions");
-        if (excl) {
-          excl.hidden = false;
-          excl.innerHTML = `<span class="eyebrow">Potential exclusion codes</span>` +
-            (m.potential_exclusions || []).map(e =>
-              `<div class="excl-item"><code class="mono">${esc(e.ch99)}</code> ${esc(e.label)}</div>`
-            ).join("");
-        }
-        syncMetalModeUi();
-        initCountryFields($("#qc-metal-wrap"));
-        updateMetalResolved();
-      }
-    }
+    syncMetalPanel(r.metals);
+    syncCopperSmeltPanel(r.copper_smelt_cast);
   } catch (err) {
+    clearHtsContext();
     const detail = err?.payload || null;
     if (detail?.replacement_hts) {
       const replLabel = detail.replacement_hts_display || detail.replacement_hts;
@@ -656,8 +911,325 @@ async function previewHtsMeta() {
         `<a class="usitc-link" href="https://hts.usitc.gov/search?query=${encodeURIComponent(String(hts).replace(/\D/g, ""))}" target="_blank" rel="noopener noreferrer">Look up on USITC</a>`;
     }
     if (wrap) wrap.hidden = true;
-    if (metalWrap) metalWrap.hidden = true;
+    syncMetalPanel(null);
+    syncCopperSmeltPanel(null);
+    sync232AutoPartClaimUi(null);
   }
+}
+
+function clearHtsContext() {
+  const ctx = $("#hts-context");
+  if (!ctx) return;
+  ctx.hidden = true;
+  ctx.innerHTML = "";
+  syncStackEmptyHint();
+}
+
+/** Map ACE PGA tariff-flag prefixes → agency names users recognize. */
+const PGA_AGENCY_BY_PREFIX = {
+  FD: { name: "FDA", detail: "Food and Drug Administration — PGA message set may be required" },
+  AM: { name: "USDA AMS", detail: "USDA Agricultural Marketing Service (incl. National Organic Program)" },
+  FS: { name: "USDA FSIS", detail: "USDA Food Safety and Inspection Service" },
+  AQ: { name: "APHIS", detail: "USDA Animal and Plant Health Inspection Service" },
+  AP: { name: "APHIS", detail: "USDA Animal and Plant Health Inspection Service" },
+  AE: { name: "APHIS", detail: "USDA Animal and Plant Health Inspection Service" },
+  EP: { name: "EPA", detail: "Environmental Protection Agency" },
+  NW: { name: "NOAA Fisheries", detail: "National Marine Fisheries Service / NOAA" },
+  NM: { name: "NOAA Fisheries", detail: "National Marine Fisheries Service / NOAA" },
+  FW: { name: "Fish & Wildlife", detail: "U.S. Fish and Wildlife Service" },
+  DT: { name: "DOT", detail: "Department of Transportation" },
+  CP: { name: "CPSC", detail: "Consumer Product Safety Commission" },
+  TT: { name: "TTB", detail: "Alcohol and Tobacco Tax and Trade Bureau" },
+};
+
+function agencyForPgaCode(code) {
+  const c = String(code || "").trim().toUpperCase();
+  if (!c) return null;
+  const prefix = c.slice(0, 2);
+  const known = PGA_AGENCY_BY_PREFIX[prefix];
+  if (known) return { ...known, codes: [c] };
+  return {
+    name: "Partner agency",
+    detail: `ACE PGA tariff flag ${c} — confirm which agency message set applies before filing`,
+    codes: [c],
+  };
+}
+
+/** Group PGA codes by agency; FDA first, then others by name. */
+function groupPgaAgencies(flags) {
+  const codes = Array.isArray(flags?.pga) ? flags.pga : [];
+  const byName = new Map();
+  for (const code of codes) {
+    const agency = agencyForPgaCode(code);
+    if (!agency) continue;
+    const prev = byName.get(agency.name);
+    if (prev) prev.codes.push(...agency.codes);
+    else byName.set(agency.name, { ...agency, codes: [...agency.codes] });
+  }
+  return [...byName.values()].sort((a, b) => {
+    if (a.name === "FDA") return -1;
+    if (b.name === "FDA") return 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/** Human-readable compliance notices — collapsed one line; expand for detail (design: Watch for). */
+function renderHtsFlagPills(flags) {
+  if (!flags) return "";
+  const rows = [];
+  for (const agency of groupPgaAgencies(flags)) {
+    const codeList = agency.codes.join(", ");
+    rows.push(
+      `<div class="hts-watch" data-expanded="0">` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle title="Expand for filing notes and ACE codes">` +
+          `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
+          `<span class="hts-watch-agency">${esc(agency.name)}</span>` +
+          `<span class="hts-watch-short">May need PGA filing</span>` +
+        `</button>` +
+        `<div class="hts-watch-detail" hidden>` +
+          `<p>${esc(agency.detail)}</p>` +
+          `<p class="cap">ACE flag${agency.codes.length > 1 ? "s" : ""}: ${esc(codeList)}</p>` +
+        `</div>` +
+      `</div>`,
+    );
+  }
+  if (flags.add) {
+    rows.push(
+      `<div class="hts-watch hts-watch-warn" data-expanded="0">` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle title="Expand for filing notes and ACE codes">` +
+          `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
+          `<span class="hts-watch-agency">Antidumping</span>` +
+          `<span class="hts-watch-short">May apply — verify order</span>` +
+        `</button>` +
+        `<div class="hts-watch-detail" hidden>` +
+          `<p>Confirm open antidumping orders for this HTS and exporter. Case rates are not calculated here.</p>` +
+        `</div>` +
+      `</div>`,
+    );
+  }
+  if (flags.cvd) {
+    rows.push(
+      `<div class="hts-watch hts-watch-warn" data-expanded="0">` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle title="Expand for filing notes and ACE codes">` +
+          `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
+          `<span class="hts-watch-agency">Countervailing</span>` +
+          `<span class="hts-watch-short">May apply — verify order</span>` +
+        `</button>` +
+        `<div class="hts-watch-detail" hidden>` +
+          `<p>Confirm open countervailing duty orders for this HTS and exporter. Case rates are not calculated here.</p>` +
+        `</div>` +
+      `</div>`,
+    );
+  }
+  if (flags.add_hts) {
+    rows.push(
+      `<div class="hts-watch" data-expanded="0">` +
+        `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle title="Expand for filing notes and ACE codes">` +
+          `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
+          `<span class="hts-watch-agency">Additional HTS</span>` +
+          `<span class="hts-watch-short">Reporting may be required</span>` +
+        `</button>` +
+        `<div class="hts-watch-detail" hidden>` +
+          `<p>Classification table marks additional HTS reporting as required (beyond Chapter 99 layers in this stack).</p>` +
+        `</div>` +
+      `</div>`,
+    );
+  }
+  return rows.join("");
+}
+
+function renderCopperSmeltWatch(csc) {
+  if (!csc || csc.exempt) return "";
+  const short = csc.required
+    ? "ACE 54-12 smelt/cast required"
+    : `Smelt/cast from ${csc.effective}`;
+  return (
+    `<div class="hts-watch hts-watch-warn" data-expanded="0">` +
+      `<button type="button" class="hts-watch-toggle" aria-expanded="false" data-hts-watch-toggle title="Expand for ACE copper smelt/cast filing">` +
+        `<span class="hts-watch-chevron" aria-hidden="true">▸</span>` +
+        `<span class="hts-watch-agency">Copper smelt/cast</span>` +
+        `<span class="hts-watch-short">${esc(short)}</span>` +
+      `</button>` +
+      `<div class="hts-watch-detail" hidden>` +
+        `<p>${esc(csc.reason || "")}</p>` +
+        `<p class="cap">ACE record type ${esc(csc.ace_record_type || "54-12")}. Fatal ${esc(csc.ace_error_fatal || "F794")} when primary smelt or cast is missing after ${esc(csc.effective || "2026-09-14")}. Report OTH when unknown. Distinct from Section 232 metal-content melt/pour.</p>` +
+      `</div>` +
+    `</div>`
+  );
+}
+
+/** Compact chips for Coverage table cells (not expandable). */
+function renderHtsFlagChipsCompact(flags) {
+  if (!flags) return "";
+  const chips = [];
+  for (const agency of groupPgaAgencies(flags)) {
+    chips.push(`<span class="pill pill-flag" title="${esc(agency.detail)}">${esc(agency.name)}</span>`);
+  }
+  if (flags.add) chips.push(`<span class="pill pill-flag-warn" title="Antidumping may apply">AD</span>`);
+  if (flags.cvd) chips.push(`<span class="pill pill-flag-warn" title="Countervailing may apply">CVD</span>`);
+  if (flags.add_hts) chips.push(`<span class="pill pill-flag" title="Additional HTS reporting may be required">Add. HTS</span>`);
+  return chips.join("");
+}
+
+function renderCopperSmeltChip(csc) {
+  if (!csc || csc.exempt) return "";
+  const title = csc.required
+    ? "ACE 54-12 copper smelt/cast required (CSMS #69711865)"
+    : `Copper smelt/cast from ${csc.effective}`;
+  return `<span class="pill pill-flag-warn" title="${esc(title)}">Cu smelt/cast</span>`;
+}
+
+function bindHtsWatchRows(root) {
+  root?.querySelectorAll?.("[data-hts-watch-toggle]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const row = btn.closest(".hts-watch");
+      if (!row) return;
+      const on = row.dataset.expanded !== "1";
+      row.dataset.expanded = on ? "1" : "0";
+      btn.setAttribute("aria-expanded", on ? "true" : "false");
+      const detail = row.querySelector(".hts-watch-detail");
+      const chev = row.querySelector(".hts-watch-chevron");
+      if (detail) detail.hidden = !on;
+      if (chev) chev.textContent = on ? "▾" : "▸";
+    });
+  });
+}
+
+/** Soften the empty Stack card when HTS context is already visible above it. */
+function syncStackEmptyHint() {
+  const results = $("#results");
+  const ctx = $("#hts-context");
+  if (!results) return;
+  const empty = results.querySelector(":scope > .empty");
+  if (!empty) return;
+  if (ctx && !ctx.hidden) {
+    empty.innerHTML =
+      `<h4>Ready to stack</h4>` +
+      `<p class="cap" style="max-width:40ch;margin:0 auto">About this HTS is above (expand <b>Watch for</b> rows for detail). ` +
+      `Add origin, value, and date — then <b>Run the stack</b> for duties and collapsible Chapter&nbsp;99 layers.</p>`;
+  } else {
+    empty.innerHTML =
+      `<h4>Stack is empty</h4>` +
+      `<p class="cap" style="max-width:40ch;margin:0 auto">Enter an HTS to see <b>About this HTS</b> (Watch for / description). ` +
+      `Add origin, value, and date — then <b>Run the stack</b>.</p>`;
+  }
+}
+
+/** Primary HTS narrative + compliance — lives in Stack result where users look. */
+function renderHtsContext(r, htsInput) {
+  const ctx = $("#hts-context");
+  if (!ctx) return;
+  const display = r.hts_display || formatHtsDisplayClient(htsInput) || htsInput;
+  const flagBits = [renderCopperSmeltWatch(r.copper_smelt_cast), renderHtsFlagPills(r.flags)].filter(Boolean).join("");
+  const descHtml = renderHtsDescStack(r);
+  const hasDesc = Boolean(descHtml);
+  const hasFlags = Boolean(flagBits);
+  // Only surface when there is something useful — never dump ACE codes or "nothing found" noise.
+  if (!hasDesc && !hasFlags) {
+    clearHtsContext();
+    return;
+  }
+  ctx.hidden = false;
+  ctx.innerHTML =
+    `<div class="hts-context-head">` +
+      `<div class="eyebrow">About this HTS</div>` +
+      `<div class="hts-context-code mono">${esc(display)}</div>` +
+    `</div>` +
+    (hasFlags
+      ? `<div class="hts-context-section">` +
+          `<div class="hts-context-label" title="Partner Government Agency and trade-remedy signals from the classification table — expand a row for ACE codes">Watch for</div>` +
+          `<p class="cap hts-context-hint">Expand a row for filing notes. Agency names shown; ACE codes in the detail.</p>` +
+          `<div class="hts-notices">${flagBits}</div>` +
+        `</div>`
+      : "") +
+    (hasDesc
+      ? `<div class="hts-context-section">` +
+          `<div class="hts-context-label" title="Classification description path from the HTS hierarchy">Description</div>` +
+          descHtml +
+        `</div>`
+      : "");
+  bindHtsDescStack(ctx);
+  bindHtsWatchRows(ctx);
+  syncStackEmptyHint();
+}
+
+function formatHtsDisplayClient(hts) {
+  const d = String(hts || "").replace(/\D/g, "");
+  if (d.length < 8) return String(hts || "");
+  const ten = d.padEnd(10, "0").slice(0, 10);
+  return `${ten.slice(0, 4)}.${ten.slice(4, 6)}.${ten.slice(6)}`;
+}
+
+/** Collapsible description: show readable summary; expand for full indent path. */
+function renderHtsDescStack(r) {
+  const path = Array.isArray(r.desc_path) && r.desc_path.length ? r.desc_path : null;
+  const leaf = path ? path[path.length - 1] : (r.desc || "");
+  if (!leaf && !path) return "";
+  const full = r.desc_full || (path ? path.join(": ") : leaf);
+  if (!path || path.length <= 1) {
+    return `<div class="hts-desc-stack"><p class="hts-desc-summary">${esc(leaf)}</p></div>`;
+  }
+  const levels = path
+    .map((seg, i) => {
+      const label = i === 0 ? "Heading" : i === path.length - 1 ? "Line" : "Subheading";
+      return (
+        `<div class="hts-desc-level" style="--lvl:${i}" data-lvl="${i}">` +
+          `<span class="hts-desc-lvl-label">${label}</span>` +
+          `<span class="hts-desc-lvl-text">${esc(seg)}</span>` +
+        `</div>`
+      );
+    })
+    .join("");
+  return (
+    `<div class="hts-desc-stack" data-expanded="0">` +
+    `<p class="hts-desc-summary" title="${esc(full)}">${esc(full)}</p>` +
+    `<div class="hts-desc-toolbar">` +
+    `<button type="button" class="btn-ghost btn-sm hts-desc-toggle" data-hts-desc-toggle title="Show heading → subheading → line hierarchy">Show hierarchy</button>` +
+    `</div>` +
+    `<div class="hts-desc-levels" hidden>${levels}</div>` +
+    `</div>`
+  );
+}
+
+function bindHtsDescStack(root) {
+  const stack = root?.querySelector?.(".hts-desc-stack");
+  if (!stack) return;
+  const toggle = stack.querySelector("[data-hts-desc-toggle]");
+  const summary = stack.querySelector(".hts-desc-summary");
+  const levels = stack.querySelector(".hts-desc-levels");
+  if (!toggle || !levels) return;
+
+  const setExpanded = (on) => {
+    stack.dataset.expanded = on ? "1" : "0";
+    levels.hidden = !on;
+    if (summary) summary.hidden = on;
+    toggle.textContent = on ? "Hide hierarchy" : "Show hierarchy";
+    toggle.title = on
+      ? "Hide heading → subheading → line hierarchy"
+      : "Show heading → subheading → line hierarchy";
+    if (on) {
+      levels.querySelectorAll(".hts-desc-level").forEach((n) => {
+        n.hidden = false;
+      });
+    }
+  };
+
+  toggle.addEventListener("click", (e) => {
+    e.preventDefault();
+    setExpanded(stack.dataset.expanded !== "1");
+  });
+
+  levels.querySelectorAll(".hts-desc-level").forEach((node) => {
+    node.addEventListener("click", (e) => {
+      e.preventDefault();
+      const lvl = Number(node.getAttribute("data-lvl") || 0);
+      levels.querySelectorAll(".hts-desc-level").forEach((n) => {
+        const nLvl = Number(n.getAttribute("data-lvl") || 0);
+        n.hidden = nLvl > lvl;
+      });
+    });
+  });
 }
 
 function formatQuickCol1(r) {
@@ -675,10 +1247,12 @@ function formatQuickCol1(r) {
 function applyQuickToLines() {
   const hts = ($("#qc-hts").value || "").trim();
   const coo = countryIsoFrom($("#qc-coo"));
-  const value = ($("#qc-value").value || "").trim();
+  const parsed = parseEnteredValue($("#qc-value").value);
+  const value = Number.isFinite(parsed) && parsed > 0 ? String(parsed) : "";
   const date = $("#qc-date").value || new Date().toISOString().slice(0, 10);
   const quantity = ($("#qc-qty")?.value || "").trim();
   const metal_contents = readMetalContentsFromQuick();
+  const copper_smelt_cast = readCopperSmeltCastFromQuick();
   const flags = {};
   const cn = $("#qc-cnlist")?.value || "auto";
   if (cn === "list_1") flags.s301_list_1 = true;
@@ -686,6 +1260,17 @@ function applyQuickToLines() {
   if (cn === "list_3") flags.s301_list_3 = true;
   if (cn === "list_4a") flags.s301_list_4a = true;
   if ($("#qc-232")?.checked) flags.s232_auto_part = true;
+  if ($("#qc-232-not")?.checked) flags.s232_auto_not_part = true;
+  if ($("#qc-s232-mhdv")?.checked) flags.s232_mhdv_part = true;
+  if ($("#qc-s232-mhdv-not")?.checked) flags.s232_mhdv_not_part = true;
+  if ($("#qc-s232-semi")?.checked) flags.s232_semiconductor = true;
+  if ($("#qc-s232-vintage")?.checked) flags.s232_vehicle_vintage = true;
+  if ($("#qc-gn6")?.checked) flags.civil_aircraft_gn6 = true;
+  if ($("#qc-s201-over")?.checked) flags.s201_qsp_over_quota = true;
+  if ($("#qc-s232-uas-thermal")?.checked) flags.s232_uas_thermal = true;
+  if ($("#qc-s232-uas-docking")?.checked) flags.s232_uas_docking = true;
+  if ($("#qc-s232-uas-not")?.checked) flags.s232_uas_not_for_use = true;
+  if ($("#qc-s232-uas-annex-iii")?.checked) flags.s232_uas_annex_ii = true;
   const ftaWrap = $("#qc-fta-wrap");
   const ftaClaimId = ftaWrap?.dataset?.claimId || "";
   if ($("#qc-fta")?.checked && ftaClaimId) {
@@ -708,6 +1293,7 @@ function applyQuickToLines() {
     quantity_uom: quantity ? qtyUom : undefined,
     metal_contents: kinds.length ? metal_contents : undefined,
   };
+  if (Object.keys(copper_smelt_cast).length) over.copper_smelt_cast = copper_smelt_cast;
   if (kinds.length === 1) {
     const k = kinds[0];
     const row = metal_contents[k];
@@ -718,9 +1304,8 @@ function applyQuickToLines() {
   S.lines = [blankLine(over)];
   renderLines();
   const modeEl = $("#mode");
-  if (modeEl && ($("#qc-metal-wrap") && !$("#qc-metal-wrap").hidden)) {
-    modeEl.value = $("#qc-mode")?.value || "OCEAN";
-  }
+  const qcMode = $("#qc-mode")?.value || "OCEAN";
+  if (modeEl) modeEl.value = qcMode;
 }
 
 async function runQuickCheck() {
@@ -728,19 +1313,26 @@ async function runQuickCheck() {
   const bad = [];
   if (!($("#qc-hts").value || "").trim()) bad.push("HTS");
   if (!countryIsoFrom($("#qc-coo"))) bad.push("origin (ISO-2 or country name)");
-  if (!($("#qc-value").value || "").trim()) bad.push("entered value");
+  const entered = parseEnteredValue($("#qc-value").value);
+  if (!Number.isFinite(entered) || entered <= 0) bad.push("entered value");
   const qtyWrap = $("#qc-qty-wrap");
   if (qtyWrap && !qtyWrap.hidden && !($("#qc-qty")?.value || "").trim()) {
     bad.push("quantity (" + (($("#qc-qty-uom")?.textContent || "").replace(/[()]/g, "").trim() || "UOM") + ")");
   }
   const metalWrap = $("#qc-metal-wrap");
-  if (metalWrap && !metalWrap.hidden) {
-    const contents = readMetalContentsFromQuick();
-    const withVal = Object.entries(contents).filter(([, r]) => r.value != null || r.pct != null);
+  const contents = readMetalContentsFromQuick();
+  const withVal = Object.entries(contents).filter(([, r]) => r.value != null || r.pct != null);
+  if (metalWrap?.dataset.required === "1") {
     if (!withVal.length) bad.push("at least one metal content (steel, aluminum, or copper)");
     for (const [k, r] of withVal) {
       if (!r.melt_pour) bad.push(`${k} melt/pour country`);
     }
+  }
+  const copperWrap = $("#qc-copper-smelt-wrap");
+  if (copperWrap && !copperWrap.hidden && $("#qc-copper-smelt-panel")?.classList.contains("is-required")) {
+    const csc = readCopperSmeltCastFromQuick();
+    if (!csc.primary_smelt) bad.push("copper primary smelt country");
+    if (!csc.cast) bad.push("copper cast country");
   }
   if (bad.length) {
     banner("#calcbanner", "err", "Need a few fields", bad.join(", ") + " required for a quick check.");
@@ -750,54 +1342,135 @@ async function runQuickCheck() {
   previewHtsMeta();
 }
 
+const QC_EXAMPLES = Object.fromEntries(
+  (goldens.examples || []).map((ex) => [ex.id, ex]),
+);
+
+async function loadQuickExample(id) {
+  const ex = QC_EXAMPLES[id];
+  if (!ex) return;
+  $("#qc-hts").value = ex.hts;
+  $("#qc-coo").value = ex.coo;
+  $("#qc-value").value = ex.value;
+  syncEnteredValueField($("#qc-value"), { defaultIfEmpty: true });
+  $("#qc-date").value = ex.date;
+  if ($("#qc-mode")) $("#qc-mode").value = ex.mode || "OCEAN";
+  if ($("#mode")) $("#mode").value = $("#qc-mode")?.value || "OCEAN";
+  if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
+  if ($("#qc-qty")) $("#qc-qty").value = "";
+  $("#qc-232").checked = Boolean(ex.flags?.s232_auto_part);
+  if ($("#qc-fta")) $("#qc-fta").checked = Boolean(ex.flags?.fta_usmca || ex.flags?.fta_note_52);
+  if ($("#qc-s232-pharma")) $("#qc-s232-pharma").checked = Boolean(ex.flags?.s232_pharma_patented);
+  if ($("#qc-pharma")) $("#qc-pharma").checked = Boolean(ex.flags?.s301fl_pharma);
+  if ($("#qc-s232-mhdv")) $("#qc-s232-mhdv").checked = Boolean(ex.flags?.s232_mhdv_part);
+  if ($("#qc-s232-mhdv-not")) $("#qc-s232-mhdv-not").checked = Boolean(ex.flags?.s232_mhdv_not_part);
+  if ($("#qc-s232-semi")) $("#qc-s232-semi").checked = Boolean(ex.flags?.s232_semiconductor);
+  if ($("#qc-s232-vintage")) $("#qc-s232-vintage").checked = Boolean(ex.flags?.s232_vehicle_vintage);
+  await syncFtaClaimUi();
+  await syncPharmaClaimUi();
+  if (ex.flags?.s301fl_pharma && $("#qc-pharma")) $("#qc-pharma").checked = true;
+  previewHtsMeta();
+  await runQuickCheck();
+}
+
 const qcRun = $("#qc-run");
 if (qcRun) qcRun.onclick = () => runQuickCheck();
-const qcEx = $("#qc-example");
-if (qcEx) qcEx.onclick = () => {
-  $("#qc-hts").value = "6203.42.0711";
-  $("#qc-coo").value = "VN";
-  $("#qc-value").value = "25000";
-  $("#qc-date").value = "2026-07-25";
-  if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
-  if ($("#qc-qty")) $("#qc-qty").value = "";
-  $("#qc-232").checked = false;
-  if ($("#qc-fta")) $("#qc-fta").checked = false;
-  if ($("#qc-pharma")) $("#qc-pharma").checked = false;
-  if ($("#qc-s232-pharma")) $("#qc-s232-pharma").checked = false;
-  syncFtaClaimUi();
-  syncPharmaClaimUi();
-  previewHtsMeta();
-  runQuickCheck();
-};
-const qcCn = $("#qc-example-cn");
-if (qcCn) qcCn.onclick = () => {
-  $("#qc-hts").value = "8708.10.3050";
-  $("#qc-coo").value = "CN";
-  $("#qc-value").value = "10000";
-  $("#qc-date").value = "2026-07-25";
-  if ($("#qc-cnlist")) $("#qc-cnlist").value = "auto";
-  if ($("#qc-qty")) $("#qc-qty").value = "";
-  $("#qc-232").checked = true;
-  if ($("#qc-fta")) $("#qc-fta").checked = false;
-  if ($("#qc-pharma")) $("#qc-pharma").checked = false;
-  if ($("#qc-s232-pharma")) $("#qc-s232-pharma").checked = false;
-  syncFtaClaimUi();
-  syncPharmaClaimUi();
-  previewHtsMeta();
-  runQuickCheck();
-};
+document.querySelectorAll(".qc-example[data-example]").forEach((btn) => {
+  btn.onclick = () => loadQuickExample(btn.dataset.example);
+});
+$("#qc-mode")?.addEventListener("change", () => {
+  if ($("#mode")) $("#mode").value = $("#qc-mode").value;
+});
+$("#mode")?.addEventListener("change", () => {
+  if ($("#qc-mode") && $("#mode").value) $("#qc-mode").value = $("#mode").value;
+});
+
+function guestQuotaHtml() {
+  const q = S.me?.quota;
+  if (!q || q.unlimited) return "";
+  const left = q.stacks_remaining ?? Math.max(0, (q.stacks_limit || 0) - (q.stacks_used || 0));
+  return `<p class="guest-quota">Guest: <b>${left}</b> of ${q.stacks_limit} stacks left today.
+    Sign in for unlimited.</p>`;
+}
+
+function syncClaimEmptyState() {
+  const empty = $("#qc-flags-empty");
+  if (!empty) return;
+  const flags = $("#qc-flags");
+  if (!flags) return;
+  const visible = [...flags.querySelectorAll(".check, #qc-cn-adv")].some((el) => !el.hidden);
+  empty.hidden = visible;
+}
+
+function syncChina301AdvUi() {
+  const wrap = $("#qc-cn-adv");
+  if (!wrap) return;
+  const coo = countryIsoFrom($("#qc-coo"));
+  const show = coo === "CN" || coo === "HK";
+  wrap.hidden = !show;
+  if (!show && $("#qc-cnlist")) $("#qc-cnlist").value = "auto";
+  syncClaimEmptyState();
+}
+
+/** 232 auto-part checkbox: off-list self-cert. Annex HTS auto-applies unless “Not an auto part”. */
+function sync232AutoPartClaimUi(r) {
+  const wrap = $("#qc-232-wrap");
+  const box = $("#qc-232");
+  const hint = $("#qc-232-hint");
+  const notWrap = $("#qc-232-not-wrap");
+  const notBox = $("#qc-232-not");
+  const notLabel = $("#qc-232-not-label");
+  if (!wrap || !box) return;
+  const annex = r?.s232_auto_parts;
+  const hts = String(r?.hts || $("#qc-hts")?.value || "");
+  const dig = hts.replace(/\D/g, "");
+  const offListFamily = /^(8483|8708|8544)/.test(dig);
+  if (annex?.in_annex) {
+    wrap.hidden = true;
+    box.checked = false;
+    delete box.dataset.autoAnnex;
+    if (hint) hint.textContent = "(annex — auto-applied)";
+    if (notWrap && notBox) {
+      notWrap.hidden = false;
+      if (notLabel) {
+        notLabel.innerHTML =
+          `Not an auto part <span class="cap">(on annex list but not a PV / light-truck part → 9903.94.06 @ 0%)</span>`;
+      }
+      notWrap.title =
+        "8537.10 and other general-purpose stems appear on CBP’s automobile-parts HTS list. Tick this when the article is not a part of a passenger vehicle or light truck — files 9903.94.06 @ 0% instead of the 25% (or JP/EU/KR 15%) auto-parts duty (CSMS #64913145). 301-FL still applies (Note 52(f)(3) covers .06 only for USMCA-eligible parts).";
+    }
+    syncClaimEmptyState();
+    return;
+  }
+  if (notWrap && notBox) {
+    notWrap.hidden = true;
+    notBox.checked = false;
+  }
+  const show = Boolean(r) && offListFamily && !annex?.in_annex;
+  wrap.hidden = !show;
+  if (!show) {
+    box.checked = false;
+    delete box.dataset.autoAnnex;
+  }
+  if (hint) hint.textContent = "(off-list self-cert 9903.94.07)";
+  syncClaimEmptyState();
+}
 
 /** Show FTA / USMCA claim when origin has a Note 52 economy exemption. */
 async function syncFtaClaimUi() {
   const wrap = $("#qc-fta-wrap");
   const label = $("#qc-fta-label");
   const box = $("#qc-fta");
-  if (!wrap || !label || !box) return;
+  if (!wrap || !label || !box) {
+    syncChina301AdvUi();
+    return;
+  }
   const coo = countryIsoFrom($("#qc-coo"));
   if (!coo) {
     wrap.hidden = true;
     wrap.dataset.claimId = "";
     box.checked = false;
+    syncChina301AdvUi();
     return;
   }
   try {
@@ -806,51 +1479,66 @@ async function syncFtaClaimUi() {
       wrap.hidden = true;
       wrap.dataset.claimId = "";
       box.checked = false;
+      syncChina301AdvUi();
       return;
     }
     wrap.hidden = false;
     wrap.dataset.claimId = r.claim_id || "";
-    label.innerHTML =
-      `Claim <b>${esc(r.label)}</b> <span class="cap">(Free Col-1 + MPF${
-        r.heading ? `; ${esc(r.heading)} for 301-FL` : ""
-      })</span>`;
+    const spi = Boolean(r.zeros_col1_and_mpf);
+    label.innerHTML = spi
+      ? `Claim <b>${esc(r.label)}</b> <span class="cap">(Free Col-1 + MPF${
+          r.heading ? `; ${esc(r.heading)} for 301-FL` : ""
+        })</span>`
+      : `Claim <b>${esc(r.label)}</b> <span class="cap">(301-FL only${
+          r.heading ? ` — ${esc(r.heading)}` : ""
+        }; Col-1 and MPF still apply)</span>`;
     wrap.title =
       r.hint ||
       `${r.label}: SPI preference zeros Column-1 and MPF. Other programs need their own ${r.label} Chapter 99 exception.`;
+    syncChina301AdvUi();
   } catch {
     wrap.hidden = true;
     wrap.dataset.claimId = "";
+    syncChina301AdvUi();
   }
 }
 
-/** Show Pharma use claim when HTS is on the seeded Note 52(e) list. */
+/** Show Pharma use claim when HTS is on the seeded Note 52(e) list or Ch.29/30 (claim-gated). */
 async function syncPharmaClaimUi() {
   const wrap = $("#qc-pharma-wrap");
   const label = $("#qc-pharma-label");
   const box = $("#qc-pharma");
   if (!wrap || !label || !box) return;
   const hts = ($("#qc-hts")?.value || "").trim();
-  if (!hts || hts.replace(/\D/g, "").length < 6) {
+  const digits = hts.replace(/\D/g, "");
+  const ch = digits.length >= 2 ? Number(digits.slice(0, 2)) : 0;
+  const userOn = Boolean(box.checked);
+  if (!hts || digits.length < 6) {
     wrap.hidden = true;
-    box.checked = false;
+    if (!userOn) box.checked = false;
     syncS232PharmaClaimUi();
     return;
   }
   try {
     const r = await api(`/v1/reference/fl-pharma/${encodeURIComponent(hts)}`);
-    if (!r.available) {
+    const chPharma = ch === 29 || ch === 30;
+    if (!r.available && !chPharma && !userOn) {
       wrap.hidden = true;
-      if (!wrap.dataset.keepOfflist) box.checked = false;
+      box.checked = false;
     } else {
       wrap.hidden = false;
-      label.innerHTML =
-        `Pharma use <span class="cap">(${esc(r.heading)} — 301-FL only)</span>`;
-      wrap.title = r.hint || r.basis || "";
+      const heading = r.heading || "9903.05.89";
+      label.innerHTML = r.available
+        ? `Pharma use <span class="cap">(${esc(heading)} — 301-FL only; not the EU cap)</span>`
+        : `Pharma use <span class="cap">(${esc(heading)} — 301-FL only; confirm Note 52(e) list)</span>`;
+      wrap.title = r.hint
+        || "Claim when actual use is pharmaceutical. Reports 9903.05.89 @ 0% instead of 301-FL EU combined-to-cap (9903.05.38/.39). Does not zero Column-1 or MPF. Do not check 232 patented pharma unless filing 9903.04.xx.";
     }
   } catch {
-    wrap.hidden = true;
+    if (!userOn) wrap.hidden = true;
   }
   syncS232PharmaClaimUi();
+  syncClaimEmptyState();
 }
 
 /** Show Section 232 patented-pharma claim for Chapter 29/30 HTS (Proclamation 11020). */
@@ -865,6 +1553,7 @@ function syncS232PharmaClaimUi() {
   if (ch !== 29 && ch !== 30) {
     wrap.hidden = true;
     box.checked = false;
+    syncClaimEmptyState();
     return;
   }
   wrap.hidden = false;
@@ -878,6 +1567,153 @@ function syncS232PharmaClaimUi() {
   }
   wrap.title =
     "Claim when goods are patented pharmaceuticals / ingredients under U.S. note 40. UK additional duty is 0% from 2026-07-31. Suppresses 301-FL via 9903.05.90.";
+  syncClaimEmptyState();
+}
+
+function syncS232ClaimUi(uni = {}) {
+  const mhdvWrap = $("#qc-s232-mhdv-wrap");
+  const mhdvBox = $("#qc-s232-mhdv");
+  const mhdvLabel = $("#qc-s232-mhdv-label");
+  const mhdvNotWrap = $("#qc-s232-mhdv-not-wrap");
+  const mhdvNotBox = $("#qc-s232-mhdv-not");
+  const mhdvNotLabel = $("#qc-s232-mhdv-not-label");
+  const onMhdvParts = Boolean(uni.mhdv_part_list);
+  // Dual-list (auto-parts annex + MHDV parts): .11 stacks automatically — hide
+  // the exclusion checkbox so operators are not asked to re-assert a list fact.
+  const dualList = onMhdvParts && Boolean(uni.auto_parts);
+  if (mhdvWrap && mhdvBox) {
+    const show = onMhdvParts;
+    mhdvWrap.hidden = !show;
+    if (!show) mhdvBox.checked = false;
+    if (mhdvLabel && uni.mhdv_part_list) {
+      mhdvLabel.innerHTML = `232 MHDV part <span class="cap">(list stem ${esc(uni.mhdv_part_list.matched_stem)} → 9903.74.08 @ 25%)</span>`;
+    }
+    mhdvWrap.title =
+      "Claim when the article is a part of a medium- or heavy-duty vehicle. Leave unchecked (or use Not an MHDV part) when the HTS is on the MHDV parts list but the article is not an MHDV part — then 9903.74.11 @ 0%.";
+  }
+  if (mhdvNotWrap && mhdvNotBox) {
+    // Show exclusion only for MHDV-parts-list-only HTS (not dual-list auto-stack).
+    const show = onMhdvParts && !dualList;
+    mhdvNotWrap.hidden = !show;
+    if (!show) mhdvNotBox.checked = false;
+    if (mhdvNotLabel && uni.mhdv_part_list) {
+      mhdvNotLabel.innerHTML =
+        `Not an MHDV part <span class="cap">(list stem ${esc(uni.mhdv_part_list.matched_stem)} → 9903.74.11 @ 0%)</span>`;
+    }
+    mhdvNotWrap.title =
+      "On the MHDV parts list but the article is not a part of a medium- or heavy-duty vehicle. Reports 9903.74.11 @ 0%. Mutually exclusive with 232 MHDV part.";
+  }
+  if (mhdvBox && mhdvNotBox) {
+    mhdvBox.onchange = () => {
+      if (mhdvBox.checked) mhdvNotBox.checked = false;
+    };
+    mhdvNotBox.onchange = () => {
+      if (mhdvNotBox.checked) mhdvBox.checked = false;
+    };
+  }
+  const semiWrap = $("#qc-s232-semi-wrap");
+  const semiBox = $("#qc-s232-semi");
+  if (semiWrap && semiBox) {
+    const show = Boolean(uni.semiconductor);
+    semiWrap.hidden = !show;
+    if (!show) semiBox.checked = false;
+    semiWrap.title = "Claim only if the article is a logic IC (or contains one) meeting U.S. note 39(b) TPP and DRAM bandwidth bands. HTS 8471.50 / 8471.80 / 8473.30 alone is not enough.";
+  }
+  const vinWrap = $("#qc-s232-vintage-wrap");
+  const vinBox = $("#qc-s232-vintage");
+  if (vinWrap && vinBox) {
+    const show = Boolean(uni.passenger_vehicle || uni.mhdv_vehicle || uni.mhdv_bus);
+    vinWrap.hidden = !show;
+    if (!show) vinBox.checked = false;
+  }
+  const thermWrap = $("#qc-s232-uas-thermal-wrap");
+  const thermBox = $("#qc-s232-uas-thermal");
+  if (thermWrap && thermBox) {
+    const show = Boolean(uni.uas?.annex_ii);
+    thermWrap.hidden = !show;
+    if (!show) thermBox.checked = false;
+    thermWrap.title =
+      "Small-UAS HTS (8806.21–.23 / .91–.93) defaults to 9903.08.22 @ 25%. Tick if the aircraft integrates a thermal imager — then 9903.08.21 @ 100% (note 43(c)(3)).";
+  }
+  const dockWrap = $("#qc-s232-uas-docking-wrap");
+  const dockBox = $("#qc-s232-uas-docking");
+  const dockLabel = $("#qc-s232-uas-docking-label");
+  if (dockWrap && dockBox) {
+    const stem = uni.uas?.docking?.matched_stem;
+    const show = Boolean(stem);
+    dockWrap.hidden = !show;
+    if (!show) dockBox.checked = false;
+    if (dockLabel && stem) {
+      dockLabel.innerHTML =
+        `232 UAS docking station <span class="cap">(tick only if this is UAS docking equipment → 9903.08.21 @ 100%)</span>`;
+    }
+    dockWrap.title =
+      "8537.10.9170 and 8504.40.9580 are also used for non-drone goods. Tick only if the article is a UAS docking station or a part for one. Partner 15%/10% caps (9903.08.24 / .23) are not reportable yet (CSMS #69738151).";
+  }
+  const notWrap = $("#qc-s232-uas-not-wrap");
+  const notBox = $("#qc-s232-uas-not");
+  const notLabel = $("#qc-s232-uas-not-label");
+  if (notWrap && notBox) {
+    const uas = uni.uas || {};
+    const onList = Boolean(uas.annex_i || uas.annex_ii || uas.docking || uas.parts_8807);
+    notWrap.hidden = !onList;
+    if (!onList) notBox.checked = false;
+    if (notLabel) {
+      notLabel.innerHTML =
+        `Not for UAS use <span class="cap">(9903.08.20 @ 0% — does not replace other 301-FL)</span>`;
+    }
+    notWrap.title =
+      "For HTS on a UAS list that are not for use in or with covered unmanned aircraft (CSMS #69738151). Reports 9903.08.20 @ 0%. On dual-list stems also on the auto-parts annex (e.g. 8537.10.9170), tick “Not an auto part” as well if the article is not a passenger-vehicle / light-truck part.";
+  }
+  if (dockBox && notBox) {
+    dockBox.onchange = () => {
+      if (dockBox.checked) notBox.checked = false;
+    };
+    notBox.onchange = () => {
+      if (notBox.checked) dockBox.checked = false;
+    };
+  }
+  const annexIiiWrap = $("#qc-s232-uas-annex-iii-wrap");
+  const annexIiiBox = $("#qc-s232-uas-annex-iii");
+  const annexIiiLabel = $("#qc-s232-uas-annex-iii-label");
+  if (annexIiiWrap && annexIiiBox) {
+    const asOf = $("#qc-date")?.value || new Date().toISOString().slice(0, 10);
+    const stem = uni.uas?.parts_8807?.matched_stem;
+    const show = Boolean(stem) && asOf >= "2027-02-09";
+    annexIiiWrap.hidden = !show;
+    if (!show) annexIiiBox.checked = false;
+    if (annexIiiLabel && stem) {
+      annexIiiLabel.innerHTML =
+        `232 UAS Annex III parts <span class="cap">(stem ${esc(stem)} → 9903.08.22 @ 25%)</span>`;
+    }
+    annexIiiWrap.title =
+      "8807 parts in note 43(c)(5) file 9903.08.22 @ 25% from 2027-02-09 when claimed (CSMS #69738151). For the >25 kg heavy-parts 100% path before then, use flags.s232_uas_part via API.";
+  }
+  syncClaimEmptyState();
+}
+
+function syncS201ClaimUi(s201 = {}) {
+  const wrap = $("#qc-s201-over-wrap");
+  const box = $("#qc-s201-over");
+  if (!wrap || !box) return;
+  const show = Boolean(s201.covered);
+  wrap.hidden = !show;
+  if (!show) box.checked = false;
+  wrap.title =
+    "Section 201 QSP defaults to in-quota 9903.45.30. Tick this when the quarterly TRQ is exhausted so the stack uses 9903.45.31.";
+  syncClaimEmptyState();
+}
+
+function syncS338ClaimUi(s338 = {}) {
+  const wrap = $("#qc-gn6-wrap");
+  const box = $("#qc-gn6");
+  if (!wrap || !box) return;
+  const show = Boolean(s338.aircraft);
+  wrap.hidden = !show;
+  if (!show) box.checked = false;
+  wrap.title =
+    "Claim when the article is civil aircraft (not military/unmanned) meeting General Note 6. Reports 9903.03.16 @ 0% additional (CSMS #69668138). Default is off — dual-list HTS then takes the 50% 338 duty heading.";
+  syncClaimEmptyState();
 }
 
 /* ================================================================ CALCULATOR */
@@ -887,7 +1723,7 @@ function blankLine(over = {}) {
     _id: ++S.seq, _open: false, line_id: "", hts: "", coo: "", entered_value: "",
     col1_rate_pct: "", entry_date: today, release_date: today, it_date: "", loaded_date: "",
     warehouse_withdrawal_date: "", entry_type: "CONSUMPTION",     metal_content_value: "", metal_content_pct: "", metal_contents: null,
-    country_of_melt_pour: "", ch98_provision: "", ch98_us_content_value: "",
+    country_of_melt_pour: "", ch98_provision: "", ch98_us_content_value: "", ch98_repair_value: "",
     quantity: "", quantity_uom: "", net_weight_kg: "", filed_ch99: "",
     filed_duty_total: "", flags: {},
   }, over);
@@ -969,8 +1805,9 @@ function lineDetail(L, i) {
       ${fld("Metal content USD", "metal_content_value", 'inputmode="decimal"', "num", "Dollar value of metal content (or use % field)")}
       ${fld("Metal content % of entered", "metal_content_pct", 'inputmode="decimal"', "num", "Percent of entered value that is metal content")}
       ${fld("Country of melt &amp; pour", "country_of_melt_pour", "data-country", "country-field", "Primary melt/pour ISO-2 or name")}
-      ${fld("Chapter 98 provision", "ch98_provision", "", "mono", "Chapter 98 provision if claimed")}
-      ${fld("US content value", "ch98_us_content_value", 'inputmode="decimal"', "num")}
+      ${fld("Chapter 98 provision", "ch98_provision", "", "mono", "e.g. 9802.00.50 — reports first; may change dutiable basis or suppress 301/FL")}
+      ${fld("US content value", "ch98_us_content_value", 'inputmode="decimal"', "num", "For 9802.00.80 — US-content cost/value (duty on entered − US content)")}
+      ${fld("Repair / processing value", "ch98_repair_value", 'inputmode="decimal"', "num", "For 9802.00.40 / .50 / .60 — 301/232/Col-1 on this value (9802.00.60 + 232 uses full entered value)")}
       ${fld("Net weight (kg)", "net_weight_kg", 'inputmode="decimal"', "num")}
       ${fld("Quantity", "quantity", 'inputmode="decimal"', "num", "HTS quantity when Column 1 is specific")}
     </div>
@@ -1053,7 +1890,7 @@ $("#loadsample").onclick = () => {
 
 const LINE_COLS = ["line_id", "hts", "coo", "entered_value", "col1_rate_pct", "entry_date",
   "release_date", "it_date", "loaded_date", "warehouse_withdrawal_date", "metal_content_value",
-  "metal_content_pct", "country_of_melt_pour", "ch98_provision", "ch98_us_content_value", "net_weight_kg",
+  "metal_content_pct", "country_of_melt_pour", "ch98_provision", "ch98_us_content_value", "ch98_repair_value", "net_weight_kg",
   "quantity", "filed_ch99", "filed_duty_total", "flags"];
 
 $("#doparse").onclick = () => {
@@ -1096,17 +1933,19 @@ function payload() {
       entry_type: L.entry_type || "CONSUMPTION",
       flags: Object.fromEntries(Object.entries(L.flags).filter(([, v]) => v)),
     };
-    ["col1_rate_pct", "metal_content_value", "metal_content_pct", "ch98_us_content_value", "net_weight_kg",
+    ["col1_rate_pct", "metal_content_value", "metal_content_pct", "ch98_us_content_value", "ch98_repair_value", "net_weight_kg",
      "quantity", "filed_duty_total"].forEach(k => {
       const v = num(L[k]); if (v) o[k] = v;
     });
     if (L.metal_contents && typeof L.metal_contents === "object") o.metal_contents = L.metal_contents;
+    if (L.copper_smelt_cast && typeof L.copper_smelt_cast === "object") o.copper_smelt_cast = L.copper_smelt_cast;
     if ((L.quantity_uom || "").trim()) o.quantity_uom = L.quantity_uom.trim();
     ["entry_date", "release_date", "it_date", "loaded_date", "warehouse_withdrawal_date"]
       .forEach(k => { if (L[k]) o[k] = L[k]; });
     const melt = resolveCountryIso(L.country_of_melt_pour) || String(L.country_of_melt_pour || "").trim().toUpperCase().slice(0, 2);
     if (melt) o.country_of_melt_pour = melt;
     if ((L.ch98_provision || "").trim()) o.ch98_provision = L.ch98_provision.trim();
+    if ((L.entry_type || "").toUpperCase() === "FTZ") o.ftz = true;
     const filed = (L.filed_ch99 || "").split(/[;\s,]+/).filter(Boolean);
     if (filed.length) o.filed_ch99 = filed;
     return o;
@@ -1132,6 +1971,14 @@ function validateLines() {
   return bad;
 }
 
+function focusResultsPane() {
+  const el = $(".calc-result") || $("#results");
+  if (!el) return;
+  // On phone / installed PWA the result sits under the form — bring it into view.
+  const narrow = window.matchMedia("(max-width:1100px), (display-mode: standalone)").matches;
+  if (narrow) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 async function run(mode) {
   const bad = validateLines();
   if (bad.length) { banner("#calcbanner", "err", "Fix these first", bad.join(" · ")); return; }
@@ -1150,6 +1997,7 @@ async function run(mode) {
     S.last._mode = mode;
     S.last._engine = mode === "audit" ? "auto" : S.engine;
     renderResults(S.last);
+    focusResultsPane();
     const blocked = (S.last.lines || []).filter(l => l.blocked ||
       (l.diagnostics || []).some(d => d.severity === "ERROR" && (d.code === "UNKNOWN_HTS" || d.code === "MISSING_COL1")));
     if (blocked.length) {
@@ -1363,7 +2211,7 @@ $("#runboth").onclick = () => runBothEngines();
 
 function renderResults(R) {
   const audit = R._mode === "audit";
-  $("#resulttitle").textContent = audit ? "Audit against filed" : "Stack result";
+  $("#resulttitle").textContent = audit ? "Audit against filed" : "Results";
   $("#exportcsv").hidden = $("#copyall").hidden = false;
   const engChip = $("#resultengine");
   if (engChip) {
@@ -1371,51 +2219,55 @@ function renderResults(R) {
     engChip.textContent = engineLabel(R._engine || S.engine);
   }
   const lines = R.lines || [];
+  const quietDiag = (d) => d.code === "COL1_RESOLVED";
   const count = sev => lines.reduce((a, l) =>
-    a + (l.diagnostics || []).filter(d => d.severity === sev).length, 0);
+    a + (l.diagnostics || []).filter(d => d.severity === sev && !quietDiag(d)).length, 0);
   const nErr = count("ERROR"), nWarn = count("WARNING"), nInfo = count("INFO");
+  const landed = R.totals?.landed_cost ?? ((Number(R.totals?.entered_value)||0) + (Number(R.totals?.duty)||0) + (Number(R.totals?.fees)||0));
+  const rateTxt = nErr || R.totals?.effective_duty_rate_pct == null
+    ? "—"
+    : `${pct(R.totals?.effective_duty_rate_pct)}%`;
+  const dutyTxt = nErr ? "—" : `$${money(R.totals?.duty)}`;
 
   let html = `<div class="body" style="padding:var(--sp-4) var(--sp-4) 0">
-    <div class="summary">
-      <div class="stat"><div class="k">Duty rate</div>
-        <div class="v">${
-          nErr || R.totals?.effective_duty_rate_pct == null
-            ? `<span class="cap" style="font-size:1rem;font-weight:600;color:var(--color-red-700)">—</span>`
-            : `${pct(R.totals?.effective_duty_rate_pct)}%`
-        }</div></div>
-      <div class="stat"><div class="k">Total duties</div><div class="v">${
-          nErr ? `<span class="cap" style="color:var(--color-red-700)">—</span>` : `$${money(R.totals?.duty)}`
-        }</div></div>
-      <div class="stat"><div class="k">Fees</div><div class="v">$${money(R.totals?.fees ?? 0)}</div></div>
-      <div class="stat"><div class="k">Landed</div>
-        <div class="v">${
-          nErr
-            ? `<span class="cap" style="color:var(--color-red-700)">—</span>`
-            : `$${money(R.totals?.landed_cost ?? ((Number(R.totals?.entered_value)||0) + (Number(R.totals?.duty)||0) + (Number(R.totals?.fees)||0)))}`
-        }</div></div>
+    ${guestQuotaHtml()}
+    <div class="result-hero">
+      <div class="stat duty-rate${nErr ? " bad" : ""}">
+        <div class="k">Duty rate</div>
+        <div class="v">${rateTxt}</div>
+        <div class="foot">Total duties <b>${dutyTxt}</b></div>
+      </div>
+      <div class="cost-break">
+        <div class="eyebrow">Cost breakdown</div>
+        <div class="cost-row"><span>Entered value</span><span>$${money(R.totals?.entered_value)}</span></div>
+        <div class="cost-row"><span>Total duties</span><span>${dutyTxt}</span></div>`;
+
+  if (R.entry_fees?.length && !nErr) {
+    html += R.entry_fees.map(f =>
+      `<div class="cost-row"><span>${esc(f.label)}${f.floored ? " (floor)" : f.capped ? " (cap)" : ""}${
+        f.code === "HMF" && f.rate_note ? ` <span class="cap">${esc(f.rate_note)}</span>` : ""
+      }</span><span>$${money(f.amount)}</span></div>`
+    ).join("");
+  } else {
+    html += `<div class="cost-row"><span>Fees</span><span>$${money(R.totals?.fees ?? 0)}</span></div>`;
+  }
+
+  html += `<div class="cost-row total"><span>Landed cost</span><span>${
+    nErr ? "—" : `$${money(landed)}`
+  }</span></div>
+      </div>
     </div>
-    <p class="cap" style="margin:var(--sp-2) 0 0">${
+    <p class="cap" style="margin:0 0 var(--sp-2)">${
       nErr ? `<b style="color:var(--color-red-700)">${nErr} error${nErr > 1 ? "s" : ""}</b> — the duty is wrong or indeterminate until resolved. `
            : `<b style="color:var(--color-green-700)">No errors.</b> `}${
       nWarn ? `${nWarn} warning${nWarn > 1 ? "s" : ""} worth a look` : "No warnings"}${
-      nInfo ? `, ${nInfo} note${nInfo > 1 ? "s" : ""}` : ""}.</p>`;
-
-  if (R.entry_fees?.length && !nErr) {
-    html += `<div class="cost-break">
-      <div class="eyebrow">Cost breakdown</div>
-      <div class="cost-row"><span>Entered value</span><span>$${money(R.totals?.entered_value)}</span></div>
-      <div class="cost-row"><span>Total duties</span><span>$${money(R.totals?.duty)}</span></div>` +
-      R.entry_fees.map(f =>
-        `<div class="cost-row"><span>${esc(f.label)}${f.floored ? " (floor)" : f.capped ? " (cap)" : ""}</span><span>$${money(f.amount)}</span></div>`
-      ).join("") +
-      `<div class="cost-row total"><span>Landed cost</span><span>$${money(R.totals?.landed_cost)}</span></div>
-    </div>`;
-  }
-  html += `</div>`;
+      nInfo ? `, ${nInfo} note${nInfo > 1 ? "s" : ""}` : ""}.</p>
+  </div>
+  <div class="stack-section-label">Layer stack · reporting order</div>`;
 
   if (audit) {
     const F = R.findings || [];
-    html += `<div style="margin-top:var(--sp-4);border-top:1px solid var(--color-blue-gray-200)">
+    html += `<div style="margin-top:var(--sp-2);border-top:1px solid var(--color-blue-gray-200)">
       <div style="padding:var(--sp-3) var(--sp-4) var(--sp-2)"><span class="eyebrow">Findings</span>
       <span class="cap"> — net duty impact $${money(R.summary?.net_duty_impact ?? 0)}</span></div>`;
     html += F.length ? F.map(f => `<div class="finding ${esc(f.severity)}">
@@ -1440,6 +2292,7 @@ function renderResults(R) {
     · Snapshot <b class="mono">${esc(v)}</b>
     <span class="mono">${esc(h)}</span>. Pin this hash to reproduce the assessment exactly.</p></div>`;
   $("#results").innerHTML = html;
+  bindStackLayers($("#results"));
 }
 
 function ftaCompareHtml(fc) {
@@ -1487,6 +2340,41 @@ function ftaCompareHtml(fc) {
   </div>`;
 }
 
+function pharmaCompareHtml(pc) {
+  if (!pc || !pc.claimed) return "";
+  const withC = pc.with_claim || {};
+  const without = pc.without_claim || {};
+  const cap = pc.kind === "threshold_topup" || pc.kind === "threshold_no_add";
+  const capLabel = pc.eu_cap ? "EU cap" : "301-FL";
+  const expl = pc.kind === "threshold_topup"
+    ? `Pharma use skipped this ${esc(capLabel)}. Without it, this line would have been capped at ${pct(pc.cap_pct)}% — that's Column-1 ${pct(pc.col1_pct)}% plus an extra ${pct(pc.additional_pct)}% ($${money(pc.additional_duty)}), not a second ${pct(pc.cap_pct)}%.`
+    : pc.kind === "threshold_no_add"
+      ? `Pharma use skipped <span class="mono">${esc(pc.instead_of)}</span>. Column-1 is already at ${pct(pc.col1_pct)}%, so the ${esc(capLabel)} would not have added extra duty.`
+      : `Pharma use skipped <span class="mono">${esc(pc.instead_of)}</span>. Without it, 301-FL would have added a flat ${pct(pc.additional_pct)}% ($${money(pc.additional_duty)}) on top of Column-1 ${pct(pc.col1_pct)}%.`;
+  return `<div class="fta-compare">
+    <div class="eyebrow">Pharma use vs ${esc(capLabel)}</div>
+    <p class="cap" style="margin:0 0 var(--sp-2)">
+      ${expl}
+      Difference: <b>${pct(pc.additional_pct)}% / $${money(pc.additional_duty)}</b>. Column-1 and MPF still apply.
+    </p>
+    <div class="fta-compare-grid">
+      <div class="fta-col">
+        <div class="k">Without Pharma use</div>
+        <div class="v">${pct(without.effective_duty_rate_pct)}%</div>
+        <div class="cap">$${money(without.line_duty)} duty
+          ${cap
+            ? ` · Col-1 ${pct(pc.col1_pct)}% + extra ${pct(pc.additional_pct)}%`
+            : ` · Col-1 ${pct(pc.col1_pct)}% + ${esc(pc.instead_of)} ${pct(pc.additional_pct)}%`}</div>
+      </div>
+      <div class="fta-col is-active">
+        <div class="k">With Pharma use</div>
+        <div class="v">${pct(withC.effective_duty_rate_pct)}%</div>
+        <div class="cap">$${money(withC.line_duty)} duty · Column-1 ${pct(pc.col1_pct)}% only · MPF still due</div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderLedger(L) {
   const layers = L.layers || [], supp = L.suppressed || [];
   const diag = L.diagnostics || [];
@@ -1522,35 +2410,54 @@ function renderLedger(L) {
           esc(PROGRAM_NAME[x.program] || x.program)} $${money(x.duty_amount)}</span>`).join("") +
       `</div>` : "";
 
-  const rows = layers.map(x => {
-    const exempt = Number(x.duty_amount) === 0 && x.ch99;
-    return `<tr class="${x.program === "base" ? "commodity" : ""}">
-      <td><span class="slot p-${esc(x.program)}">${esc(x.stack_slot)}</span></td>
-      <td>${x.ch99 ? `<span class="ch99 ${exempt ? "exempt" : ""}">${esc(x.ch99)}</span>`
-                   : `<span class="cap">commodity line</span>`}
-        <div class="why">${esc(x.label || "")}</div>
-        ${x.reason ? `<div class="why">${esc(x.reason)}</div>` : ""}
-        ${x.source_ref ? `<div class="src">${esc(x.source_ref)}</div>` : ""}</td>
-      <td class="r"><div>${x.basis === "QUANTITY"
-        ? `${esc(String(x.basis_amount))} ${esc((L.quantity_uom || "").toLowerCase() || "units")}`
-        : `$${money(x.basis_amount)}`}</div>
-        <div class="basis">${esc(String(x.basis || "").toLowerCase().replace(/_/g, " "))}</div></td>
-      <td class="r">${esc(x.rate || "")}</td>
-      <td class="r"><b>$${money(x.duty_amount)}</b></td></tr>`;
-  }).join("");
+  const lineKey = `L${esc(String(L.line_id || "0"))}`;
+  const layerBlocks = [
+    ...layers.map((x, i) => renderStackLayerRow({
+      id: `${lineKey}-a${i}`,
+      slot: x.stack_slot,
+      code: x.ch99 || (x.program === "base" ? (L.hts || "commodity") : (x.label || "")),
+      program: x.program,
+      label: x.label || "",
+      reason: x.reason || "",
+      sourceRef: x.source_ref || "",
+      rate: x.rate || "",
+      duty: x.duty_amount,
+      basisAmount: x.basis_amount,
+      basisKind: x.basis === "QUANTITY"
+        ? `${String(x.basis_amount)} ${(L.quantity_uom || "").toLowerCase() || "units"}`
+        : `entered value`,
+      basisFmt: x.basis === "QUANTITY"
+        ? null
+        : money(x.basis_amount),
+      suppressed: false,
+      exempt: Number(x.duty_amount) === 0 && Boolean(x.ch99),
+    })),
+    ...supp.map((x, i) => renderStackLayerRow({
+      id: `${lineKey}-s${i}`,
+      slot: x.stack_slot,
+      code: x.ch99 || x.rule_id || "",
+      program: "suppressed",
+      label: x.label || "Suppressed",
+      reason: x.reason || "",
+      sourceRef: "",
+      rate: x.rate || "",
+      duty: 0,
+      basisAmount: x.basis_amount,
+      basisKind: "entered value",
+      basisFmt: money(x.basis_amount),
+      suppressed: true,
+      exempt: false,
+    })),
+  ].join("");
 
-  const sup = supp.map(x => `<tr class="suppressed">
-      <td><span class="slot">${esc(x.stack_slot)}</span></td>
-      <td><span class="ch99">${esc(x.ch99 || x.rule_id)}</span><span class="tag">suppressed</span>
-        <div class="why">${esc(x.reason || "")}</div></td>
-      <td class="r">$${money(x.basis_amount)}</td><td class="r">${esc(x.rate || "")}</td>
-      <td class="r">$0.00</td></tr>`).join("");
-
-  const diags = (L.diagnostics || []).map(d => `<div class="diag ${esc(d.severity)}">
+  const diags = (L.diagnostics || []).filter((d) => d.code !== "COL1_RESOLVED").map(d => {
+    const action = d.severity === "INFO" ? "Source" : "Do this";
+    return `<div class="diag ${esc(d.severity)}" title="${esc(d.code || "")}">
       <span class="sev">${esc(d.severity)}</span>
-      <div><div>${esc(d.message)} <code>${esc(d.code)}</code></div>
-      ${d.remediation ? `<div class="fix"><b>Do this:</b> ${esc(d.remediation)}</div>` : ""}</div>
-    </div>`).join("");
+      <div><div>${esc(d.message)}</div>
+      ${d.remediation ? `<div class="fix"><b>${action}:</b> ${esc(d.remediation)}</div>` : ""}</div>
+    </div>`;
+  }).join("");
 
   return `<div class="lineresult">
     <div class="head"><span class="cap">line ${esc(L.line_id)}</span>
@@ -1558,10 +2465,14 @@ function renderLedger(L) {
       <span class="mono cap">$${money(L.entered_value)} entered</span>
       ${L.quantity != null ? `<span class="mono cap">${esc(String(L.quantity))} ${esc(L.quantity_uom || "")}</span>` : ""}
       <span class="spacer"></span>
-      ${L.china_301?.list
+      ${L.china_301_fy?.ch99
+        ? `<span class="pill pill-301">301 note 31 → ${esc(L.china_301_fy.ch99)}</span>`
+        : L.china_301?.list
         ? `<span class="pill pill-301">301 ${esc(L.china_301.list.replace(/_/g, " "))} → ${esc(L.china_301.ch99)}</span>`
         : ""}
-      ${L.fta_compare?.claimed
+      ${L.pharma_compare?.claimed
+        ? `<span class="pill" style="background:var(--color-green-50);color:var(--color-green-700)">Pharma use claimed</span>`
+        : L.fta_compare?.claimed
         ? `<span class="pill" style="background:var(--color-green-50);color:var(--color-green-700)">${esc(L.fta_compare.label)} claimed</span>`
         : L.fta_compare?.available
           ? `<span class="pill" style="background:var(--color-blue-50);color:var(--color-blue-700)">${esc(L.fta_compare.label)} available</span>`
@@ -1569,23 +2480,98 @@ function renderLedger(L) {
       ${L.usitc_url
         ? `<a class="usitc-link" href="${esc(L.usitc_url)}" target="_blank" rel="noopener noreferrer">USITC</a>`
         : ""}
-      <span class="cap mono">${(L.ch99_sequence || []).join(" → ") || "no Chapter 99"}</span></div>
+      <span class="cap mono">${(L.filing_sequence || L.ch99_sequence || []).join(" → ") || "no filing sequence"}</span></div>
     <div class="ratedate"><span>Rate-determination date</span>
       <b>${esc(L.rate_determination_date)}</b>
       <span class="cap">${esc(L.rate_date_basis || "")}</span>
       ${L.col1_rate_label ? `<span class="cap"> · Column 1 <b class="mono">${esc(L.col1_rate_label)}</b></span>` : ""}
     </div>
-    ${ftaCompareHtml(L.fta_compare)}
-    <table class="ledger"><thead><tr><th style="width:52px">Slot</th>
-      <th>Chapter 99 / provision</th><th class="r" style="width:126px">Basis</th>
-      <th class="r" style="width:148px">Rate</th><th class="r" style="width:108px">Duty</th>
-    </tr></thead><tbody>${rows}${sup}</tbody></table>
+    ${pharmaCompareHtml(L.pharma_compare)}
+    ${L.pharma_compare ? "" : ftaCompareHtml(L.fta_compare)}
+    <div class="stack-layers-toolbar">
+      <span class="eyebrow" title="Each row is a duty layer — expand for reason, source, and basis">Chapter 99 / provisions</span>
+      <button type="button" class="btn-ghost btn-sm" data-stack-expand-all title="Expand or collapse every layer (reason, source, basis)">Expand all</button>
+    </div>
+    <div class="stack-layers" data-stack-layers>${layerBlocks}</div>
     ${bar}
     <div class="totalrow">
       <div><span class="t">Total duty</span><br><span class="amt">$${money(L.totals?.duty)}</span></div>
       <div style="text-align:right"><span class="t">Effective rate</span><br>
         <span class="eff">${pct(L.totals?.effective_duty_rate_pct)}%</span></div></div>
     ${diags}</div>`;
+}
+
+/** One Ch.99 / commodity layer — collapsed summary, expand for reason/source/basis (design). */
+function renderStackLayerRow(row) {
+  const codeClass = row.suppressed || row.exempt ? "ch99 exempt" : "ch99";
+  const basisLine = row.basisFmt != null
+    ? `Basis <b class="mono">$${esc(row.basisFmt)}</b> · ${esc(row.basisKind || "")}`
+    : `Basis <b class="mono">${esc(String(row.basisAmount ?? ""))}</b> · ${esc(row.basisKind || "")}`;
+  return (
+    `<div class="stack-layer${row.suppressed ? " is-suppressed" : ""}${row.program === "base" ? " is-commodity" : ""}" data-expanded="0" data-stack-layer>` +
+      `<button type="button" class="stack-layer-toggle" aria-expanded="false" aria-controls="${esc(row.id)}" data-stack-layer-toggle title="Expand for reason, source, and basis">` +
+        `<span class="stack-layer-chevron" aria-hidden="true">▸</span>` +
+        `<span class="slot p-${esc(row.program || "base")}">${esc(row.slot || "")}</span>` +
+        `<span class="${codeClass} mono">${esc(row.code || "")}</span>` +
+        (row.suppressed ? `<span class="tag">suppressed</span>` : "") +
+        `<span class="spacer"></span>` +
+        `<span class="stack-layer-rate">${esc(row.rate || "")}</span>` +
+        (row.duty == null
+          ? (row.basisKind ? `<span class="cap stack-layer-status">${esc(row.basisKind)}</span>` : "")
+          : `<span class="stack-layer-duty mono"><b>$${money(row.duty)}</b></span>`) +
+      `</button>` +
+      `<div class="stack-layer-detail" id="${esc(row.id)}" hidden>` +
+        (row.label ? `<div class="stack-layer-label">${esc(row.label)}</div>` : "") +
+        (row.reason ? `<div class="why">${esc(row.reason)}</div>` : "") +
+        (row.sourceRef ? `<div class="src">${esc(row.sourceRef)}</div>` : "") +
+        (row.duty != null
+          ? `<div class="cap stack-layer-basis">${basisLine}</div>`
+          : "") +
+      `</div>` +
+    `</div>`
+  );
+}
+
+function bindStackLayers(root) {
+  root?.querySelectorAll?.("[data-stack-layers]").forEach((wrap) => {
+    const setRow = (row, on) => {
+      row.dataset.expanded = on ? "1" : "0";
+      const btn = row.querySelector("[data-stack-layer-toggle]");
+      const detail = row.querySelector(".stack-layer-detail");
+      const chev = row.querySelector(".stack-layer-chevron");
+      if (btn) btn.setAttribute("aria-expanded", on ? "true" : "false");
+      if (detail) detail.hidden = !on;
+      if (chev) chev.textContent = on ? "▾" : "▸";
+    };
+    wrap.querySelectorAll("[data-stack-layer-toggle]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const row = btn.closest("[data-stack-layer]");
+        if (!row) return;
+        setRow(row, row.dataset.expanded !== "1");
+        syncExpandAllLabel(wrap);
+      });
+    });
+    const toolbarBtn = wrap.parentElement?.querySelector?.("[data-stack-expand-all]");
+    if (toolbarBtn) {
+      toolbarBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const rows = [...wrap.querySelectorAll("[data-stack-layer]")];
+        const allOpen = rows.length && rows.every((r) => r.dataset.expanded === "1");
+        rows.forEach((r) => setRow(r, !allOpen));
+        syncExpandAllLabel(wrap);
+      });
+    }
+    syncExpandAllLabel(wrap);
+  });
+}
+
+function syncExpandAllLabel(wrap) {
+  const btn = wrap.parentElement?.querySelector?.("[data-stack-expand-all]");
+  if (!btn) return;
+  const rows = [...wrap.querySelectorAll("[data-stack-layer]")];
+  const allOpen = rows.length && rows.every((r) => r.dataset.expanded === "1");
+  btn.textContent = allOpen ? "Collapse all" : "Expand all";
 }
 
 $("#exportcsv").onclick = () => {
@@ -1794,7 +2780,7 @@ const TEMPLATES = {
   }, null, 2),
 };
 
-function renderUploadHelp() {
+function renderUploadHelp(opts = {}) {
   const kind = $("#uploadkind").value;
   $("#uploadhelp").innerHTML = kind === "hts"
     ? `<div class="banner info"><b>HTSUS Column-1 rates</b>
@@ -1809,12 +2795,37 @@ function renderUploadHelp() {
         and publish a snapshot. Mark anything AI-drafted
         <span class="mono">confidence: AI_EXTRACTED</span> and leave
         <span class="mono">reviewed_by</span> unset so the validator forces a human sign-off.</div>`;
+  if (opts.keepStaged) return;
   $("#previewcard").hidden = true;
   $("#uploadcommit").disabled = true;
   S.parsed = null;
   S.parsedKind = null;
   UploadXlsx.b64 = null;
   UploadXlsx.name = null;
+}
+
+async function refreshHtsLive(meta) {
+  const el = $("#hts-live");
+  if (!el) return;
+  let t = meta;
+  if (!t) {
+    try {
+      const r = await api("/v1/reference/stacking-order");
+      t = r.hts_table;
+    } catch (e) {
+      el.innerHTML = `<p class="cap">Could not read the live table (${esc(e.message)}).</p>`;
+      return;
+    }
+  }
+  const n = Number(t.row_count || 0).toLocaleString();
+  const repl = t.replacements != null ? Number(t.replacements).toLocaleString() : "—";
+  el.innerHTML = `<dl class="kv">
+      <dt>Source</dt><dd class="mono">${esc(t.source || "—")}</dd>
+      <dt>As of</dt><dd class="mono">${esc(t.as_of || "—")}</dd>
+      <dt>Rate windows</dt><dd class="mono">${n}</dd>
+      <dt>Replacements</dt><dd class="mono">${esc(String(repl))}</dd>
+    </dl>
+    <p class="cap" style="margin:var(--sp-2) 0 0">Duty stack and Coverage use this table. A successful Load updates these fields immediately.</p>`;
 }
 
 const UploadXlsx = { b64: null, name: null };
@@ -1995,15 +3006,18 @@ $("#uploadcommit").onclick = async () => {
   if (!S.parsed) return;
   const b = $("#uploadcommit"); const was = b.textContent;
   b.disabled = true; b.innerHTML = '<span class="busy"></span>';
+  let successTitle = "";
+  let successMsg = "";
+  let live = null;
   try {
     if (S.parsedKind === "rules") {
       const r = await api("/v1/rules:bulk", { method: "POST", body: JSON.stringify({
         actor: S.parsed.actor || "upload", status: S.parsed.status || "DRAFT",
         source_ref: S.parsed.source_ref || "", rules: S.parsed.rules }) });
-      banner("#uploadbanner", "ok", `${r.upserted} rule(s) loaded as draft`,
-        (r.blocked_pending_review?.length
-          ? `${r.blocked_pending_review.length} need a named reviewer before they can publish. `
-          : "") + "Go to Rules to validate and publish a snapshot.");
+      successTitle = `${r.upserted} rule(s) loaded as draft`;
+      successMsg = (r.blocked_pending_review?.length
+        ? `${r.blocked_pending_review.length} need a named reviewer before they can publish. `
+        : "") + "Go to Rules to validate and publish a snapshot.";
     } else if (S.parsedKind === "hts_xlsx") {
       if (!UploadXlsx.b64) throw new Error("Workbook not staged — drop the .xlsx again.");
       const r = await api("/v1/admin/hts:import", {
@@ -2014,10 +3028,14 @@ $("#uploadcommit").onclick = async () => {
           as_of: new Date().toISOString().slice(0, 10),
         }),
       });
-      banner("#uploadbanner", "ok",
-        `HTS table replaced · ${r.row_count?.toLocaleString?.() || r.row_count} rate windows`,
-        `${esc(r.source || UploadXlsx.name)} · hash ${esc(r.hash || "—")} · ` +
-        `${r.with_specific || 0} with specific rates. Live for Duty stack / HTS list now.`);
+      const n = r.row_count?.toLocaleString?.() || r.row_count;
+      successTitle = `HTS table replaced · ${n} rate windows`;
+      successMsg = `${r.source || UploadXlsx.name} · hash ${r.hash || "—"} · ` +
+        `${r.with_specific || 0} with specific rates. Live for Duty stack / Coverage now.`;
+      live = r.hts || {
+        source: r.source, as_of: r.as_of, row_count: r.row_count,
+        replacements: r.replacements_total,
+      };
       UploadXlsx.b64 = null;
       UploadXlsx.name = null;
     } else {
@@ -2038,11 +3056,19 @@ $("#uploadcommit").onclick = async () => {
           as_of: new Date().toISOString().slice(0, 10),
         }),
       });
-      banner("#uploadbanner", "ok", `${r.loaded} rate row(s) merged`,
-        `Table now has ${r.row_count?.toLocaleString?.() || r.row_count} windows · hash ${esc(r.hash || r.reference_epoch || "—")}.`);
+      successTitle = `${r.loaded} rate row(s) merged`;
+      successMsg = `Table now has ${r.row_count?.toLocaleString?.() || r.row_count} windows · hash ${r.hash || r.reference_epoch || "—"}.`;
+      live = r.hts || {
+        source: r.source, as_of: r.as_of, row_count: r.row_count,
+        replacements: r.replacements_total,
+      };
     }
     $("#previewcard").hidden = true; $("#uploadbox").value = ""; S.parsed = null; S.parsedKind = null;
+    banner("#uploadbanner", "ok", successTitle, successMsg);
+    if (live) refreshHtsLive(live);
     await boot();
+    banner("#uploadbanner", "ok", successTitle, successMsg);
+    if (live) refreshHtsLive(live);
   } catch (e) {
     banner("#uploadbanner", "err", "Load failed", e.message);
   } finally { b.disabled = false; b.textContent = was; }
@@ -2342,8 +3368,8 @@ async function loadInsights() {
           <div class="body">${barChart(cooRows, { padL: 52, title: "Rules by origin" })}</div></div>
         <div class="card"><header><h5>Reporting slot distribution</h5></header>
           <div class="body">${barChart(slotRows, { padL: 74, title: "Rules by reporting slot" })}
-          <p class="cap" style="margin-top:var(--sp-2)">3.1 is Section 301, 3.2 Section 122,
-            3.3 Section 232, 3.4 Section 201.</p></div></div>
+          <p class="cap" style="margin-top:var(--sp-2)">3.1 is Section 301, 3.2 Section 338,
+            3.3 Section 232, 3.4 Section 201 (CSMS #69668138).</p></div></div>
         <div class="card"><header><h5>Confidence</h5></header>
           <div class="body">${confBar}
           <p class="cap" style="margin-top:var(--sp-3)">Draft rules are claim-gated: they fire only
@@ -2444,7 +3470,7 @@ function initLookup() {
     drop.querySelector(".drop-title").textContent = "Drop Excel, CSV, or JSON";
     updateLookupCount();
     $("#lookup-export").hidden = true;
-    $("#lookup-out").innerHTML = `<div class="empty"><h4>No list yet</h4>
+    $("#lookup-out").innerHTML = `<div class="empty"><h4>No codes yet</h4>
       <p class="cap" style="max-width:36ch;margin:0 auto">Add HTS codes on the left.</p></div>`;
     banner("#lookupbanner", null);
   };
@@ -2452,9 +3478,13 @@ function initLookup() {
     $("#lookup-paste").value = `hts,coo
 6203.42.0711,VN
 8708.10.3050,CN
-8517.12.0050,DE
-9403.60.8081,BR
-6109.10.0012,BD`;
+8703.23.01,JP
+8704.23.01,DE
+8702.10.31,KR
+4407.11.00,CA
+9401.61.4011,VN
+8473.30.00,TW
+8517.12.0050,DE`;
     $("#lookup-coo").value = "";
     updateLookupCount();
     runLookup();
@@ -2558,11 +3588,16 @@ function renderLookup(R) {
   }
   const showPart = rows.some(r => r.part);
   const showSku = rows.some(r => r.sku);
-  const colCount = 6 + (showPart ? 1 : 0) + (showSku ? 1 : 0);
+  const colCount = 7 + (showPart ? 1 : 0) + (showSku ? 1 : 0);
   let html = `<div class="lookup-summary">
     <span class="pill">${s.rows ?? rows.length} codes</span>
     <span class="pill ok">${s.in_table ?? 0} in HTS table</span>
     <span class="pill">${s.with_ch99 ?? 0} with Ch.99</span>
+    ${s.with_watch ? `<span class="pill">${s.with_watch} with watch flags</span>` : ""}
+    ${s.with_pga ? `<span class="pill ok">${s.with_pga} PGA</span>` : ""}
+    ${s.with_ad_cvd ? `<span class="pill warn">${s.with_ad_cvd} AD/CVD</span>` : ""}
+    ${s.with_s232 ? `<span class="pill ok">${s.with_s232} on a 232 list</span>` : ""}
+    ${s.needs_claim ? `<span class="pill warn">${s.needs_claim} need a claim</span>` : ""}
     ${s.blocked ? `<span class="pill warn">${s.blocked} need correction</span>` : ""}
     ${s.ended ? `<span class="pill warn">${s.ended} ended</span>` : ""}
     ${s.with_replacement ? `<span class="pill">${s.with_replacement} with replacement</span>` : ""}
@@ -2572,19 +3607,25 @@ function renderLookup(R) {
   html += `<div class="lookup-scroll"><table class="cov"><thead><tr>`;
   if (showPart) html += `<th>Part</th>`;
   if (showSku) html += `<th>SKU</th>`;
-  html += `<th>HTS</th><th>Origin</th><th class="r">Col-1</th><th>Help / replacement</th><th>Rules that apply</th><th>Ch.99</th>
+  html += `<th>HTS</th><th>Origin</th><th class="r">Col-1</th><th title="PGA / AD / CVD / additional HTS signals">Watch for</th><th>Help / replacement</th><th>Rules that apply</th><th>Ch.99</th>
   </tr></thead><tbody>`;
   rows.forEach((row, i) => {
     const miss = !row.in_table || row.error || row.blocked;
     const ended = row.window_status === "ended";
     const related = row.related_hts || [];
-    const chips = miss
-      ? `<span class="cap" style="color:var(--color-red-700)">No stack - fix HTS first</span>`
-      : ((row.rules || [])
-          .filter(r => r.program !== "base")
-          .map(r => `<span class="rule-chip ${esc(r.program)}">${esc(r.ch99 || r.label)}</span>`)
-          .join("") || `<span class="cap">${row.coo ? "none beyond Col-1" : "add origin"}</span>`);
+    const listRules = (row.rules || []).filter(r => r.program !== "base");
+    const chips = listRules.length
+      ? listRules
+          .map(r => {
+            const claim = r.status === "needs_claim" ? " · claim" : "";
+            return `<span class="rule-chip ${esc(r.program)} ${esc(r.status || "")}">${esc(r.ch99 || r.label)}${claim}</span>`;
+          })
+          .join("")
+      : miss
+        ? `<span class="cap" style="color:var(--color-red-700)">No stack - fix HTS first</span>`
+        : `<span class="cap">${row.coo ? "none beyond Col-1" : "add origin"}</span>`;
     const seq = miss ? "-" : ((row.ch99_sequence || []).join(" | ") || "-");
+    const watchChips = [renderCopperSmeltChip(row.copper_smelt_cast), renderHtsFlagChipsCompact(row.flags)].filter(Boolean).join("");
     const helpCell = row.replacement_hts_display || row.replacement_hts
       ? `<b class="mono">${esc(row.replacement_hts_display || row.replacement_hts)}</b>${
           row.replacement_col1_pct != null
@@ -2609,6 +3650,7 @@ function renderLookup(R) {
         ${miss ? `<div class="cap" style="color:var(--color-red-700)">Not in baseline table</div>` : ""}</td>
       <td class="mono">${esc(row.coo || "-")}</td>
       <td class="r mono">${row.col1_pct == null ? "-" : esc(String(row.col1_pct)) + "%"}</td>
+      <td><div class="pillrow cov-watch">${watchChips || `<span class="cap">-</span>`}</div></td>
       <td>${helpCell}</td>
       <td><div class="rule-chips">${chips}</div></td>
       <td class="mono cap">${esc(seq)}</td>
@@ -2621,6 +3663,14 @@ function renderLookup(R) {
         if (row.part && row.sku) html += " | ";
         if (row.sku) html += `SKU <b class="mono">${esc(row.sku)}</b>`;
         html += `</p>`;
+      }
+      const watchDetail = [renderCopperSmeltWatch(row.copper_smelt_cast), renderHtsFlagPills(row.flags)].filter(Boolean).join("");
+      if (watchDetail) {
+        html += `<div class="cov-fix" style="margin:0 0 var(--sp-3)">
+          <div class="eyebrow" title="Partner Government Agency and trade-remedy signals — expand a row for ACE codes">Watch for</div>
+          <p class="cap" style="margin:var(--sp-1) 0 var(--sp-2)">Expand a row for filing notes. Hover table chips for a short tip.</p>
+          <div class="hts-notices">${watchDetail}</div>
+        </div>`;
       }
       if (row.help || miss) {
         const title = row.help?.title || "This HTS needs correction";
@@ -2660,15 +3710,51 @@ function renderLookup(R) {
           </tbody></table>
         </div>`;
       }
-      if (!(row.help || miss)) {
-        html += (row.rules || []).map(r => `<div class="rule-row">
-          <div><span class="rule-chip ${esc(r.program)}">${esc(r.program)}</span>
-            <b class="mono">${esc(r.ch99 || "commodity")}</b> | ${esc(r.rate)}
-            <span class="cap"> | ${esc(r.status)}</span></div>
-          <div class="why">${esc(r.label)}</div>
-          <div class="why">${esc(r.reason)}</div>
-          ${r.source_ref ? `<div class="src">${esc(r.source_ref)}</div>` : ""}
-        </div>`).join("") || `<p class="cap">No rule rows.</p>`;
+      if (!(row.help || miss) || (row.rules || []).length) {
+        const ruleRows = (row.rules || []);
+        if (ruleRows.length) {
+          html += `<div class="cov-fix" style="margin:0 0 var(--sp-3)">
+            <div class="stack-layers-toolbar">
+              <span class="eyebrow" title="Each row is a rule layer — expand for reason and source">Rules / Chapter 99</span>
+              <button type="button" class="btn-ghost btn-sm" data-stack-expand-all title="Expand or collapse every layer">Expand all</button>
+            </div>
+            <div class="stack-layers" data-stack-layers>` +
+            ruleRows.map((r, ri) => renderStackLayerRow({
+              id: `cov-${i}-r${ri}`,
+              slot: r.program || "",
+              code: r.ch99 || (r.program === "base" ? (row.hts || "commodity") : (r.label || "")),
+              program: r.program || "base",
+              label: r.label || "",
+              reason: r.reason || "",
+              sourceRef: r.source_ref || "",
+              rate: r.rate || "",
+              duty: null,
+              basisAmount: null,
+              basisKind: r.status || "",
+              basisFmt: null,
+              suppressed: r.status === "info" && /suppress/i.test(r.reason || ""),
+              exempt: false,
+            })).join("") +
+            `</div></div>`;
+        } else if (!(row.help || miss)) {
+          html += `<p class="cap">No rule rows.</p>`;
+        }
+      }
+      const uni = row.s232_universe || {};
+      const uniBits = [
+        uni.passenger_vehicle && `Passenger vehicle ${uni.passenger_vehicle.matched_stem} → ${uni.passenger_vehicle.ch99}`,
+        uni.mhdv_vehicle && `MHDV vehicle ${uni.mhdv_vehicle.matched_stem} → ${uni.mhdv_vehicle.ch99}`,
+        uni.mhdv_bus && `Bus ${uni.mhdv_bus.matched_stem} → ${uni.mhdv_bus.ch99}`,
+        uni.mhdv_part_list && `MHDV parts list ${uni.mhdv_part_list.matched_stem} (claim for ${uni.mhdv_part_list.ch99})`,
+        uni.wood && `Wood ${uni.wood.bucket} ${uni.wood.matched_stem} → ${uni.wood.ch99}`,
+        uni.semiconductor && `Semiconductor list ${uni.semiconductor.matched_stem} (claim for 9903.79.01)`,
+        uni.auto_parts && `Auto-parts annex ${uni.auto_parts.matched_stem} → ${uni.auto_parts.ch99}`,
+      ].filter(Boolean);
+      if (uniBits.length) {
+        html += `<div class="cov-fix" style="margin:var(--sp-3) 0 0">
+          <div class="eyebrow">Section 232 lists</div>
+          <ul class="cov-notes">${uniBits.map(b => `<li class="cap">${esc(b)}</li>`).join("")}</ul>
+        </div>`;
       }
       if (row.notes?.length && !(row.help || miss)) {
         html += `<ul class="cov-notes">${row.notes.map(n => `<li class="cap">${esc(n)}</li>`).join("")}</ul>`;
@@ -2683,6 +3769,14 @@ function renderLookup(R) {
   });
   html += `</tbody></table></div>`;
   $("#lookup-out").innerHTML = html;
+  bindHtsWatchRows($("#lookup-out"));
+  bindStackLayers($("#lookup-out"));
+  $$("#lookup-out [data-hts-watch-toggle]").forEach((btn) => {
+    btn.addEventListener("click", (e) => e.stopPropagation());
+  });
+  $$("#lookup-out [data-stack-layer-toggle], #lookup-out [data-stack-expand-all]").forEach((btn) => {
+    btn.addEventListener("click", (e) => e.stopPropagation());
+  });
   $$("#lookup-out tr[data-cov]").forEach(tr => {
     tr.onclick = () => {
       const i = Number(tr.dataset.cov);
@@ -2697,12 +3791,13 @@ function renderLookup(R) {
       if (!row) return;
       $("#qc-hts").value = row.hts || "";
       $("#qc-coo").value = row.coo || $("#lookup-coo").value || "";
-      $("#qc-value").value = $("#qc-value").value || "10000";
+      $("#qc-value").value = $("#qc-value").value || formatEnteredValue(QC_DEFAULT_VALUE);
+      syncEnteredValueField($("#qc-value"), { defaultIfEmpty: true });
       $("#qc-date").value = row.as_of || $("#lookup-date").value;
       show("calc");
       previewHtsMeta();
       const idBits = [row.part && `part ${row.part}`, row.sku && `SKU ${row.sku}`].filter(Boolean).join(" | ");
-      banner("#calcbanner", "info", "From HTS list",
+      banner("#calcbanner", "info", "From Coverage",
         `${row.hts}${idBits ? ` (${idBits})` : ""} loaded into Duty stack - add value if needed, then Run the stack.`);
     };
   });
@@ -2714,7 +3809,8 @@ function renderLookup(R) {
       $("#qc-hts").value = row.replacement_hts_display || row.replacement_hts;
       $("#qc-coo").value = row.coo || $("#lookup-coo").value || "";
       $("#qc-date").value = row.as_of || $("#lookup-date").value;
-      $("#qc-value").value = $("#qc-value").value || "10000";
+      $("#qc-value").value = $("#qc-value").value || formatEnteredValue(QC_DEFAULT_VALUE);
+      syncEnteredValueField($("#qc-value"), { defaultIfEmpty: true });
       show("calc");
       previewHtsMeta();
       banner("#calcbanner", "info", "Replacement loaded",
@@ -2730,7 +3826,8 @@ function renderLookup(R) {
       $("#qc-hts").value = rel.hts_display || rel.hts;
       $("#qc-coo").value = row.coo || $("#lookup-coo").value || "";
       $("#qc-date").value = row.as_of || $("#lookup-date").value;
-      $("#qc-value").value = $("#qc-value").value || "10000";
+      $("#qc-value").value = $("#qc-value").value || formatEnteredValue(QC_DEFAULT_VALUE);
+      syncEnteredValueField($("#qc-value"), { defaultIfEmpty: true });
       show("calc");
       previewHtsMeta();
       banner("#calcbanner", "info", "Related HTS loaded",
@@ -2749,18 +3846,36 @@ function exportLookupCsv() {
     ...(showPart ? ["part"] : []),
     ...(showSku ? ["sku"] : []),
     "hts", "coo", "as_of", "in_table", "blocked", "window_status", "ended_on", "col1_pct", "desc",
-    "replacement_hts", "replacement_col1_pct", "related_hts", "ch99_sequence", "rules", "notes", "help_steps",
+    "pga", "ad", "cvd", "add_hts",
+    "replacement_hts", "replacement_col1_pct", "related_hts", "ch99_sequence", "s232_lists", "rules", "notes", "help_steps",
   ];
   const lines = [headers.join(",")];
   rows.forEach(r => {
     const cols = [];
     if (showPart) cols.push(r.part);
     if (showSku) cols.push(r.sku);
+    const f = r.flags || {};
     cols.push(
       r.hts, r.coo, r.as_of, r.in_table, r.blocked, r.window_status, r.ended_on, r.col1_pct, r.desc,
+      (f.pga || []).join(" "),
+      f.add ? "Y" : "",
+      f.cvd ? "Y" : "",
+      f.add_hts ? "Y" : "",
       r.replacement_hts_display || r.replacement_hts, r.replacement_col1_pct,
       (r.related_hts || []).map(x => x.hts_display || x.hts).join(" | "),
       (r.ch99_sequence || []).join(" "),
+      (() => {
+        const u = r.s232_universe || {};
+        return [
+          u.passenger_vehicle && `pv:${u.passenger_vehicle.ch99}`,
+          u.mhdv_vehicle && `mhdv:${u.mhdv_vehicle.ch99}`,
+          u.mhdv_bus && `bus:${u.mhdv_bus.ch99}`,
+          u.mhdv_part_list && `mhdv_parts:${u.mhdv_part_list.ch99}`,
+          u.wood && `wood:${u.wood.ch99}`,
+          u.semiconductor && "semi:9903.79.01",
+          u.auto_parts && `auto_parts:${u.auto_parts.ch99}`,
+        ].filter(Boolean).join(" | ");
+      })(),
       (r.rules || []).map(x => `${x.program}:${x.ch99 || "base"}@${x.rate}`).join(" | "),
       (r.notes || []).join(" | "),
       (r.help?.steps || []).join(" | "),
@@ -2783,13 +3898,17 @@ const Chat = {
 
 function initChat() {
   refreshChatStatus();
+  const canWrite = Boolean(S.me?.can?.write_rules || S.me?.can?.admin);
+  $$("[data-admin-write]").forEach((el) => el.classList.toggle("hide", !canWrite));
   if (Chat.inited) { renderChatThread(); renderChatPending(); return; }
   Chat.inited = true;
   if (!Chat.messages.length) {
     Chat.messages.push({
       role: "assistant",
-      content: "Tell me about a CSMS or tariff change and I’ll draft the pack update. " +
-        "Writes land only after you click Apply — no rebuild.",
+      content: "Ask about an HTS, origin, value, or pack rule — stacks run from the live tables, no API key required. " +
+        (canWrite
+          ? "Loading a new rule is still an admin preview if you want a draft upsert."
+          : "Loading a new rule into the pack is coming later for admins."),
     });
   }
   renderChatThread();
@@ -2814,10 +3933,10 @@ async function refreshChatStatus() {
   if (!el) return;
   try {
     const s = await api("/v1/chat/status");
-    el.className = "chat-status " + (s.configured ? "ok" : "bad");
-    el.textContent = s.configured
-      ? `Claude ready · ${s.model}`
-      : "Set ANTHROPIC_API_KEY in backend/.env";
+    el.className = "chat-status ok";
+    el.textContent = s.anthropic
+      ? `Live pack · ${s.model}`
+      : "Live pack — no API key";
   } catch (e) {
     el.className = "chat-status bad";
     el.textContent = "Chat API unreachable";
@@ -2837,7 +3956,8 @@ function renderChatThread() {
 function renderChatPending() {
   const box = $("#chat-pending");
   if (!box) return;
-  if (!Chat.pending.length) { box.hidden = true; box.innerHTML = ""; return; }
+  const canWrite = Boolean(S.me?.can?.write_rules || S.me?.can?.admin);
+  if (!canWrite || !Chat.pending.length) { box.hidden = true; box.innerHTML = ""; return; }
   box.hidden = false;
   box.innerHTML = Chat.pending.map(p => `<div class="pending-card">
     <div class="spacer"><span class="eyebrow">Pending pack write</span><br>
@@ -2918,6 +4038,82 @@ async function discardPending(id) {
   } catch { /* ignore */ }
   Chat.pending = (Chat.pending || []).filter(p => p.id !== id);
   renderChatPending();
+}
+
+/* ================================================================ CSMS */
+const Csms = { inited: false, last: null };
+
+function initCsms() {
+  if (!Csms.inited) {
+    Csms.inited = true;
+    const q = $("#csms-q");
+    const cams = $("#csms-cams");
+    const refresh = $("#csms-refresh");
+    if (q) q.oninput = debounceCsms;
+    if (cams) cams.onchange = () => loadCsms();
+    if (refresh) refresh.onclick = () => loadCsms({ refresh: true });
+  }
+  loadCsms();
+}
+
+let csmsTimer = 0;
+function debounceCsms() {
+  clearTimeout(csmsTimer);
+  csmsTimer = setTimeout(() => loadCsms(), 280);
+}
+
+function fmtCsmsDate(iso) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      year: "numeric", month: "short", day: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  } catch { return iso; }
+}
+
+async function loadCsms(opts = {}) {
+  const out = $("#csms-out");
+  if (!out) return;
+  const q = ($("#csms-q")?.value || "").trim();
+  const cams = Boolean($("#csms-cams")?.checked);
+  const refresh = Boolean(opts.refresh);
+  out.innerHTML = `<div class="empty"><span class="busy"></span> Loading CSMS…</div>`;
+  try {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (cams) params.set("include_cams", "true");
+    if (refresh) params.set("refresh", "1");
+    params.set("limit", "50");
+    const data = await api("/v1/csms?" + params.toString());
+    Csms.last = data;
+    const sub = $("#csms-subscribe");
+    if (sub && data.subscribe_url) sub.href = data.subscribe_url;
+    banner("#csmsbanner", "", "", "");
+    const rows = data.messages || [];
+    if (!rows.length) {
+      out.innerHTML = `<div class="empty">No CSMS in the recent GovDelivery feed${q ? " matching that search" : ""}.
+        See the <a href="${esc(data.official_url || "https://www.cbp.gov/trade/automated/cargo-systems-messaging-service")}" target="_blank" rel="noopener noreferrer">official CSMS archive</a>.</div>`;
+      return;
+    }
+    out.innerHTML = `<div class="csms-meta cap">Updated ${esc(fmtCsmsDate(data.fetched_at))} · ${rows.length} message${rows.length === 1 ? "" : "s"}
+      · <a href="${esc(data.official_url)}" target="_blank" rel="noopener noreferrer">Official CSMS page</a></div>
+      <table class="data sticky-head csms-table">
+        <thead><tr><th>Number</th><th>Message</th><th>Published</th></tr></thead>
+        <tbody>${rows.map((m) => `<tr>
+          <td class="mono"><span class="csms-kind ${esc(m.kind)}">${esc((m.kind || "csms").toUpperCase())}</span>
+            ${m.number ? esc(m.number) : "—"}</td>
+          <td><a href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${esc(m.title)}</a>
+            ${m.summary ? `<div class="cap csms-sum">${esc(m.summary)}</div>` : ""}</td>
+          <td class="nowrap">${esc(fmtCsmsDate(m.published_at))}</td>
+        </tr>`).join("")}</tbody>
+      </table>`;
+  } catch (e) {
+    banner("#csmsbanner", "err", "Could not load CSMS", e.message);
+    out.innerHTML = `<div class="empty">Open the
+      <a href="https://www.cbp.gov/trade/automated/cargo-systems-messaging-service" target="_blank" rel="noopener noreferrer">official CSMS page</a>
+      on CBP.gov.</div>`;
+  }
 }
 
 /* ================================================================ ES-003 AUDIT */

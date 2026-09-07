@@ -109,7 +109,11 @@ let pharmaStems: string[] | null = null;
 function loadPharma(): PharmaPack {
   if (pharmaPack) return pharmaPack;
   pharmaPack = JSON.parse(readFileSync(PHARMA_DATA, "utf8")) as PharmaPack;
-  pharmaStems = (pharmaPack.stems || [])
+  const allStems = [
+    ...(pharmaPack.stems || []),
+    ...((pharmaPack as { hts10?: string[] }).hts10 || []),
+  ];
+  pharmaStems = allStems
     .map((s) => String(s).replace(/\D/g, ""))
     .filter(Boolean)
     .sort((a, b) => b.length - a.length);

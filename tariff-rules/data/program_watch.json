@@ -1,0 +1,231 @@
+{
+  "as_of": "2026-09-01",
+  "pull_process": "A pack exists only after a proclamation / FR annex / CSMS names Chapter 99 headings and an HTS list. Investigations are PENDING until that happens. Every program_status ACTIVE+compute row must appear here as LIVE with an engine_module or CI fails. Sources to check weekly: White House presidential actions, Federal Register (HTS annex PDFs), CBP CSMS RSS (already in /v1/csms). Full intake checklist + weekly scorecard: tariff-rules/docs/PACK_INTAKE.md.",
+  "sources": [
+    "https://www.whitehouse.gov/presidential-actions/",
+    "https://www.federalregister.gov/",
+    "https://content.govdelivery.com/accounts/USDHSCBP/subscriber/new",
+    "https://www.cbp.gov/trade/automated/cargo-systems-messaging-service",
+    "https://ustr.gov/issue-areas/enforcement"
+  ],
+  "programs": [
+    {
+      "id": "SEC_301_FL",
+      "status": "LIVE",
+      "effective": "2026-07-24",
+      "engine_module": "tariff-rules/src/s301fl.ts",
+      "data_file": "tariff-rules/data/s301fl_pack.json",
+      "data_files": [
+        "tariff-rules/data/s301fl_except_hts.json",
+        "tariff-rules/data/s301fl_pharma_hts.json"
+      ],
+      "incomplete": "9903.05.88 civil aircraft requires GN6 claim; 9903.05.89 pharma-use remains claim-gated.",
+      "why": "CSMS #69326983. 60-economy forced-labor 301."
+    },
+    {
+      "id": "SEC_301_BRAZIL",
+      "status": "LIVE",
+      "effective": "2026-07-22",
+      "engine_module": "tariff-rules/src/s301Brazil.ts",
+      "data_file": "tariff-rules/data/s301_brazil.json",
+      "data_files": ["tariff-rules/data/s301_brazil_hts.json"],
+      "incomplete": "Annex HTS lists imported from workbook; product/aircraft/pharma exemptions still claim-gated when flagged.",
+      "why": "CSMS #69302472 country 301 @ 25%. Distinct from FL .27."
+    },
+    {
+      "id": "SEC_301_CHINA_LEGACY",
+      "status": "LIVE",
+      "effective": "2018-07-06",
+      "engine_module": "tariff-rules/src/s301China.ts",
+      "data_file": "tariff-rules/data/s301_china_lists.json",
+      "incomplete": "Seeded USTR lists are not a full 10-digit dump. Unknown CN HTS warns; does not invent 9903.88.",
+      "why": "U.S. note 20 lists 1/2/3/4A."
+    },
+    {
+      "id": "SEC_301_CHINA_FY",
+      "status": "LIVE",
+      "effective": "2024-09-27",
+      "engine_module": "tariff-rules/src/s301ChinaNote31.ts",
+      "data_file": "tariff-rules/data/s301_china_note31.json",
+      "why": "U.S. note 31 / 89 FR 76581 / CSMS #62411889."
+    },
+    {
+      "id": "SEC_232_AUTOS",
+      "status": "LIVE",
+      "effective": "2025-04-03",
+      "engine_module": "tariff-rules/src/s232Autos.ts",
+      "data_file": "tariff-rules/data/s232_auto_parts_annex.json",
+      "incomplete": "Off-list parts need a claim. 186 REVIEW 10-digit lines still need part-level evidence.",
+      "why": "Proc. 10908 / note 33. Vehicles via s232Vehicles.ts + origin splits."
+    },
+    {
+      "id": "SEC_232_MHDV",
+      "status": "LIVE",
+      "effective": "2025-11-01",
+      "engine_module": "tariff-rules/src/s232Mhdv.ts",
+      "data_file": "tariff-rules/data/s232_mhdv.json",
+      "why": "Proc. 10984 / CSMS #66665333. Parts claim-gated."
+    },
+    {
+      "id": "SEC_232_WOOD",
+      "status": "LIVE",
+      "effective": "2025-10-14",
+      "engine_module": "tariff-rules/src/s232Wood.ts",
+      "data_file": "tariff-rules/data/s232_wood.json",
+      "why": "Proc. 10976 / CSMS #66492057."
+    },
+    {
+      "id": "SEC_232_SEMI",
+      "status": "LIVE",
+      "effective": "2026-01-15",
+      "engine_module": "tariff-rules/src/s232Semiconductors.ts",
+      "data_file": "tariff-rules/data/s232_semiconductors.json",
+      "why": "CSMS #67400472. Note 39(b) claim-gated."
+    },
+    {
+      "id": "SEC_232_METALS",
+      "status": "LIVE",
+      "effective": "2026-04-06",
+      "engine_module": "tariff-rules/src/s232Metals.ts",
+      "why": "Note 16 / CSMS #68253075 as amended by #68855869 Metals HTS List. Steel/alu/copper + derivatives. Outside Ch.72–74/76, HTS must be on the list (content selects .03/.09) or filed heading / claim — content alone on off-list HTS does not invent metals."
+    },
+    {
+      "id": "SEC_232_PHARMA",
+      "status": "LIVE",
+      "effective": "2026-07-31",
+      "engine_module": "tariff-rules/src/s232Pharma.ts",
+      "data_file": "tariff-rules/data/s232_pharma.json",
+      "incomplete": "Patented vs generic is claim-gated. Combined Col-1+232 mechanic TBC on some headings.",
+      "why": "Proc. 11020 / CSMS #69395344."
+    },
+    {
+      "id": "SECTION_338_CANADA",
+      "status": "LIVE",
+      "effective": "2026-08-22",
+      "engine_module": "tariff-rules/src/s338Canada.ts",
+      "data_file": "tariff-rules/data/s338_canada.json",
+      "why": "CSMS #69606660 / Proc. 11046–11048, 11056."
+    },
+    {
+      "id": "SEC_201_QSP",
+      "status": "LIVE",
+      "effective": "2026-08-15",
+      "expires": "2030-08-14",
+      "engine_module": "tariff-rules/src/s201Qsp.ts",
+      "data_file": "tariff-rules/data/s201_qsp.json",
+      "ch99": ["9903.45.30", "9903.45.31"],
+      "incomplete": "Cannot see remaining quarterly quota at line level — default in-quota and warn.",
+      "why": "U.S. note 41. Only live Section 201 as of 2026-08-25."
+    },
+    {
+      "id": "SEC_232_UAS",
+      "status": "LIVE",
+      "effective": "2026-09-03",
+      "engine_module": "tariff-rules/src/s232Uas.ts",
+      "data_file": "tariff-rules/data/s232_uas.json",
+      "ch99": ["9903.08.20", "9903.08.21", "9903.08.22", "9903.08.23", "9903.08.24", "9903.08.25", "9903.08.26"],
+      "incomplete": "Docking 8504.40.9580 / 8537.10.9170 and 8807 parts are claim-gated. Partner 10/15% caps not computed (combined mechanic TBC). Annex III 8807 @ 25% from 2027-02-09.",
+      "why": "Proc. 11055 / note 43. Date-gated so day-one is covered."
+    },
+    {
+      "id": "COPPER_SMELT_CAST_FILING",
+      "status": "LIVE",
+      "effective": "2026-09-14",
+      "engine_module": "tariff-rules/src/copperSmeltCast.ts",
+      "data_file": "tariff-rules/data/copper_smelt_cast.json",
+      "incomplete": "ES-003 cannot validate ACE 54 record type 12 until additional-declaration data is ingestible.",
+      "why": "CSMS #69711865 / #69252300 — fatal F794 when primary smelt or cast missing on 8544.42/49 copper conductor HTS (non-US origin)."
+    },
+    {
+      "id": "SEC_122",
+      "status": "HISTORICAL",
+      "effective": "2026-02-24",
+      "ended": "2026-07-23",
+      "engine_module": "backend/src/programEras.ts",
+      "why": "Sunset. Compute only inside the window."
+    },
+    {
+      "id": "IEEPA",
+      "status": "DEAD",
+      "ended": "2026-02-20",
+      "engine_module": null,
+      "do_not_compute": true,
+      "why": "SCOTUS 2026-02-20. Never compute prospectively."
+    },
+    {
+      "id": "TRADE_DEALS",
+      "status": "INCOMPLETE",
+      "engine_module": "tariff-rules/src/tariffRules.ts",
+      "why": "Leftover 9903.94.45/.55 MFN cap mechanic TBC (R6). Totals blocked by design. JP/EU/KR CSMS origin splits compute under R3, not this row."
+    },
+    {
+      "id": "SEC_232_POLYSILICON",
+      "status": "SCHEDULED",
+      "effective": "2026-12-04",
+      "engine_module": null,
+      "blocker": "Need Annex II HTS list, MIP specific rates, CSMS, and confirmed Ch.99 family. Do not reuse 9903.45.30/.31 (live QSP 201 through 2030-08-14).",
+      "why": "Section 232 polysilicon / derivatives. Replaces expired solar 201. Not live until December."
+    },
+    {
+      "id": "SEC_201_SOLAR",
+      "status": "EXPIRED",
+      "ended": "2026-02-06",
+      "engine_module": null,
+      "do_not_compute": true,
+      "why": "CSPV safeguard expired. Do not resurrect 9903.45.21–.29."
+    },
+    {
+      "id": "SEC_201_WASHERS",
+      "status": "EXPIRED",
+      "ended": "2021-02-07",
+      "engine_module": null,
+      "do_not_compute": true,
+      "why": "Large residential washer safeguard expired. Do not resurrect 9903.45.01–.06."
+    },
+    {
+      "id": "SEC_232_WIND",
+      "status": "PENDING",
+      "engine_module": null,
+      "why": "BIS investigation initiated 2025-08-13. Report overdue as of 2026-08-25. No proclamation / no 9903 headings yet — not a pack gap."
+    },
+    {
+      "id": "SEC_232_MEDICAL",
+      "status": "PENDING",
+      "engine_module": null,
+      "why": "BIS PPE / medical consumables / devices investigation initiated 2025-09-02. No proclamation yet."
+    },
+    {
+      "id": "SEC_232_ROBOTICS",
+      "status": "PENDING",
+      "engine_module": null,
+      "why": "BIS robotics / industrial machinery investigation initiated 2025-09-02. No proclamation yet."
+    },
+    {
+      "id": "SEC_232_AIRCRAFT",
+      "status": "NO_TARIFF",
+      "engine_module": null,
+      "do_not_compute": true,
+      "why": "Proc. 2026-07-09: Commerce found a threat; President ordered negotiations, not duties. Watch for a later tariff annex."
+    },
+    {
+      "id": "SEC_232_CRITICAL_MINERALS",
+      "status": "NO_TARIFF",
+      "engine_module": null,
+      "do_not_compute": true,
+      "why": "Proc. 11001 (2026-01-14): negotiations / possible future MIP. No 9903 duty now."
+    },
+    {
+      "id": "SEC_301_EXCESS_CAPACITY",
+      "status": "PENDING",
+      "engine_module": null,
+      "why": "USTR 301 investigation (Mar 2026) into 16 economies (CN, EU, MX, IN, VN, JP, KR, TW, …). Hearings May 2026. No FR action / no 9903 headings yet. This is the likely next country-301 pack after Brazil."
+    },
+    {
+      "id": "ADCVD",
+      "status": "OUT_OF_SCOPE",
+      "engine_module": null,
+      "do_not_compute": true,
+      "why": "R9. Producer/exporter-specific. Warn on QSP and other known-order HTS; do not invent case rates."
+    }
+  ]
+}
