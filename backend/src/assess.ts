@@ -339,8 +339,14 @@ function uiProgram(id: string): string {
   return map[id] || id.toLowerCase();
 }
 
-function s232SuppressesFl(hit: { heading?: string | null } | null | undefined): boolean {
-  return Boolean(hit && hit.heading && hit.heading !== S232_UAS_NOT_FOR_USE);
+function s232SuppressesFl(
+  hit: { heading?: string | null; suppresses_301fl?: boolean } | null | undefined,
+): boolean {
+  if (!hit?.heading) return false;
+  // Note 52(f): 0% “not a part / not for use” headings are not in the FL carve-out.
+  if (hit.suppresses_301fl === false) return false;
+  if (hit.heading === S232_UAS_NOT_FOR_USE) return false;
+  return true;
 }
 
 function layer(opts: {
@@ -627,7 +633,7 @@ export function assessLine(line: LineIn, index: number) {
       diagnostics.push({
         severity: "INFO",
         code: "COL1_RESOLVED",
-        message: `Column-1 ${resolved.rate_label} resolved from HTS table for ${resolved.hts} (window ${resolved.start} → ${resolved.end}).`,
+        message: `Column 1 duty rate for this HTS is ${resolved.rate_label}.`,
       });
       if (look.window_status === "ended") {
         diagnostics.push({
@@ -1011,12 +1017,19 @@ export function assessLine(line: LineIn, index: number) {
   // Annex membership auto-applies 232. Off-list needs an explicit claim (evidence required).
   const is232 = Boolean(s232Hit);
   if (annex232 && s232Hit?.family === "autos_parts") {
-    diagnostics.push({
-      severity: "INFO",
-      code: "S232_ANNEX_HIT",
-      message: `HTS matches Proclamation 10908 auto-parts annex stem ${annex232.matched_stem} → ${s232Hit.heading} (232 supersedes 301-FL via 9903.05.90).`,
-      remediation: annex232.source,
-    });
+    if (s232Hit.heading === "9903.94.06") {
+      diagnostics.push({
+        severity: "INFO",
+        code: "S232_ANNEX_NOT_PART",
+        message: `This HTS is on the Section 232 automobile-parts list (stem ${annex232.matched_stem}), but you claimed it is not a passenger-vehicle / light-truck part — filing 9903.94.06 @ 0%. Note 52(f)(3) does not carve this use out of 301-FL, so the forced-labor heading (e.g. 9903.05.84) still applies.`,
+      });
+    } else {
+      diagnostics.push({
+        severity: "INFO",
+        code: "S232_ANNEX_HIT",
+        message: `This HTS is on the Section 232 automobile-parts list (stem ${annex232.matched_stem}), so ${s232Hit.heading} is applied automatically. That 232 layer replaces Section 301-FL. If this article is not a passenger-vehicle or light-truck part, tick “Not an auto part” for 9903.94.06 @ 0%.`,
+      });
+    }
   } else if (claimedAuto232 && !annex232 && is232) {
     diagnostics.push({
       severity: "WARNING",
@@ -1227,9 +1240,9 @@ export function assessLine(line: LineIn, index: number) {
         layers.push(
           layer({
             slot: "3.3",
-            program: "SEC_232_MHDV",
+            program: s232Companion.program,
             ch99: s232Companion.heading,
-            label: "232 MHDV parts list — not an MHDV part",
+            label: s232Companion.label,
             reason: s232Companion.reason + s232Note,
             source_ref: s232Companion.source,
             basis: s232Basis,
@@ -1268,9 +1281,9 @@ export function assessLine(line: LineIn, index: number) {
         layers.push(
           layer({
             slot: "3.3",
-            program: "SEC_232_MHDV",
+            program: s232Companion.program,
             ch99: s232Companion.heading,
-            label: "232 MHDV parts list — not an MHDV part",
+            label: s232Companion.label,
             reason: s232Companion.reason + s232Note,
             source_ref: s232Companion.source,
             basis: s232Basis,

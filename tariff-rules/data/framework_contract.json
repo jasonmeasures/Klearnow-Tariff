@@ -72,7 +72,7 @@
   "stacking_rules": [
     {
       "id": "R1",
-      "text": "232 (autos/parts/vehicles/MHDV/metals/wood/semiconductors/pharma/UAS) and 301-FL are mutually exclusive. 232 wins via 9903.05.90. 9903.08.20 (not for UAS use) does not suppress FL.",
+      "text": "232 (autos/parts/vehicles/MHDV/metals/wood/semiconductors/pharma/UAS) and 301-FL are mutually exclusive. 232 wins via 9903.05.90. Exceptions that do not suppress FL: 9903.08.20 (not for UAS use); 9903.94.06 when claimed as not a PV/LT part (Note 52(f)(3) covers .06 only for USMCA-eligible parts); 9903.74.11 alone (not in Note 52(f)(6)).",
       "status": "CONFIRMED"
     },
     {

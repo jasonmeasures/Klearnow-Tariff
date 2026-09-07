@@ -25,7 +25,12 @@ import {
   assessS232Semiconductors,
   match232SemiconductorHts,
 } from "./s232Semiconductors.ts";
-import { assessS232Uas, previewS232Uas } from "./s232Uas.ts";
+import {
+  assessS232Uas,
+  previewS232Uas,
+  s232UasPartnerCapMessage,
+  S232_UAS_NOT_FOR_USE,
+} from "./s232Uas.ts";
 
 export type S232Family =
   | "autos_parts"
@@ -53,18 +58,29 @@ export type S232EnteredHit = {
   /** MHDV / semiconductor CSMS: do not also assess metals/wood. */
   suppresses_metals: boolean;
   suppresses_wood: boolean;
+  /**
+   * When false, report the 232 heading but still assess 301-FL (Note 52(f) does not
+   * cover this use — e.g. 9903.94.06 “not a PV/LT part”, 9903.08.20, 9903.74.11 alone).
+   * Omit / true → suppress FL via 9903.05.90.
+   */
+  suppresses_301fl?: boolean;
 };
 
 /**
- * 9903.74.11 @ 0% — MHDV parts-list exclusion stacked alongside an auto-parts
- * (or other non-MHDV) 232 winner when the HTS is on both lists.
+ * 0% companion stacked alongside a primary 232 winner (MHDV dual-list .11, or
+ * UAS not-for-use .20 on an auto-parts annex stem).
  */
-export type S232MhdvNotPartCompanion = {
-  heading: "9903.74.11";
+export type S232Companion = {
+  heading: string;
+  program: "SEC_232_MHDV" | "SEC_232_UAS";
+  label: string;
   matched_stem: string;
   reason: string;
   source: string;
 };
+
+/** @deprecated alias — prefer S232Companion */
+export type S232MhdvNotPartCompanion = S232Companion;
 
 export type S232Note = {
   severity: "INFO" | "WARNING";
@@ -144,12 +160,27 @@ const NO_CAP = {
   jp_parts_topup: false,
 };
 
-function mhdvNotPartCompanion(matchedStem: string, source: string): S232MhdvNotPartCompanion {
+function mhdvNotPartCompanion(matchedStem: string, source: string): S232Companion {
   return {
     heading: "9903.74.11",
+    program: "SEC_232_MHDV",
+    label: "232 MHDV parts list — not an MHDV part",
     matched_stem: matchedStem,
     reason: `On MHDV parts list stem ${matchedStem} but not claimed as an MHDV part — 9903.74.11 @ 0% (CSMS #66665333). Auto-parts / other 232 duty remains the operative additional when applicable.`,
     source,
+  };
+}
+
+function uasNotForUseCompanion(matchedStem: string): S232Companion {
+  return {
+    heading: S232_UAS_NOT_FOR_USE,
+    program: "SEC_232_UAS",
+    label: "Section 232 UAS — not for UAS use (9903.08.20)",
+    matched_stem: matchedStem,
+    reason:
+      `Claimed not for UAS use on dual-list stem ${matchedStem}: files 9903.08.20 @ 0% for the UAS program. ` +
+      `Any separate auto-parts 232 duty still depends on whether this article is a passenger-vehicle / light-truck part (CSMS #69738151).`,
+    source: "Proclamation 11055 / U.S. note 43 / CSMS #69738151",
   };
 }
 
@@ -163,8 +194,8 @@ export function resolveS232EnteredValue(opts: {
   col1Rate?: number;
 }): {
   hit: S232EnteredHit | null;
-  /** Dual-list: stack 9903.74.11 with auto-parts (or when s232_mhdv_not_part is claimed with annex). */
-  companion?: S232MhdvNotPartCompanion | null;
+  /** Dual-list companions: 9903.74.11 (MHDV) or 9903.08.20 (UAS not-for-use) stacked with auto-parts. */
+  companion?: S232Companion | null;
   notes: S232Note[];
 } {
   const notes: S232Note[] = [];
@@ -172,6 +203,7 @@ export function resolveS232EnteredValue(opts: {
   const hts = opts.hts;
   const coo = opts.coo;
   const day = opts.rateDay;
+  let pendingUasNotForUse: S232Companion | null = null;
 
   const semi = assessS232Semiconductors({ hts, rateDay: day, flags });
   if (semi?.applies) {
@@ -196,25 +228,45 @@ export function resolveS232EnteredValue(opts: {
   }
 
   const uas = assessS232Uas({ hts, coo, rateDay: day, flags });
+  const partnerCapMsg = s232UasPartnerCapMessage(coo);
   if (uas && "preview_only" in uas) {
     notes.push({ severity: "INFO", code: "S232_UAS_PENDING", message: uas.reason });
+    if (partnerCapMsg) {
+      notes.push({ severity: "INFO", code: "S232_UAS_PARTNER_CAP", message: partnerCapMsg });
+    }
   } else if (uas && "heading" in uas) {
-    return {
-      hit: {
-        family: "uas",
-        program: "SEC_232_UAS",
-        heading: uas.heading,
-        rate_pct_decimal: uas.rate_pct_decimal,
-        label: uas.label,
-        reason: uas.reason,
-        source: "Proclamation 11055 / U.S. note 43 / CSMS #69738151",
-        matched_stem: uas.matched_stem,
-        ...NO_CAP,
-        suppresses_metals: false,
-        suppresses_wood: true,
-      },
-      notes,
-    };
+    const annexForUas = match232AutoPartsAnnex(hts);
+    // Dual-list (UAS list + auto-parts annex): "not for UAS use" is a 0% reporting
+    // companion — keep resolving so auto-parts duty (e.g. JP 9903.94.43) still applies.
+    if (uas.heading === S232_UAS_NOT_FOR_USE && annexForUas) {
+      pendingUasNotForUse = uasNotForUseCompanion(uas.matched_stem || annexForUas.matched_stem);
+      notes.push({
+        severity: "INFO",
+        code: "S232_UAS_NOT_FOR_USE_STACKED",
+        message: pendingUasNotForUse.reason,
+      });
+    } else {
+      if (partnerCapMsg && uas.heading !== S232_UAS_NOT_FOR_USE) {
+        notes.push({ severity: "INFO", code: "S232_UAS_PARTNER_CAP", message: partnerCapMsg });
+      }
+      return {
+        hit: {
+          family: "uas",
+          program: "SEC_232_UAS",
+          heading: uas.heading,
+          rate_pct_decimal: uas.rate_pct_decimal,
+          label: uas.label,
+          reason: uas.reason,
+          source: "Proclamation 11055 / U.S. note 43 / CSMS #69738151",
+          matched_stem: uas.matched_stem,
+          ...NO_CAP,
+          suppresses_metals: false,
+          suppresses_wood: true,
+          suppresses_301fl: uas.suppresses_301fl !== false,
+        },
+        notes,
+      };
+    }
   }
 
   const mhdvOn = s232MhdvAppliesOn(day);
@@ -344,12 +396,13 @@ export function resolveS232EnteredValue(opts: {
             heading: "9903.74.11",
             rate_pct_decimal: 0,
             label: "232 MHDV parts list — not an MHDV part",
-            reason: `On MHDV parts list stem ${mp.matched_stem} but claimed not an MHDV part — 9903.74.11 @ 0% (CSMS #66665333). 301-FL suppressed via 9903.05.90.`,
+            reason: `On MHDV parts list stem ${mp.matched_stem} but claimed not an MHDV part — 9903.74.11 @ 0% (CSMS #66665333). Note 52(f)(6) does not cover .11 — 301-FL still applies.`,
             source: mp.source,
             matched_stem: mp.matched_stem,
             ...NO_CAP,
             suppresses_metals: true,
             suppresses_wood: true,
+            suppresses_301fl: false,
           },
           notes,
         };
@@ -442,8 +495,47 @@ export function resolveS232EnteredValue(opts: {
   }
 
   const claimedAuto = flag(flags, "s232_auto_part", "s232_auto", "s232");
+  const notAutoPart = flag(flags, "s232_auto_not_part", "s232_not_auto_part");
   const annex = match232AutoPartsAnnex(hts);
   if (!opts.chapterMetals && (annex || claimedAuto)) {
+    const companion =
+      pendingUasNotForUse ||
+      (mp && !flag(flags, "s232_mhdv_part", "s232_mhdv")
+        ? mhdvNotPartCompanion(mp.matched_stem, mp.source)
+        : null);
+    if (companion && companion.program === "SEC_232_MHDV") {
+      notes.push({
+        severity: "INFO",
+        code: "S232_MHDV_NOT_PART_STACKED",
+        message: companion.reason,
+      });
+    }
+
+    // Annex HTS that are not parts of passenger vehicles / light trucks → 9903.94.06 @ 0%.
+    // Note 52(f)(3) includes .06 only for the USMCA-eligible-parts use — not this path —
+    // so 301-FL still applies (do not report 9903.05.90).
+    if (annex && notAutoPart) {
+      return {
+        hit: {
+          family: "autos_parts",
+          program: "SEC_232_AUTOS",
+          heading: "9903.94.06",
+          rate_pct_decimal: 0,
+          label: "232 auto-parts list — not a PV / light-truck part",
+          reason:
+            `On auto-parts annex stem ${annex.matched_stem} but claimed not a part of a passenger vehicle or light truck — 9903.94.06 @ 0% (U.S. note 33 / CSMS #64913145). Note 52(f)(3) covers .06 only for USMCA-eligible parts — 301-FL still applies.`,
+          source: annex.source,
+          matched_stem: annex.matched_stem,
+          ...NO_CAP,
+          suppresses_metals: false,
+          suppresses_wood: true,
+          suppresses_301fl: false,
+        },
+        companion,
+        notes,
+      };
+    }
+
     const krSelfCert = Boolean(claimedAuto && !annex && flag(flags, "s232_kr_self_cert"));
     const origin = resolve232PartsOrigin({
       coo,
@@ -453,20 +545,6 @@ export function resolveS232EnteredValue(opts: {
       krSelfCert,
       matchedStem: annex?.matched_stem,
     });
-    // Dual-list (annex + MHDV parts) or explicit not-part claim with annex:
-    // stack 9903.74.11 @ 0% alongside auto-parts. Pack note: auto-parts is the
-    // default unless MHDV part is claimed.
-    const companion =
-      mp && !flag(flags, "s232_mhdv_part", "s232_mhdv")
-        ? mhdvNotPartCompanion(mp.matched_stem, mp.source)
-        : null;
-    if (companion) {
-      notes.push({
-        severity: "INFO",
-        code: "S232_MHDV_NOT_PART_STACKED",
-        message: companion.reason,
-      });
-    }
     return {
       hit: {
         family: "autos_parts",
@@ -511,6 +589,26 @@ export function resolveS232EnteredValue(opts: {
         notes,
       };
     }
+  }
+
+  // Dual-list path deferred .20, but no auto-parts/other winner — still report the claim.
+  if (pendingUasNotForUse) {
+    return {
+      hit: {
+        family: "uas",
+        program: "SEC_232_UAS",
+        heading: pendingUasNotForUse.heading,
+        rate_pct_decimal: 0,
+        label: pendingUasNotForUse.label,
+        reason: pendingUasNotForUse.reason,
+        source: pendingUasNotForUse.source,
+        matched_stem: pendingUasNotForUse.matched_stem,
+        ...NO_CAP,
+        suppresses_metals: false,
+        suppresses_wood: true,
+      },
+      notes,
+    };
   }
 
   return { hit: null, notes };

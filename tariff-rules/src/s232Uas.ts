@@ -88,6 +88,39 @@ function flag(flags: Record<string, boolean> | null | undefined, ...keys: string
   return keys.some((k) => Boolean(f[k]));
 }
 
+function prettyStem(stem: string): string {
+  const d = String(stem || "").replace(/\D/g, "");
+  if (d.length >= 10) return `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6, 10)}`;
+  if (d.length >= 6) return `${d.slice(0, 4)}.${d.slice(4, 6)}${d.length > 6 ? "." + d.slice(6) : ""}`;
+  return stem;
+}
+
+export function s232UasPartnerCapFor(coo: string): {
+  heading: string;
+  cap_pct: number;
+  iso2: string;
+} | null {
+  load();
+  const iso2 = String(coo || "").trim().toUpperCase();
+  if (!iso2) return null;
+  if (partner10.has(iso2)) return { heading: S232_UAS_UK, cap_pct: 10, iso2 };
+  if (partner15.has(iso2)) return { heading: S232_UAS_PARTNER, cap_pct: 15, iso2 };
+  return null;
+}
+
+/** CBP has published the heading but told filers not to report it yet. */
+export function s232UasPartnerCapMessage(coo: string): string | null {
+  const cap = s232UasPartnerCapFor(coo);
+  if (!cap) return null;
+  return (
+    `${cap.iso2} origin can eventually use ${cap.heading} for a ${cap.cap_pct}% combined ` +
+    `Column-1 + Section 232 rate on qualifying UAS goods (Proclamation 11055 clause 4 / U.S. note 43(d)). ` +
+    `That is not automatic: Commerce must first certify that substantially all critical components ` +
+    `and technology are from the United States or listed partners. CBP CSMS #69738151 currently ` +
+    `says do not report ${cap.heading} until further guidance — do not file it on this entry.`
+  );
+}
+
 export function previewS232Uas(hts: string): {
   annex_i: { matched_stem: string } | null;
   annex_ii: { matched_stem: string } | null;
@@ -140,7 +173,7 @@ export function assessS232Uas(opts: {
   if (!s232UasAppliesOn(day)) {
     return {
       preview_only: true,
-      reason: `Section 232 UAS (Proc. 11055 / U.S. note 43) is not applied on ${String(day || "").slice(0, 10) || "(no date)"} — effective ${S232_UAS_START}.`,
+      reason: `Section 232 UAS duties start on ${S232_UAS_START}. This rate date is before that, so no UAS heading is applied.`,
     };
   }
 
@@ -149,7 +182,9 @@ export function assessS232Uas(opts: {
       heading: S232_UAS_NOT_FOR_USE,
       rate_pct_decimal: 0,
       label: "Section 232 UAS — not for UAS use (9903.08.20)",
-      reason: "Claimed 9903.08.20: articles on the note 43 list that are not for use in or with covered UAS. 0% additional; 301-FL is not suppressed.",
+      reason:
+        `Claimed not for UAS use: ${prettyStem((hit100 || hit25 || hitDock || hit8807)!.matched_stem)} is on a UAS list but is not for use in or with covered unmanned aircraft. ` +
+        `Files 9903.08.20 @ 0% additional (CSMS #69738151). Section 301-FL is not turned off by this heading.`,
       matched_stem: (hit100 || hit25 || hitDock || hit8807)!.matched_stem,
       suppresses_301fl: false,
     };
@@ -158,7 +193,10 @@ export function assessS232Uas(opts: {
   if (hitDock && !flag(flags, "s232_uas_docking", "s232_uas_annex_i")) {
     return {
       preview_only: true,
-      reason: `HTS stem ${hitDock.matched_stem} is on the UAS docking list (note 43(c)(1)) but is a general-purpose heading. Claim flags.s232_uas_docking to assess 9903.08.21 @ 100%.`,
+      reason:
+        `${prettyStem(hitDock.matched_stem)} is on CBP’s unmanned-aircraft docking list, but the same HTS is also used for ordinary boards and panels. ` +
+        `Tick “232 UAS docking” only if this article is a UAS docking station or a part for one — that assesses 100% additional duty (9903.08.21). ` +
+        `Leave it off if this is not UAS docking equipment.`,
     };
   }
 
@@ -170,8 +208,8 @@ export function assessS232Uas(opts: {
     return {
       preview_only: true,
       reason: annexIii
-        ? `HTS stem ${hit8807.matched_stem} is on UAS parts lists (note 43(c)(2)/(c)(5)). Claim flags.s232_uas_part (100% heavy) or flags.s232_uas_annex_ii (25% from ${S232_UAS_ANNEX_III}).`
-        : `HTS stem ${hit8807.matched_stem} is on the >25 kg UAS parts list (note 43(c)(2), except retail/ag/DoW). Claim flags.s232_uas_part to assess 9903.08.21 @ 100%. Annex III 25% path starts ${S232_UAS_ANNEX_III}.`,
+        ? `${prettyStem(hit8807.matched_stem)} is on the UAS parts lists. Claim it as a UAS part for 100% additional duty (9903.08.21), or tick “232 UAS Annex III parts” for 25% (9903.08.22).`
+        : `${prettyStem(hit8807.matched_stem)} is on the heavy UAS parts list (>25 kg, except retail / agricultural / Department of War). Claim it as a UAS part to assess 100% additional duty (9903.08.21). A 25% Annex III path starts ${S232_UAS_ANNEX_III}.`,
     };
   }
 
@@ -208,14 +246,14 @@ export function assessS232Uas(opts: {
   if (partnerClaim && (partner10.has(coo) || partner15.has(coo))) {
     const capH = partner10.has(coo) ? S232_UAS_UK : S232_UAS_PARTNER;
     const capPct = partner10.has(coo) ? 10 : 15;
-    bucket += `; ${coo} certified-component cap ${capH} @ ${capPct}% is not computed (combined-cap mechanic TBC)`;
+    bucket += `; ${coo} ${capPct}% partner heading ${capH} is not computed — CBP says do not report it yet`;
   }
 
   return {
     heading,
     rate_pct_decimal: rate / 100,
     label: `Section 232 UAS — ${heading} (${rate}%)`,
-    reason: `Proc. 11055 / U.S. note 43 ${bucket}. Stem ${stem} → ${heading} @ ${rate}% additional from ${S232_UAS_START}. 301-FL suppressed via 9903.05.90.`,
+    reason: `Section 232 UAS ${bucket}: ${prettyStem(stem)} files ${heading} at ${rate}% additional from ${S232_UAS_START}. Section 301-FL is not stacked with this 232 layer.`,
     matched_stem: stem,
     suppresses_301fl: true,
   };

@@ -652,6 +652,15 @@
       "notes": "25%, MFN stacks — rate confirmed 2026-07-30. PROGRAM LABEL UNRESOLVED: 2026-07-27 session treated 9903.94.xx as Section 232 autos family; 2026-07-30 corrections labeled it 'IEEPA universal'. IEEPA (9903.01.xx) was struck down by SCOTUS 2026-02-20, so labeling matters for legal basis / drawback / refund exposure. Confirm with Jason/Marek."
     },
     {
+      "code": "9903.94.06",
+      "program": "SEC_232_AUTOS",
+      "kind": "EXCLUSION",
+      "rate": 0.0,
+      "mfn_interaction": "NORMAL",
+      "status": "CONFIRMED",
+      "notes": "Section 232 auto parts — U.S. note 33(g)/(h) articles that are USMCA-eligible (not KD kits) OR are not parts of passenger vehicles / light trucks. 0% additional (CSMS #64913145 / #64916652). Claim flags.s232_auto_not_part when the HTS is on the annex list but the article is not a PV/LT part. Note 52(f)(3) includes .06 for the USMCA-parts use only — the not-a-part claim does NOT suppress 301-FL via 9903.05.90."
+    },
+    {
       "code": "9903.94.07",
       "program": "SEC_232_AUTOS",
       "kind": "DUTY",

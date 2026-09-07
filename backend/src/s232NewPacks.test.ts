@@ -271,7 +271,7 @@ describe("Section 232 new packs (wood / vehicles / MHDV / semiconductors)", () =
     assert.equal(L.totals.effective_duty_rate_pct, 15);
   });
 
-  it("MHDV-only parts list with s232_mhdv_not_part → 9903.74.11 alone", () => {
+  it("MHDV-only parts list with s232_mhdv_not_part → 9903.74.11 alone; 301-FL still applies", () => {
     const L = assessLine(
       {
         hts: "8709.90.00",
@@ -284,9 +284,11 @@ describe("Section 232 new packs (wood / vehicles / MHDV / semiconductors)", () =
       0,
     );
     assert.ok(L.ch99_sequence.includes("9903.74.11"));
-    assert.ok(L.ch99_sequence.includes("9903.05.90"));
+    assert.ok(L.ch99_sequence.includes("9903.05.39"));
+    assert.ok(!L.ch99_sequence.includes("9903.05.90"));
     assert.ok(!L.ch99_sequence.includes("9903.74.08"));
-    assert.equal(L.totals.duty, 0);
+    assert.equal(L.layers.find((x) => x.ch99 === "9903.74.11")?.duty_amount, 0);
+    assert.equal(L.totals.duty, 1000);
   });
 
   it("dual-list with s232_mhdv_part claim uses .08 not auto-parts", () => {

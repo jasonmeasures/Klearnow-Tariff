@@ -37,11 +37,14 @@ export type CoverageRowIn = {
   flags?: Record<string, boolean>;
   s301_list_3?: boolean | string;
   s232_auto_part?: boolean | string;
+  s232_auto_not_part?: boolean | string;
   s232_mhdv_part?: boolean | string;
   s232_mhdv?: boolean | string;
   s232_semiconductor?: boolean | string;
   s232_vehicle_vintage?: boolean | string;
   s232_wood_not_cabinet?: boolean | string;
+  s232_uas_not_for_use?: boolean | string;
+  s232_uas_docking?: boolean | string;
 };
 
 export type AppliedRule = {
@@ -86,6 +89,7 @@ function rowFlags(row: CoverageRowIn): Record<string, boolean> {
   if (truthy(row.s232_auto_part) || truthy((row as { s232?: unknown }).s232)) {
     flags.s232_auto_part = true;
   }
+  if (truthy(row.s232_auto_not_part)) flags.s232_auto_not_part = true;
   if (truthy(row.s232_mhdv_part) || truthy(row.s232_mhdv)) {
     flags.s232_mhdv_part = true;
     if (truthy(row.s232_mhdv)) flags.s232_mhdv = true;
@@ -93,6 +97,8 @@ function rowFlags(row: CoverageRowIn): Record<string, boolean> {
   if (truthy(row.s232_semiconductor)) flags.s232_semiconductor = true;
   if (truthy(row.s232_vehicle_vintage)) flags.s232_vehicle_vintage = true;
   if (truthy(row.s232_wood_not_cabinet)) flags.s232_wood_not_cabinet = true;
+  if (truthy(row.s232_uas_not_for_use)) flags.s232_uas_not_for_use = true;
+  if (truthy(row.s232_uas_docking)) flags.s232_uas_docking = true;
   if (truthy((row as { civil_aircraft_gn6?: unknown }).civil_aircraft_gn6)) {
     flags.civil_aircraft_gn6 = true;
   }

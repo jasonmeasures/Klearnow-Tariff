@@ -99,7 +99,8 @@ If Column 1 is a specific rate (¢/kg, etc.), a **quantity** field appears. If t
 
 | Checkbox | When you see it | When to tick it |
 |----------|-----------------|-----------------|
-| **232 auto part** | Off-list 8483 / 8708 / 8544 HTS (not on the Proclamation 10908 annex) | Tick to self-cert `9903.94.07`. On-annex HTS auto-applies — no checkbox. |
+| **232 auto part** | Off-list 8483 / 8708 / 8544 HTS (not on the Proclamation 10908 annex) | Tick to self-cert `9903.94.07`. On-annex HTS auto-applies duty unless you use **Not an auto part**. |
+| **Not an auto part** | HTS is on the auto-parts annex (e.g. `8537.10`, `8471`) | Tick when the article is **not** a passenger-vehicle / light-truck part → `9903.94.06` @ 0%. Leave off for Subaru-style auto parts. Note 52(f) does **not** carve this use out of 301-FL — report the economy FL heading (e.g. VN `9903.05.84`), not `9903.05.90`. |
 | **232 MHDV part** | HTS is on the MHDV **parts** list | Tick if the article is actually a part of a medium- or heavy-duty vehicle |
 | **232 semiconductor (Note 39 params)** | HTS is `8471.50` / `8471.80` / `8473.30` | Tick only if TPP / DRAM bandwidth bands in U.S. note 39(b) are met |
 | **25-year vehicle** | HTS is on the passenger or MHDV **vehicle/bus** list | Tick if manufactured ≥25 years before entry (0% additional 232) |
@@ -110,12 +111,13 @@ If Column 1 is a specific rate (¢/kg, etc.), a **quantity** field appears. If t
 | **201 QSP over-quota** | Covered quartz surface product (`6810.99.0020` / `.0040` / `7020.00.6000`) | Tick when the quarterly TRQ is exhausted (`9903.45.31`); default is in-quota `.30` |
 | **232 UAS thermal** | Small-UAS annex II HTS (`8806.21`–`.23` / `.91`–`.93`) | Tick if the aircraft integrates a thermal imager → `9903.08.21` @ 100% (else `.22` @ 25%) |
 | **232 UAS docking** | Docking stems `8504.40.9580` / `8537.10.9170` | Tick for UAS docking end-use → `9903.08.21` @ 100% |
-| **232 UAS part** | `8807` on the UAS parts list | Tick when the article is for a covered UAS |
-| **Not for UAS use** | On a UAS list but not for UAS use | Tick → `9903.08.20` @ 0% (does **not** suppress 301-FL) |
+| **Not for UAS use** | On a UAS list but not for UAS use | Tick → `9903.08.20` @ 0%. On dual-list stems (also on auto-parts annex), also decide **Not an auto part** vs leave auto-parts duty on. |
 
 If no extra claim applies, the form says **No extra claims for this line** instead of a row of empty boxes. The China 301 list override appears only for CN / HK origins.
 
-If a 232 program **auto-applies** from the published HTS list (passenger vehicle, MHDV truck, bus, wood, in-annex auto part), you do **not** need a checkbox. The stack will already include that heading and `9903.05.90` (301-FL suppressed).
+**Subaru vs Jasco (same HTS, different end use):** In-annex HTS such as `8537.10.9170` default to auto-parts 232 (Subaru) and suppress 301-FL via `9903.05.90`. If the goods are not PV/light-truck parts (Jasco), tick **Not an auto part** for `9903.94.06` @ 0% — 301-FL still applies. If they are also on a UAS list and not for UAS use, tick **Not for UAS use** as well.
+
+If a 232 program **auto-applies** from the published HTS list (passenger vehicle, MHDV truck, bus, wood, in-annex auto part), you do **not** need a checkbox for the duty path — unless you are claiming an exclusion such as **Not an auto part**.
 
 ### Reading the result
 

@@ -791,6 +791,11 @@ async function previewHtsMeta() {
         `<span class="pill pill-232" title="Proc. 11055 / U.S. note 43">232 UAS small → 9903.08.22 @ 25% from 2026-09-03</span>`,
       );
     }
+    if (uas.docking) {
+      bits.push(
+        `<span class="pill pill-232" title="CSMS #69738151 / note 43(c)(1)">232 UAS docking list — tick the claim if this is a docking station or part → 9903.08.21 @ 100%</span>`,
+      );
+    }
     if (uas.parts_8807) {
       const annexIiiLive = asOf >= "2027-02-09";
       bits.push(
@@ -1255,6 +1260,7 @@ function applyQuickToLines() {
   if (cn === "list_3") flags.s301_list_3 = true;
   if (cn === "list_4a") flags.s301_list_4a = true;
   if ($("#qc-232")?.checked) flags.s232_auto_part = true;
+  if ($("#qc-232-not")?.checked) flags.s232_auto_not_part = true;
   if ($("#qc-s232-mhdv")?.checked) flags.s232_mhdv_part = true;
   if ($("#qc-s232-mhdv-not")?.checked) flags.s232_mhdv_not_part = true;
   if ($("#qc-s232-semi")?.checked) flags.s232_semiconductor = true;
@@ -1262,6 +1268,8 @@ function applyQuickToLines() {
   if ($("#qc-gn6")?.checked) flags.civil_aircraft_gn6 = true;
   if ($("#qc-s201-over")?.checked) flags.s201_qsp_over_quota = true;
   if ($("#qc-s232-uas-thermal")?.checked) flags.s232_uas_thermal = true;
+  if ($("#qc-s232-uas-docking")?.checked) flags.s232_uas_docking = true;
+  if ($("#qc-s232-uas-not")?.checked) flags.s232_uas_not_for_use = true;
   if ($("#qc-s232-uas-annex-iii")?.checked) flags.s232_uas_annex_ii = true;
   const ftaWrap = $("#qc-fta-wrap");
   const ftaClaimId = ftaWrap?.dataset?.claimId || "";
@@ -1404,11 +1412,14 @@ function syncChina301AdvUi() {
   syncClaimEmptyState();
 }
 
-/** 232 auto-part checkbox: only for off-list self-cert. Annex HTS auto-applies without a claim. */
+/** 232 auto-part checkbox: off-list self-cert. Annex HTS auto-applies unless “Not an auto part”. */
 function sync232AutoPartClaimUi(r) {
   const wrap = $("#qc-232-wrap");
   const box = $("#qc-232");
   const hint = $("#qc-232-hint");
+  const notWrap = $("#qc-232-not-wrap");
+  const notBox = $("#qc-232-not");
+  const notLabel = $("#qc-232-not-label");
   if (!wrap || !box) return;
   const annex = r?.s232_auto_parts;
   const hts = String(r?.hts || $("#qc-hts")?.value || "");
@@ -1419,8 +1430,21 @@ function sync232AutoPartClaimUi(r) {
     box.checked = false;
     delete box.dataset.autoAnnex;
     if (hint) hint.textContent = "(annex — auto-applied)";
+    if (notWrap && notBox) {
+      notWrap.hidden = false;
+      if (notLabel) {
+        notLabel.innerHTML =
+          `Not an auto part <span class="cap">(on annex list but not a PV / light-truck part → 9903.94.06 @ 0%)</span>`;
+      }
+      notWrap.title =
+        "8537.10 and other general-purpose stems appear on CBP’s automobile-parts HTS list. Tick this when the article is not a part of a passenger vehicle or light truck — files 9903.94.06 @ 0% instead of the 25% (or JP/EU/KR 15%) auto-parts duty (CSMS #64913145). 301-FL still applies (Note 52(f)(3) covers .06 only for USMCA-eligible parts).";
+    }
     syncClaimEmptyState();
     return;
+  }
+  if (notWrap && notBox) {
+    notWrap.hidden = true;
+    notBox.checked = false;
   }
   const show = Boolean(r) && offListFamily && !annex?.in_annex;
   wrap.hidden = !show;
@@ -1610,6 +1634,44 @@ function syncS232ClaimUi(uni = {}) {
     if (!show) thermBox.checked = false;
     thermWrap.title =
       "Small-UAS HTS (8806.21–.23 / .91–.93) defaults to 9903.08.22 @ 25%. Tick if the aircraft integrates a thermal imager — then 9903.08.21 @ 100% (note 43(c)(3)).";
+  }
+  const dockWrap = $("#qc-s232-uas-docking-wrap");
+  const dockBox = $("#qc-s232-uas-docking");
+  const dockLabel = $("#qc-s232-uas-docking-label");
+  if (dockWrap && dockBox) {
+    const stem = uni.uas?.docking?.matched_stem;
+    const show = Boolean(stem);
+    dockWrap.hidden = !show;
+    if (!show) dockBox.checked = false;
+    if (dockLabel && stem) {
+      dockLabel.innerHTML =
+        `232 UAS docking station <span class="cap">(tick only if this is UAS docking equipment → 9903.08.21 @ 100%)</span>`;
+    }
+    dockWrap.title =
+      "8537.10.9170 and 8504.40.9580 are also used for non-drone goods. Tick only if the article is a UAS docking station or a part for one. Partner 15%/10% caps (9903.08.24 / .23) are not reportable yet (CSMS #69738151).";
+  }
+  const notWrap = $("#qc-s232-uas-not-wrap");
+  const notBox = $("#qc-s232-uas-not");
+  const notLabel = $("#qc-s232-uas-not-label");
+  if (notWrap && notBox) {
+    const uas = uni.uas || {};
+    const onList = Boolean(uas.annex_i || uas.annex_ii || uas.docking || uas.parts_8807);
+    notWrap.hidden = !onList;
+    if (!onList) notBox.checked = false;
+    if (notLabel) {
+      notLabel.innerHTML =
+        `Not for UAS use <span class="cap">(9903.08.20 @ 0% — does not replace other 301-FL)</span>`;
+    }
+    notWrap.title =
+      "For HTS on a UAS list that are not for use in or with covered unmanned aircraft (CSMS #69738151). Reports 9903.08.20 @ 0%. On dual-list stems also on the auto-parts annex (e.g. 8537.10.9170), tick “Not an auto part” as well if the article is not a passenger-vehicle / light-truck part.";
+  }
+  if (dockBox && notBox) {
+    dockBox.onchange = () => {
+      if (dockBox.checked) notBox.checked = false;
+    };
+    notBox.onchange = () => {
+      if (notBox.checked) dockBox.checked = false;
+    };
   }
   const annexIiiWrap = $("#qc-s232-uas-annex-iii-wrap");
   const annexIiiBox = $("#qc-s232-uas-annex-iii");
@@ -2157,8 +2219,9 @@ function renderResults(R) {
     engChip.textContent = engineLabel(R._engine || S.engine);
   }
   const lines = R.lines || [];
+  const quietDiag = (d) => d.code === "COL1_RESOLVED";
   const count = sev => lines.reduce((a, l) =>
-    a + (l.diagnostics || []).filter(d => d.severity === sev).length, 0);
+    a + (l.diagnostics || []).filter(d => d.severity === sev && !quietDiag(d)).length, 0);
   const nErr = count("ERROR"), nWarn = count("WARNING"), nInfo = count("INFO");
   const landed = R.totals?.landed_cost ?? ((Number(R.totals?.entered_value)||0) + (Number(R.totals?.duty)||0) + (Number(R.totals?.fees)||0));
   const rateTxt = nErr || R.totals?.effective_duty_rate_pct == null
@@ -2387,11 +2450,14 @@ function renderLedger(L) {
     })),
   ].join("");
 
-  const diags = (L.diagnostics || []).map(d => `<div class="diag ${esc(d.severity)}">
+  const diags = (L.diagnostics || []).filter((d) => d.code !== "COL1_RESOLVED").map(d => {
+    const action = d.severity === "INFO" ? "Source" : "Do this";
+    return `<div class="diag ${esc(d.severity)}" title="${esc(d.code || "")}">
       <span class="sev">${esc(d.severity)}</span>
-      <div><div>${esc(d.message)} <code>${esc(d.code)}</code></div>
-      ${d.remediation ? `<div class="fix"><b>Do this:</b> ${esc(d.remediation)}</div>` : ""}</div>
-    </div>`).join("");
+      <div><div>${esc(d.message)}</div>
+      ${d.remediation ? `<div class="fix"><b>${action}:</b> ${esc(d.remediation)}</div>` : ""}</div>
+    </div>`;
+  }).join("");
 
   return `<div class="lineresult">
     <div class="head"><span class="cap">line ${esc(L.line_id)}</span>

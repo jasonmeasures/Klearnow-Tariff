@@ -160,6 +160,104 @@ describe("Section 232 UAS (Proc. 11055)", () => {
     });
     assert.equal(hit, null);
     assert.ok(notes.some((n) => /docking/i.test(n.message)));
+    assert.ok(!notes.some((n) => /flags\.s232_uas_docking/.test(n.message)));
+  });
+
+  it("JP 8537.10.9170 without docking claim stays on auto-parts 15% and does not file 9903.08.24", () => {
+    const L = assessLine(
+      {
+        hts: "8537.10.9170",
+        coo: "JP",
+        entered_value: 10000,
+        col1_rate_pct: 0.027,
+        entry_date: "2026-09-04",
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.94.43"));
+    assert.ok(!L.ch99_sequence.includes("9903.08.21"));
+    assert.ok(!L.ch99_sequence.includes("9903.08.24"));
+    assert.ok(L.diagnostics.some((d) => d.code === "S232_UAS_PENDING"));
+    assert.ok(L.diagnostics.some((d) => d.code === "S232_UAS_PARTNER_CAP"));
+    assert.ok(L.diagnostics.some((d) => d.code === "S232_UAS_PARTNER_CAP" && /do not report/i.test(d.message)));
+  });
+
+  it("8806.24.00 not-for-UAS-use claim → 9903.08.20 @ 0% and does not suppress 301-FL", () => {
+    const L = assessLine(
+      {
+        hts: "8806240000",
+        coo: "CN",
+        entered_value: 10000,
+        col1_rate_pct: 0,
+        entry_date: "2026-09-04",
+        flags: { s232_uas_not_for_use: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.08.20"));
+    assert.ok(!L.ch99_sequence.includes("9903.08.21"));
+    assert.ok(!L.ch99_sequence.includes("9903.05.90"));
+    assert.equal(L.layers.find((x) => x.ch99 === "9903.08.20")?.duty_amount, 0);
+  });
+
+  it("JP 8537.10.9170 not-for-UAS-use keeps auto-parts 9903.94.43 and stacks 9903.08.20 @ 0%", () => {
+    const L = assessLine(
+      {
+        hts: "8537.10.9170",
+        coo: "JP",
+        entered_value: 10000,
+        col1_rate_pct: 0.027,
+        entry_date: "2026-09-04",
+        flags: { s232_uas_not_for_use: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.94.43"));
+    assert.ok(L.ch99_sequence.includes("9903.08.20"));
+    assert.ok(!L.ch99_sequence.includes("9903.08.21"));
+    assert.equal(L.layers.find((x) => x.ch99 === "9903.94.43")?.duty_amount, 1500);
+    assert.equal(L.layers.find((x) => x.ch99 === "9903.08.20")?.duty_amount, 0);
+    assert.ok(L.diagnostics.some((d) => d.code === "S232_UAS_NOT_FOR_USE_STACKED"));
+  });
+
+  it("VN 8537.10.9170 not an auto part + not for UAS → 9903.94.06 + 9903.08.20 + 301-FL .84 (not .90)", () => {
+    const L = assessLine(
+      {
+        hts: "8537.10.9170",
+        coo: "VN",
+        entered_value: 44204.61,
+        col1_rate_pct: 0.027,
+        entry_date: "2026-09-04",
+        flags: { s232_auto_not_part: true, s232_uas_not_for_use: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.94.06"));
+    assert.ok(L.ch99_sequence.includes("9903.08.20"));
+    assert.ok(L.ch99_sequence.includes("9903.05.84"));
+    assert.ok(!L.ch99_sequence.includes("9903.05.90"));
+    assert.ok(!L.ch99_sequence.includes("9903.94.05"));
+    assert.equal(L.layers.find((x) => x.ch99 === "9903.94.06")?.duty_amount, 0);
+    assert.equal(L.layers.find((x) => x.ch99 === "9903.08.20")?.duty_amount, 0);
+    assert.ok(L.diagnostics.some((d) => d.code === "S232_ANNEX_NOT_PART"));
+  });
+
+  it("JP 8537.10.9170 with docking claim files 9903.08.21 @ 100%, not 9903.08.24", () => {
+    const L = assessLine(
+      {
+        hts: "8537.10.9170",
+        coo: "JP",
+        entered_value: 10000,
+        col1_rate_pct: 0.027,
+        entry_date: "2026-09-04",
+        flags: { s232_uas_docking: true },
+      },
+      0,
+    );
+    assert.ok(L.ch99_sequence.includes("9903.08.21"));
+    assert.ok(!L.ch99_sequence.includes("9903.08.24"));
+    assert.equal(L.layers.find((x) => x.ch99 === "9903.08.21")?.duty_amount, 10000);
+    assert.ok(L.diagnostics.some((d) => d.code === "S232_UAS_PARTNER_CAP"));
   });
 
   it("8807 Annex III path computes 9903.08.22 from 2027-02-09 when claimed", () => {
